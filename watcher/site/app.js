@@ -3,27 +3,48 @@
    works exactly the same as the deployed copy. */
 "use strict";
 
-var STORAGE_KEY = "jobwatch:lastVisit";
+/* What counts as "seen" is a POLL timestamp from the data, not the wall-clock
+   moment you opened the page. `first_seen` is the clock of the run that
+   discovered the job, so marking through it is stable: glancing at a stale page
+   at 08:00 cannot bury jobs the watcher found at 07:00 but had not published
+   yet. Anchoring to Date.now() did exactly that, and those jobs were never
+   shown as new again. */
+var STORAGE_KEY = "jobwatch:seenThrough";
+var LEGACY_KEY = "jobwatch:lastVisit";
 var STALE_AFTER = 24 * 3600;      // seconds before the page says so out loud
-var state = { jobs: [], meta: null, lastVisit: 0 };
+var state = { jobs: [], meta: null, seenThrough: 0, firstRun: false };
 
-/* On a first visit there is no "last looked", so nothing is marked new —
-   badging all 800 rows would make the marker meaningless on the one visit where
-   it cannot mean anything. */
 function isNew(job) {
-  return state.lastVisit > 0 && job.first_seen > state.lastVisit;
+  return state.seenThrough > 0 && (job.first_seen || 0) > state.seenThrough;
+}
+
+function newestPoll() {
+  return state.jobs.reduce(function (max, j) {
+    return Math.max(max, j.first_seen || 0);
+  }, 0);
 }
 
 /* localStorage throws in private mode and in some embedded webviews; a missing
-   "new since last visit" marker must never take the page down with it. */
-function readLastVisit() {
+   marker must never take the page down with it. */
+function readSeenThrough() {
   try {
-    var v = parseInt(window.localStorage.getItem(STORAGE_KEY) || "0", 10);
-    return isFinite(v) ? v : 0;
+    var v = window.localStorage.getItem(STORAGE_KEY);
+    if (v === null) v = window.localStorage.getItem(LEGACY_KEY);   // pre-upgrade stamp
+    var n = parseInt(v || "0", 10);
+    return isFinite(n) ? n : 0;
   } catch (e) { return 0; }
 }
-function writeLastVisit(ts) {
+function writeSeenThrough(ts) {
   try { window.localStorage.setItem(STORAGE_KEY, String(ts)); } catch (e) { /* fine */ }
+}
+
+/* Only ever advanced by an explicit "Mark all read". Opening the page does not
+   clear anything, so a quick look on the train cannot silently discard the
+   backlog you meant to come back to. */
+function markAllRead() {
+  state.seenThrough = Math.max(state.seenThrough, newestPoll());
+  writeSeenThrough(state.seenThrough);
+  render();
 }
 
 function ago(seconds) {
@@ -110,9 +131,17 @@ function render() {
   list.textContent = "";
   list.appendChild(frag);
   el("#empty").hidden = shown !== 0;
+
+  var unseen = 0;
+  state.jobs.forEach(function (j) { if (isNew(j)) unseen++; });
   var meta = state.meta || {};
   el("#summary").textContent = shown + " of " + state.jobs.length + " open matches" +
+    (unseen ? " · " + unseen + " unseen" : "") +
     (meta.companies ? " · " + meta.companies + " companies watched" : "");
+
+  var mark = el("#markread");
+  mark.hidden = unseen === 0;
+  mark.textContent = "Mark " + unseen + " read";
 }
 
 /* navigator.clipboard is unavailable on http:// and in older iOS Safari, hence
@@ -184,17 +213,27 @@ function load() {
 }
 
 function start() {
-  state.lastVisit = readLastVisit();
+  state.seenThrough = readSeenThrough();
+  state.firstRun = state.seenThrough === 0;
   ["#q", "#company", "#newonly"].forEach(function (sel) {
     el(sel).addEventListener("input", render);
   });
+  el("#markread").addEventListener("click", markAllRead);
   load().then(function () {
     fillCompanies();
     renderFreshness();
+    /* First ever visit: there is no "already seen", and badging 900 rows would
+       make the marker meaningless. Mark through the newest poll and start
+       counting from the next one. */
+    if (state.firstRun) {
+      state.seenThrough = newestPoll();
+      writeSeenThrough(state.seenThrough);
+    } else if (state.jobs.some(isNew)) {
+      /* Land on the unseen ones instead of the full list — not scrolling past
+         jobs you have already read is the whole point. */
+      el("#newonly").checked = true;
+    }
     render();
-    /* Stamp the visit only after a successful render, so a failed load does not
-       silently clear the "new since last time" markers. */
-    writeLastVisit(Math.floor(Date.now() / 1000));
   }).catch(function (err) {
     el("#freshness").textContent = "could not load data";
     el("#summary").textContent = String(err.message || err);
