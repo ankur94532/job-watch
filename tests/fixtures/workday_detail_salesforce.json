@@ -1,0 +1,90 @@
+{
+ "jobPostingInfo": {
+  "id": "c68f471104621000c799651cf48b0001",
+  "title": "Senior Manager, Software Engineering",
+  "jobDescription": "<p>trimmed</p>",
+  "location": "Georgia - Atlanta",
+  "additionalLocations": [
+   "New York - New York",
+   "California - San Francisco"
+  ],
+  "postedOn": "Posted Today",
+  "startDate": "2026-09-15",
+  "timeType": "Full time",
+  "jobReqId": "JR356609",
+  "jobPostingId": "Senior-Manager--Software-Engineering_JR356609-2",
+  "jobPostingSiteId": "External_Career_Site",
+  "country": {
+   "descriptor": "United States of America",
+   "id": "bc33aa3152ec42d4995f4791a106ed09"
+  },
+  "canApply": true,
+  "posted": true,
+  "includeResumeParsing": true,
+  "jobRequisitionLocation": {
+   "descriptor": "Georgia - Atlanta",
+   "country": {
+    "descriptor": "United States of America",
+    "id": "bc33aa3152ec42d4995f4791a106ed09",
+    "alpha2Code": "US"
+   }
+  },
+  "remoteType": "Office Tech-Flexible",
+  "externalUrl": "https://salesforce.wd12.myworkdayjobs.com/External_Career_Site/job/Georgia---Atlanta/Senior-Manager--Software-Engineering_JR356609-2",
+  "questionnaireId": "96555e5bb83a1001f0d93bcd5dbc0000"
+ },
+ "hiringOrganization": {
+  "name": "100 Salesforce, Inc.",
+  "url": ""
+ },
+ "similarJobs": [
+  {
+   "title": "Senior Manager, Software Engineering (REMOTE)",
+   "externalPath": "/job/California---San-Francisco/Senior-Manager--Software-Engineering--REMOTE-_JR359006",
+   "timeType": "Full time",
+   "locationsText": "2 Locations",
+   "postedOn": "Posted 11 Days Ago",
+   "startDate": "2026-09-04",
+   "remoteType": "Remote Home-Based"
+  },
+  {
+   "title": "Senior Engineering Manager- Design Systems & Accessibility",
+   "externalPath": "/job/Georgia---Atlanta/Senior-Engineering-Manager--Design-Systems---Accessibility_JR357962-1",
+   "timeType": "Full time",
+   "locationsText": "3 Locations",
+   "postedOn": "Posted 12 Days Ago",
+   "startDate": "2026-09-03",
+   "remoteType": "Office Tech-Flexible"
+  },
+  {
+   "title": "Senior / Lead Software Engineer - Database/Distributed Storage Engineering",
+   "externalPath": "/job/California---San-Francisco/Senior---Lead-Software-Engineer---Database-Distributed-Storage-Engineering_JR328544",
+   "timeType": "Full time",
+   "locationsText": "2 Locations",
+   "postedOn": "Posted 30+ Days Ago",
+   "startDate": "2026-04-24",
+   "remoteType": "Office - Flexible"
+  },
+  {
+   "title": "Senior/Lead Software Engineer, Developer Productivity (AI Tooling)",
+   "externalPath": "/job/California---San-Francisco/Senior-Lead-Software-Engineer--Developer-Productivity--AI-Tooling-_JR356261",
+   "timeType": "Full time",
+   "locationsText": "California - San Francisco",
+   "postedOn": "Posted 14 Days Ago",
+   "startDate": "2026-09-01",
+   "remoteType": "Office Tech-Flexible"
+  },
+  {
+   "title": "Senior Software Engineer - Trusted Services",
+   "externalPath": "/job/New-York---New-York/Distributed-Systems-Engineer-SMTS-LMTS_JR347084",
+   "timeType": "Full time",
+   "locationsText": "New York - New York",
+   "postedOn": "Posted 4 Days Ago",
+   "startDate": "2026-09-11",
+   "remoteType": "Office Tech-Flexible",
+   "timeLeftToApply": "30+ days left to apply",
+   "jobPostingEndDateAsText": "End Date: January 25, 2027"
+  }
+ ],
+ "userAuthenticated": false
+}

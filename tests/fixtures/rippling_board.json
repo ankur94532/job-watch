@@ -1,0 +1,67 @@
+[
+ {
+  "uuid": "0560517a-7512-4b3c-9f76-d699cd76a93c",
+  "name": "Account Executive - New Logo Sales, SSB (NAMER)",
+  "department": {
+   "id": "Sales",
+   "label": "Sales"
+  },
+  "url": "https://ats.rippling.com/rippling/jobs/0560517a-7512-4b3c-9f76-d699cd76a93c",
+  "workLocation": {
+   "label": "Bangalore, India",
+   "id": "Bangalore, India"
+  }
+ },
+ {
+  "uuid": "a474da4d-2ee2-47f2-9697-cc896ac49260",
+  "name": "Account Executive (SMB), Rippling Spend ",
+  "department": {
+   "id": "Sales",
+   "label": "Sales"
+  },
+  "url": "https://ats.rippling.com/rippling/jobs/a474da4d-2ee2-47f2-9697-cc896ac49260",
+  "workLocation": {
+   "label": "Bangalore, India",
+   "id": "Bangalore, India"
+  }
+ },
+ {
+  "uuid": "75ad50c6-778f-42ee-9c63-70d1cd687202",
+  "name": "Account Executive, Broker Channel (Austin & San Antonio)",
+  "department": {
+   "id": "Sales",
+   "label": "Sales"
+  },
+  "url": "https://ats.rippling.com/rippling/jobs/75ad50c6-778f-42ee-9c63-70d1cd687202",
+  "workLocation": {
+   "label": "Austin, TX",
+   "id": "Austin, TX"
+  }
+ },
+ {
+  "uuid": "multi-1",
+  "name": "Software Engineer, Platform",
+  "department": {
+   "id": "Engineering",
+   "label": "Engineering"
+  },
+  "url": "https://ats.rippling.com/rippling/jobs/multi-1",
+  "workLocation": {
+   "label": "San Francisco, CA",
+   "id": "San Francisco, CA"
+  }
+ },
+ {
+  "uuid": "multi-1",
+  "name": "Software Engineer, Platform",
+  "department": {
+   "id": "Engineering",
+   "label": "Engineering"
+  },
+  "url": "https://ats.rippling.com/rippling/jobs/multi-1",
+  "workLocation": {
+   "label": "Bangalore, India",
+   "id": "Bangalore, India"
+  }
+ }
+]

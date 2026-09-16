@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template. `make install` renders the @@...@@ placeholders (interpreter, paths,
+  and the secrets from deploy/jobswatch.env) into
+  ~/Library/LaunchAgents/com.shashwattripathi.jobswatch.plist with mode 600.
+  This file is committed; the rendered one holds the token and is not.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>@@LABEL@@</string>
+
+  <!-- Absolute paths only: launchd gives the job no PATH, no shell profile,
+       and no pyenv/asdf shims. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>@@PYTHON@@</string>
+    <string>-m</string>
+    <string>watcher</string>
+    <string>run</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>@@WORKDIR@@</string>
+
+  <!-- Fires every 15 minutes. If the lid was shut, launchd runs the job once on
+       wake rather than skipping it the way cron does; the diff is against stored
+       state, so one catch-up poll reports everything missed overnight. -->
+  <key>StartInterval</key>
+  <integer>900</integer>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>ProcessType</key>
+  <string>Background</string>
+
+  <key>LowPriorityIO</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>@@LOGDIR@@/jobswatch.log</string>
+  <key>StandardErrorPath</key>
+  <string>@@LOGDIR@@/jobswatch.err.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+@@ENVIRONMENT@@
+  </dict>
+</dict>
+</plist>

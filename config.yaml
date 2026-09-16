@@ -1,0 +1,359 @@
+# Job Watcher config.
+#
+# Every entry below was verified with a live fetch on 2026-09-16; the comment on
+# each records what came back. Evidence and endpoint quirks: watcher/adapters/README.md
+#
+# Per-company `title:` / `location:` lists REPLACE the defaults for that company.
+# `page_delay:` (seconds) overrides the gap between requests within one company.
+# `interval:` (seconds) overrides the poll cadence — default 900, or 3600 for any
+# paginated board (Workday, Eightfold, amazon.jobs), which cost dozens of
+# requests per sweep and mostly cannot revalidate with an ETag.
+# `ats: unsupported` companies are listed so it is visible they are NOT watched.
+#
+# Keep `companies:` as the last block — `watcher detect --write` appends to it.
+
+defaults:
+  # Pacing. Deliberately slow: one company at a time, one page at a time, both
+  # jittered ±30%. `run_budget` is the seconds of fetching per run — keep the
+  # whole run under ~60s so a poll never straddles a sleep transition.
+  # With 49 companies, 1.2s between them fits roughly 30 per run, so a company
+  # is polled every ~2 runs (~30 min). Raise company_delay to be gentler.
+  company_delay: 1.2
+  page_delay: 0.5
+  run_budget: 50
+
+  # Workday location strings usually omit the country ("Bengaluru", "Chennai"),
+  # so India cities are listed explicitly alongside "india".
+  location: [india, bangalore, bengaluru, hyderabad, chennai, pune, mumbai,
+             gurugram, gurgaon, noida, delhi, remote]
+  # Most-wanted first: alert ranking uses this order. No seniority or
+  # years-of-experience terms on purpose — Indian offices post generic
+  # "Software Engineer" reqs with no level attached.
+  title: [software engineer, software engineering, software development engineer,
+          member of technical staff, mts, amts, smts, lmts, pmts, sde, backend,
+          back end, full stack, fullstack, distributed, search, relevance,
+          infrastructure, platform, machine learning, low latency, systems engineer]
+
+# Read-only phone view: static files only, no server and no API (see DEPLOY.md).
+# `watcher run` renders these after a successful run; `publish` force-pushes them
+# to an orphan `site` branch that Cloudflare Pages serves from the private repo.
+export:
+  enabled: true
+  out: docs
+  publish: false       # flip to true once the repo has a private remote (DEPLOY.md)
+  branch: site
+  remote: origin
+
+companies:
+
+  # ---- Greenhouse (whole board in one request, ETag → 304) -------------------
+
+  rubrik:
+    ats: greenhouse
+    token: rubrik                        # 138 postings, 25 in India
+  elastic:
+    ats: greenhouse
+    token: elastic                       # 360 postings, 17 in India
+  airbnb:
+    ats: greenhouse
+    token: airbnb                        # 158 postings, 9 in India (Bangalore, Gurugram)
+  algolia:
+    ats: greenhouse
+    token: algolia                       # 30 postings
+  glean:
+    ats: greenhouse
+    token: gleanwork                     # 118 postings, 23 in India
+  sourcegraph:
+    ats: greenhouse
+    token: sourcegraph91                 # 8 postings
+  databricks:
+    ats: greenhouse
+    token: databricks                    # 885 postings, 102 in India
+  mongodb:
+    ats: greenhouse
+    token: mongodb                       # 411 postings, 76 in India
+  yugabyte:
+    ats: greenhouse
+    token: yugabyte                      # 14 postings, 6 in India
+  couchbase:
+    ats: greenhouse
+    token: couchbaseinc                  # 14 postings, 8 in India
+  observeai:
+    ats: greenhouse
+    token: observeai                     # 18 postings, 10 in India
+  postman:
+    ats: greenhouse
+    token: postman                       # 67 postings, 6 in India
+  harness:
+    ats: greenhouse
+    token: harnessinc                    # 66 postings, 17 in India
+  adyen:
+    ats: greenhouse
+    token: adyen                         # 224 postings, 8 in India
+  razorpay:
+    ats: greenhouse
+    token: razorpaysoftwareprivatelimited # 24 postings; found via razorpay.com/careers
+  arcesium:
+    ats: greenhouse
+    token: arcesiumllc                   # 42 postings, 22 in India
+  towerresearch:
+    ats: greenhouse
+    token: towerresearchcapital          # 88 postings, 16 in India
+  graviton:
+    ats: greenhouse
+    token: gravitonresearchcapital       # 18 postings, 13 in India
+  worldquant:
+    ats: greenhouse
+    token: worldquant                    # 103 postings, 6 in India
+  jumptrading:
+    ats: greenhouse
+    token: jumptrading                   # 107 postings, 4 in India
+
+  # ---- Lever (whole board in one request, ETag → 304) -----------------------
+
+  meesho:
+    ats: lever
+    token: meesho                        # 50 postings, 47 in India
+  netomi:
+    ats: lever
+    token: netomi                        # 23 postings, 13 in India
+  levelai-lever:
+    ats: lever
+    token: levelai                       # 19 postings, 16 in India; newest 2026-08-10.
+    # Level AI runs two boards. This is the older one — watch both until one dies.
+
+  # ---- Ashby (whole board in one request, ETag → 304) -----------------------
+
+  sarvam:
+    ats: ashby
+    token: sarvam                        # 63 postings, all India
+  perplexity:
+    ats: ashby
+    token: perplexity                    # 117 postings
+  cohere:
+    ats: ashby
+    token: cohere                        # 143 postings
+  snowflake:
+    ats: ashby
+    token: snowflake                     # 358 postings, 16 in India
+  confluent:
+    ats: ashby
+    token: confluent                     # 21 postings
+  redis:
+    ats: ashby
+    token: redis                         # 22 postings, 3 in India
+  pinecone:
+    ats: ashby
+    token: pinecone                      # 7 postings
+  weaviate:
+    ats: ashby
+    token: weaviate                      # 2 postings
+  levelai:
+    ats: ashby
+    token: level-ai                      # 15 postings, 9 in India; newest 2026-09-14
+
+  # ---- SmartRecruiters (100/page, ETag on page 0) ---------------------------
+
+  swiggy:
+    ats: smartrecruiters
+    token: swiggy                        # 89 postings, 88 in India
+  freshworks:
+    ats: smartrecruiters
+    token: freshworks                    # 140 postings, 41 in India
+
+  # ---- Workday (20/page, no ETag → hourly; tenant/shard/site from a live job URL)
+
+  salesforce:
+    ats: workday
+    tenant: salesforce
+    shard: wd12
+    sites: [External_Career_Site]        # 1465 reqs ≈ 74 requests per sweep
+  natwest:
+    ats: workday
+    tenant: rbs                          # NatWest's Workday tenant is still the RBS one
+    shard: wd3
+    sites: [RBS]                         # 89 reqs, Bengaluru/Chennai/Gurugram present
+  adobe:
+    ats: workday
+    tenant: adobe
+    shard: wd5
+    sites: [external_experienced]        # 733 reqs, 98 in India
+  walmart:
+    ats: workday
+    tenant: walmart
+    shard: wd504                         # yes, three digits — wd5 answers 422
+    sites: [WalmartExternal]             # 2000 reqs ≈ 100 requests per sweep
+    interval: 7200                       # the biggest board here; poll it half as often
+  sprinklr:
+    ats: workday
+    tenant: sprinklr
+    shard: wd1
+    sites: [careers]                     # 87 reqs, 17 in India
+  browserstack:
+    ats: workday
+    tenant: browserstack
+    shard: wd3
+    sites: [External]                    # 30 reqs, 29 in India
+  wex:
+    ats: workday
+    tenant: wexinc
+    shard: wd5
+    sites: [WEXInc]                      # slug found via the applyUrl in careers.wexinc.com's
+                                         # Phenom widgets API, same trick as eBay
+  paloaltonetworks:
+    ats: workday
+    tenant: paloaltonetworks
+    shard: wd5
+    sites: [panwexternalcareers]         # 1516 reqs ≈ 76 requests per sweep
+  nvidia:
+    ats: workday
+    tenant: nvidia
+    shard: wd5
+    sites: [NVIDIAExternalCareerSite]    # 2000 reqs — the cap; ~100 requests per sweep.
+                                         # Tenant was in Workday maintenance when added; the
+                                         # runner retries and seeds it silently when it returns.
+    interval: 7200
+  ebay:
+    ats: workday
+    tenant: ebay
+    shard: wd5
+    sites: [apply]                       # slug is literally "apply"; found via the applyUrl
+                                         # in jobs.ebayinc.com's Phenom API. 299 reqs.
+  paypal:
+    ats: workday
+    tenant: paypal
+    shard: wd1
+    sites: [jobs]                        # 385 reqs; careers.pypl.com itself is Cloudflare-gated
+  fractal:
+    ats: workday
+    tenant: fractal
+    shard: wd1
+    sites: [Careers]                     # 144 reqs, 24 in India
+
+  # ---- Less uniform boards, still public keyless JSON ------------------------
+  # Eightfold is multi-tenant (host + domain per company); the other two are
+  # one-company endpoints. All three page differently and need a location filter
+  # server-side, so they are hourly. See watcher/adapters/README.md.
+
+  netflix:
+    ats: eightfold
+    api: apply                           # explore.jobs.netflix.net speaks the older flavour;
+    host: explore.jobs.netflix.net       # pcsx answers "not enabled for this user"
+    domain: netflix.com
+    locations: [India]                   # 9 India positions of 478 worldwide
+  docusign:
+    ats: jibe
+    host: careers.docusign.com           # iCIMS underneath, Jibe front end: 77 India of 245
+    locations: [India]
+  microsoft:
+    ats: eightfold
+    host: apply.careers.microsoft.com
+    domain: microsoft.com
+    locations: [India]                   # 221 open India positions, 10 rows/page
+    page_delay: 6.0                      # Eightfold rate-limits by volume, not spacing:
+    interval: 7200                       # 23 requests/sweep tripped 429 at 0.5s AND at 6s
+                                         # once the hour's quota was spent. Two-hourly, slow,
+                                         # and the persisted backoff absorbs the rest.
+  amazon:
+    ats: amazon
+    countries: [IND]                     # 2325 open India reqs, 100 rows/page
+  atlassian:
+    ats: atlassian                       # their iCIMS board, published as JSON: 285 listings
+  rippling:
+    ats: rippling
+    token: rippling                      # 647 rows / 334 jobs, 90 in Bangalore; no date, no req id
+  intuit:
+    ats: radancy
+    host: jobs.intuit.com                # sitemap feed: 512 jobs, 34 in Bengaluru.
+    interval: 3600                       # 330KB, no ETag — see adapters/README.md for
+                                         # what the sitemap route costs in fidelity
+
+  oracle:
+    ats: oracle                          # Oracle runs its own Recruiting Cloud
+    host: eeho.fa.us2.oraclecloud.com
+    site: CX_45001
+    locations: [India]                   # 41 India reqs of 2165; a 400-row scan agrees.
+                                         # City-level filters are IGNORED by this tenant —
+                                         # location: [Bengaluru] silently returns all 2165.
+  jpmorganchase:
+    ats: oracle                          # Oracle Recruiting Cloud candidate API
+    host: jpmc.fa.oraclecloud.com
+    site: CX_1001
+    locations: [India]                   # 314 India reqs of 7394 total, 200 rows/page
+
+  # ---- Not watched: no adapter for their ATS --------------------------------
+  # Each was checked live on 2026-09-16. Fix one by finding a real board URL and
+  # running `watcher detect <url> --write`.
+
+  linkedin:
+    ats: unsupported
+    note: "own board; Greenhouse 'linkedin' is 'LI Test Company' and Lever 'linkedin' is a sandbox"
+  apple:
+    ats: unsupported
+    note: "jobs.apple.com is a JS app; /api/role/search 301s away and no endpoint is in the served HTML"
+  meta:
+    ats: unsupported
+    note: "metacareers.com GraphQL needs a doc_id + session token; answers 400 without them"
+  google:
+    ats: unsupported
+    note: "self-hosted google.com/about/careers"
+  uber:
+    ats: unsupported
+    note: "self-hosted uber.com/careers; SmartRecruiters 'uber' is one 2021 'Test UAT' row"
+  nutanix:
+    ats: unsupported
+    note: "careers.nutanix.com is Cloudflare-gated; page references Jobvite"
+  chargebee:
+    ats: unsupported
+    note: "no public board at all — chargebee.com/careers sends applicants to LinkedIn"
+  hasura:
+    ats: unsupported
+    note: "self-hosted hasura.io/careers (PromptQL)"
+  gupshup:
+    ats: unsupported
+    note: "self-hosted gupshup.io careers"
+  krutrim:
+    ats: unsupported
+    note: "self-hosted olakrutrim.com careers"
+  qdrant:
+    ats: unsupported
+    note: "self-hosted qdrant.tech/careers"
+  vespa:
+    ats: unsupported
+    note: "self-hosted vespa.ai careers"
+  scylladb:
+    ats: unsupported
+    note: "self-hosted scylladb.com/careers"
+  flipkart:
+    ats: unsupported
+    note: "self-hosted flipkartcareers.com"
+  myntra:
+    ats: unsupported
+    note: "self-hosted careers.myntra.com"
+  nykaa:
+    ats: unsupported
+    note: "self-hosted nykaa.com careers"
+  zepto:
+    ats: unsupported
+    note: "self-hosted zeptonow.com careers"
+  bookmyshow:
+    ats: unsupported
+    note: "self-hosted bookmyshow.com careers"
+  zomato:
+    ats: unsupported
+    note: "self-hosted eternal.com/careers; SmartRecruiters 'Zomato1' is a dead 2016 board"
+  blinkit:
+    ats: unsupported
+    note: "self-hosted blinkit.com/careers (Eternal), Cloudflare-gated"
+  phonepe:
+    ats: unsupported
+    note: "self-hosted phonepe.com/careers/job-openings"
+  medianet:
+    ats: unsupported
+    note: "self-hosted media.net careers; SmartRecruiters 'medianet' is one 2020 row in Tunisia"
+  quadeye:
+    ats: unsupported
+    note: "self-hosted quadeye.com careers"
+  deshaw:
+    ats: unsupported
+    note: "self-hosted deshaw.com / deshawindia.com careers"

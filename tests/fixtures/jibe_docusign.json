@@ -1,0 +1,376 @@
+{
+ "totalCount": 3,
+ "count": 3,
+ "jobs": [
+  {
+   "data": {
+    "slug": "29563",
+    "language": "en-us",
+    "languages": [
+     "en-us"
+    ],
+    "req_id": "29563",
+    "title": "AI Engineer",
+    "location_name": "IN-Bangalore",
+    "street_address": "Cherry Hills Block\nEmbassy Golf Links Business Park Challaghatta",
+    "city": "Bengaluru",
+    "state": "Karnataka",
+    "country": "India",
+    "country_code": "IN",
+    "postal_code": "560071",
+    "location_type": "LAT_LNG",
+    "latitude": 12.9501606,
+    "longitude": 77.64173509999999,
+    "categories": [
+     {
+      "name": "IT Infrastructure & Operations"
+     }
+    ],
+    "tags1": [
+     "Regular"
+    ],
+    "tags2": [
+     "Hybrid"
+    ],
+    "tags3": [
+     "Shubhi Arora"
+    ],
+    "promotion_value": 0,
+    "employment_type": "FULL_TIME",
+    "qualifications": "Basic Experience building GenAI applications (LLM orchestration, RAG, prompt engineering) Experience with Python, React, and orchestration frameworks like Crew.ai or Langgraph Experience with vector databases and ML-based models for non-text data Experience with AWS/Azure, Docker, Kubernetes, and automated CI/CD/MLOps pipelines Bachelor\u2019s or Master\u2019s in Computer Science with 5+ years of relevant experience Experience with key AWS services including VPC, IAM, and ECS, S3, Lambda Preferred Strong commitment to engineering excellence through automation, innovation, and documentation and presentations to stakeholders One or more certifications such as Cloud, Solution Architect, Technical Architect, or GenAI-related certifications Proficiency in cloud platforms such as AWS and Azure Strong problem-solving skills and the ability to think creatively Strong collaboration skills in cross-functional teams (Product, Design, ML, Data Engineering) Ability to explain complex GenAI concepts to both technical and non-technical stakeholders Integrating test cases with Playwright or UiPath",
+    "responsibilities": "The Generative AI Engineer will design and build AI-powered Quality Agents that automate the end-to-end Software Test Life Cycle (STLC), significantly boosting QA productivity through advanced test case generation, script automation, and execution workflows. The engineer will embed generative AI capabilities across the STLC by enhancing test automation frameworks, integrating with CI/CD pipelines, and enabling quality dashboards to support faster, smarter, and more reliable software delivery. This position is an individual contributor role reporting to the Senior Manager SDET. Responsibility Design and orchestrate specialized AI agents for automated test case, script, and data generation and test execution agents Develop LLM-powered assistants for test execution insights and defect analysis Build conversational chatbots for real-time guidance and natural-language test transactions Implement self-healing automation and RAG solutions using test logs and requirements Integrate AI capabilities into CI/CD pipelines and React-based quality dashboards Collaborate with cross-functional teams to enable AI-assisted, left-shift quality practices Build autonomous and workflow-based agents using CrewAI or similar agentic frameworks, and support agentic AI platforms Implement prompt engineering best practices to minimize token usage and improve output accuracy; contribute to a centralized prompt library Document processes, models, and code to ensure maintainability and reproducibility Collaborate with quality teams and product management teams to translate requirements into effective technical solutions Contribute to GenAI projects from ideation through deployment, iteration, and evaluation of LLM performance Assess building vs. buying the relevant tool and adopt the right tooling for the team Mentor junior team members and be responsible for delivering hands-on delivery along with leading the AI development team Build AI evaluation tools to certify the accuracy, performance, and fact checks Communicate to the broader team well and drive the adoption strategies Communicate clear statistics weekly to all stakeholders",
+    "posted_date": "2026-06-09T06:08:00+0000",
+    "apply_url": "https://indiacareers-docusign.icims.com/jobs/29563/login",
+    "internal": false,
+    "external": false,
+    "searchable": true,
+    "applyable": true,
+    "li_easy_applyable": true,
+    "ats_code": "icims",
+    "isFrontLineAIJob": false,
+    "meta_data": {
+     "last_mod": "2026-07-25T06:01:27.506+00:00",
+     "icims": {
+      "jps_is_public": true,
+      "date_updated": "2026-07-24T17:37:38Z",
+      "primary_posted_site_object": {
+       "site": "indiacareers-docusign",
+       "tenantId": "12844",
+       "siteId": "1140099f-4d2c-445b-a0df-f3bc9236fa20",
+       "datePosted": "2026-06-09T06:08:00+0000",
+       "siteType": "ATTRACT"
+      },
+      "config_keys": {
+       "icims.external.xml.feeds": "icims.indeed.xml.enabled,icims.resume-library.xml.enabled,icims.direct-employers.xml.enabled,icims.monster.xml.enabled,icims.adzuna.xml.enabled,icims.careerbuilder.xml.enabled,icims.ziprecruiter.xml.enabled,icims.craigslist.xml.enabled,icims.itjobscafe.xml.enabled,icims.recruitnet.xml.enabled,icims.upward.xml.enabled,icims.jobbio.xml.enabled,icims.propellum.xml.enabled,icims.snagajob.xml.enabled,icims.inhersight.xml.enabled,icims.pallet-labs.xml.enabled,icims.qkly.xml.enabled,icims.cv-library.xml.enabled,icims.linkedin.xml.enabled,icims.zippia.xml.enabled,icims.puck.xml.enabled,icims.offerup.xml.enabled,icims.jobted.xml.enabled,icims.edtech.xml.enabled,icims.jobgether.xml.enabled,icims.referio.xml.enabled,icims.careerjet.xml.enabled,icims.advantageai.xml.enabled,icims.unpostedjobs.xml.enabled,icims.allyenergy.xml.enabled,icims.stealthstartup.xml.enabled,icims.hiringcafe.xml.enabled,icims.retailappointment.xml.enabled,icims.jobget.xml.enabled,icims.hirebase.xml.enabled,icims.shaker.xml.enabled,icims.tariangroup.xml.enabled,icims.flatworld.xml.enabled,icims.nexxt.xml.enabled,icims.intelycare.xml.enabled,icims.calibersourcing.xml.enabled,icims.almazlabs.xml.enabled,icims.dentalpost.xml.enabled,icims.nejoflexco.xml.enabled,icims.skillsire.xml.enabled,icims.handshake.xml.enabled,icims.hackajob.xml.enabled,icims.jooobs.xml.enabled,icims.openai.xml.enabled",
+       "portal.id": "661850",
+       "ccc.attract.portal.url": "https://careers.docusign.com",
+       "icims.config.web.indeed.easy.apply": "0"
+      },
+      "revision_int": 3,
+      "uuid": "df98c76a-ca79-4892-a36e-a300baff56c7"
+     },
+     "googlejobs": {
+      "jobName": "projects/helpful-passage-853/jobs/79840371185459910",
+      "jobTitleSnippet": "",
+      "companyName": "projects/helpful-passage-853/companies/9810ab3a-d8cd-4ba4-9ee5-ca421241fe3c",
+      "searchTextSnippet": "",
+      "derivedInfo": {
+       "jobCategories": [
+        "SCIENCE_AND_ENGINEERING",
+        "COMPUTER_AND_IT"
+       ],
+       "locations": [
+        {
+         "radiusInMiles": 8.440415114538303e-05,
+         "postalAddress": {
+          "regionCode": "IN",
+          "sortingCode": "",
+          "recipients": [],
+          "organization": "",
+          "postalCode": "560071",
+          "locality": "Bengaluru",
+          "sublocality": "Challaghatta",
+          "addressLines": [
+           "Cherry Hills, 8/2B-9, Embassy Golf Links Business Park, Challaghatta, Bengaluru, Karnataka 560071, India"
+          ],
+          "administrativeArea": "KA",
+          "languageCode": "",
+          "revision": 0
+         },
+         "locationType": "SUB_LOCALITY_2",
+         "latLng": {
+          "latitude": 12.9501606,
+          "longitude": 77.64173509999999
+         }
+        }
+       ]
+      },
+      "jobHash": "b72a10fd0e48f49a0672191acffc971d",
+      "jobSummary": "The Generative AI Engineer will design and build AI-powered Quality Agents that automate the end-to-end Software Test Life Cycle (STLC), significantly boosting QA productivity through advanced test case generation, script automation, and execution workflows. The engineer will embed generative AI capabilities across the STLC by enhancing test automation frameworks, integrating with CI/CD pipelines, and enabling quality dashboards to support faster, smarter, and more reliable software delivery. This position is an individual contributor role reporting to the Senior Manager SDET. Responsibility Design and orchestrate specialized AI agents for automated test case, script, and data generation and test execution agents Develop LLM-powered assistants for test execution insights and defect analysis Build conversational chatbots for real-time guidance and natural-language test transactions Implement self-healing automation and RAG solutions using test logs and requirements Integrate AI capabilities into CI/CD pipelines and React-based quality dashboards Collaborate with cross-functional teams to enable AI-assisted, left-shift quality practices Build autonomous and workflow-based agents using CrewAI or similar agentic frameworks, and support agentic AI platforms Implement prompt engineering best practices to minimize token usage and improve output accuracy; contribute to a centralized prompt library Document processes, models, and code to ensure maintainability and reproducibility Collaborate with quality teams and product management teams to translate requirements into effective technical solutions Contribute to GenAI projects from ideation through deployment, iteration, and evaluation of LLM performance Assess building vs. buying the relevant tool and adopt the right tooling for the team Mentor junior team members and be responsible for delivering hands-on delivery along with leading the AI development team Build AI evaluation tools to certify the accuracy, performance, and fact checks Communicate to the broader team well and drive the adoption strategies Communicate clear statistics weekly to all stakeholders"
+     },
+     "import_id": "edc99c9a-7b90-4935-aa04-faffe4ba6c1e",
+     "redirectOnApply": true,
+     "import_source": "ImporterService",
+     "canonical_url": "https://careers.docusign.com/jobs/29563?lang=en-us",
+     "client_code": "docusign",
+     "gdpr": false
+    },
+    "update_date": "2026-07-25T06:01:27+0000",
+    "create_date": "2026-06-09T06:09:10+0000",
+    "category": [
+     " IT Infrastructure & Operations"
+    ],
+    "full_location": "Bengaluru, India",
+    "short_location": "Bengaluru, India",
+    "multipleLocations": false
+   }
+  },
+  {
+   "data": {
+    "slug": "29642",
+    "language": "en-us",
+    "languages": [
+     "en-us"
+    ],
+    "req_id": "29642",
+    "title": "Data Product Manager - Payment Optimization",
+    "location_name": "IN-Bangalore",
+    "street_address": "Cherry Hills Block\nEmbassy Golf Links Business Park Challaghatta",
+    "city": "Bengaluru",
+    "state": "Karnataka",
+    "country": "India",
+    "country_code": "IN",
+    "postal_code": "560071",
+    "location_type": "LAT_LNG",
+    "latitude": 12.9501606,
+    "longitude": 77.64173509999999,
+    "categories": [
+     {
+      "name": "Marketing & Communications"
+     }
+    ],
+    "tags1": [
+     "Regular"
+    ],
+    "tags2": [
+     "Hybrid"
+    ],
+    "tags3": [
+     "Sanjay VK"
+    ],
+    "promotion_value": 0,
+    "employment_type": "FULL_TIME",
+    "qualifications": "Basic Bachelors degree in Engineering, Computer Science, Statistics, Applied Math or a similar quantitative discipline 5+ years overall professional experience including approximately 3 years in digital product management Experience in data science, analytics or ML engineering in addition to product management experience Hands-on data analysis experience including fluency in SQL and comfort using Python or R to independently run analyses Experience translating ML model outputs into shipped product capabilities or decisioning and routing rules and validating their impact in production Experience working directly with UX, Engineering and Data Science or Testing teams on payment-related or other data-intensive initiatives Knowledge of domestic and international payment options including cards, direct debits, alternate payment methods and gateways in a recurring or subscription environment Experience with payment offerings in a global context and associated optimizations that reduce friction, drive conversion and improve retention Preferred Advanced degree (MS or MBA) in Engineering, Computer Science, Statistics, Applied Math or a related quantitative field Hands-on experience with experimentation platforms (for example A/B testing frameworks), analytics or BI tools and modern data stacks Direct experience with ML applications in payments such as authorization-rate optimization, intelligent routing, churn prediction or anomaly detection in reconciliation Familiarity with causal inference methods (for example diff-in-diff, instrumental variables, uplift modeling) for situations where clean A/B tests are not possible Familiarity with regulations and compliance standards (for example GDPR and PSD2) and their impact on payments, subscriptions and automated decisioning Experience driving complex projects across a large, cross-functional organization Written and verbal communication skills including the ability to translate technical findings for executives and lead through influence across teams",
+    "responsibilities": "As a Technical Product Manager with a strong data and machine learning background in the payments domain, you will drive the analytical and ML strategy for Docusign\u2019s subscription payments. You will frame payment problems as measurable hypotheses, design and interpret experiments with Data Science and Engineering, and translate model outputs into decisioning logic and customer-facing capabilities that improve payment success and retention across multiple processors. You will own the data and ML roadmap for initial and recurring payments, interrogate the data to uncover optimization opportunities, and regularly communicate strategy, experiment results and model performance to senior leadership. This position is an individual contributor role reporting to the Product Management Director. Responsibility Own the data and ML roadmap for initial and recurring payments, identifying where statistical modeling, machine learning and AI automation create measurable business impact, and prioritizing based on expected value, data readiness and technical feasibility Translate ML model outputs into shipped product features and concrete decisioning logic, for example turning routing or retry model scores into specific rules that determine how each transaction is processed and validating that those rules perform in production Perform exploratory data analysis by writing SQL, building cohort and funnel analyses, and segmenting payment behavior to surface optimization opportunities rather than waiting for analysis to be handed to you Design and own the experimentation program: define hypotheses, choose metrics, determine sample sizes and statistical power, guard against pitfalls such as peeking, multiple comparisons and novelty effects, and interpret results rigorously Partner with Data Science to scope, evaluate and ship models such as payment routing, retry optimization and churn prediction, and define evaluation criteria (for example precision and recall, calibration and business-metric lift) before they ship Establish the data foundation by defining instrumentation, data quality standards, feature definitions and monitoring required to train, evaluate and detect drift in production models Translate model behavior and statistical findings into clear requirements and use cases for Engineering, Data Science and UX, driving initiatives from concept to launch Monitor and act on KPIs such as payment success and authorization rates, passive churn, conversion, model precision and recall, and reconciliation accuracy Build dashboards and self-serve analytics that make payment performance legible to leadership and partner teams Partner with Legal, Risk, Finance, Engineering and Compliance to ensure responsible, explainable and auditable use of AI in payment decisioning",
+    "posted_date": "2026-06-16T08:32:00+0000",
+    "apply_url": "https://indiacareers-docusign.icims.com/jobs/29642/login",
+    "internal": false,
+    "external": false,
+    "searchable": true,
+    "applyable": true,
+    "li_easy_applyable": true,
+    "ats_code": "icims",
+    "isFrontLineAIJob": false,
+    "meta_data": {
+     "last_mod": "2026-07-25T06:01:31.058+00:00",
+     "icims": {
+      "jps_is_public": true,
+      "date_updated": "2026-07-24T17:37:38Z",
+      "primary_posted_site_object": {
+       "site": "indiacareers-docusign",
+       "tenantId": "12844",
+       "siteId": "1140099f-4d2c-445b-a0df-f3bc9236fa20",
+       "datePosted": "2026-06-16T08:32:00+0000",
+       "siteType": "ATTRACT"
+      },
+      "config_keys": {
+       "icims.external.xml.feeds": "icims.indeed.xml.enabled,icims.resume-library.xml.enabled,icims.direct-employers.xml.enabled,icims.monster.xml.enabled,icims.adzuna.xml.enabled,icims.careerbuilder.xml.enabled,icims.ziprecruiter.xml.enabled,icims.craigslist.xml.enabled,icims.itjobscafe.xml.enabled,icims.recruitnet.xml.enabled,icims.upward.xml.enabled,icims.jobbio.xml.enabled,icims.propellum.xml.enabled,icims.snagajob.xml.enabled,icims.inhersight.xml.enabled,icims.pallet-labs.xml.enabled,icims.qkly.xml.enabled,icims.cv-library.xml.enabled,icims.linkedin.xml.enabled,icims.zippia.xml.enabled,icims.puck.xml.enabled,icims.offerup.xml.enabled,icims.jobted.xml.enabled,icims.edtech.xml.enabled,icims.jobgether.xml.enabled,icims.referio.xml.enabled,icims.careerjet.xml.enabled,icims.advantageai.xml.enabled,icims.unpostedjobs.xml.enabled,icims.allyenergy.xml.enabled,icims.stealthstartup.xml.enabled,icims.hiringcafe.xml.enabled,icims.retailappointment.xml.enabled,icims.jobget.xml.enabled,icims.hirebase.xml.enabled,icims.shaker.xml.enabled,icims.tariangroup.xml.enabled,icims.flatworld.xml.enabled,icims.nexxt.xml.enabled,icims.intelycare.xml.enabled,icims.calibersourcing.xml.enabled,icims.almazlabs.xml.enabled,icims.dentalpost.xml.enabled,icims.nejoflexco.xml.enabled,icims.skillsire.xml.enabled,icims.handshake.xml.enabled,icims.hackajob.xml.enabled,icims.jooobs.xml.enabled,icims.openai.xml.enabled",
+       "portal.id": "661850",
+       "ccc.attract.portal.url": "https://careers.docusign.com",
+       "icims.config.web.indeed.easy.apply": "0"
+      },
+      "revision_int": 6,
+      "uuid": "ebb4e5db-7671-42d5-a1e9-581869cddfdf"
+     },
+     "googlejobs": {
+      "jobName": "projects/helpful-passage-853/jobs/104338501717107398",
+      "jobTitleSnippet": "",
+      "companyName": "projects/helpful-passage-853/companies/9810ab3a-d8cd-4ba4-9ee5-ca421241fe3c",
+      "searchTextSnippet": "",
+      "derivedInfo": {
+       "jobCategories": [
+        "MANAGEMENT",
+        "COMPUTER_AND_IT",
+        "BUSINESS_OPERATIONS",
+        "ADVERTISING_AND_MARKETING"
+       ],
+       "locations": [
+        {
+         "radiusInMiles": 8.440415114538303e-05,
+         "postalAddress": {
+          "regionCode": "IN",
+          "sortingCode": "",
+          "recipients": [],
+          "organization": "",
+          "postalCode": "560071",
+          "locality": "Bengaluru",
+          "sublocality": "Challaghatta",
+          "addressLines": [
+           "Cherry Hills, 8/2B-9, Embassy Golf Links Business Park, Challaghatta, Bengaluru, Karnataka 560071, India"
+          ],
+          "administrativeArea": "KA",
+          "languageCode": "",
+          "revision": 0
+         },
+         "locationType": "SUB_LOCALITY_2",
+         "latLng": {
+          "latitude": 12.9501606,
+          "longitude": 77.64173509999999
+         }
+        }
+       ]
+      },
+      "jobHash": "f619888d099750aba5b8c264947d0811",
+      "jobSummary": "As a Technical Product Manager with a strong data and machine learning background in the payments domain, you will drive the analytical and ML strategy for Docusign\u2019s subscription payments. You will frame payment problems as measurable hypotheses, design and interpret experiments with Data Science and Engineering, and translate model outputs into decisioning logic and customer-facing capabilities that improve payment success and retention across multiple processors. You will own the data and ML roadmap for initial and recurring payments, interrogate the data to uncover optimization opportunities, and regularly communicate strategy, experiment results and model performance to senior leadership. This position is an individual contributor role reporting to the Product Management Director. Responsibility Own the data and ML roadmap for initial and recurring payments, identifying where statistical modeling, machine learning and AI automation create measurable business impact, and prioritizing based on expected value, data readiness and technical feasibility Translate ML model outputs into shipped product features and concrete decisioning logic, for example turning routing or retry model scores into specific rules that determine how each transaction is processed and validating that those rules perform in production Perform exploratory data analysis by writing SQL, building cohort and funnel analyses, and segmenting payment behavior to surface optimization opportunities rather than waiting for analysis to be handed to you Design and own the experimentation program: define hypotheses, choose metrics, determine sample sizes and statistical power, guard against pitfalls such as peeking, multiple comparisons and novelty effects, and interpret results rigorously Partner with Data Science to scope, evaluate and ship models such as payment routing, retry optimization and churn prediction, and define evaluation criteria (for example precision and recall, calibration and business-metric lift) before they ship Establish the data foundation by defining instrumentation, data quality standards, feature definitions and monitoring required to train, evaluate and detect drift in production models Translate model behavior and statistical findings into clear requirements and use cases for Engineering, Data Science and UX, driving initiatives from concept to launch Monitor and act on KPIs such as payment success and authorization rates, passive churn, conversion, model precision and recall, and reconciliation accuracy Build dashboards and self-serve analytics that make payment performance legible to leadership and partner teams Partner with Legal, Risk, Finance, Engineering and Compliance to ensure responsible, explainable and auditable use of AI in payment decisioning"
+     },
+     "import_id": "edc99c9a-7b90-4935-aa04-faffe4ba6c1e",
+     "redirectOnApply": true,
+     "import_source": "ImporterService",
+     "canonical_url": "https://careers.docusign.com/jobs/29642?lang=en-us",
+     "client_code": "docusign",
+     "gdpr": false
+    },
+    "update_date": "2026-07-25T06:01:31+0000",
+    "create_date": "2026-06-16T08:33:43+0000",
+    "category": [
+     " Marketing & Communications"
+    ],
+    "full_location": "Bengaluru, India",
+    "short_location": "Bengaluru, India",
+    "multipleLocations": false
+   }
+  },
+  {
+   "data": {
+    "slug": "29553",
+    "language": "en-us",
+    "languages": [
+     "en-us"
+    ],
+    "req_id": "29553",
+    "title": "Software Engineer",
+    "location_name": "IN-Bangalore",
+    "street_address": "Cherry Hills Block\nEmbassy Golf Links Business Park Challaghatta",
+    "city": "Bengaluru",
+    "state": "Karnataka",
+    "country": "India",
+    "country_code": "IN",
+    "postal_code": "560071",
+    "location_type": "LAT_LNG",
+    "latitude": 12.9501606,
+    "longitude": 77.64173509999999,
+    "categories": [
+     {
+      "name": "Engineering"
+     }
+    ],
+    "tags1": [
+     "Regular"
+    ],
+    "tags2": [
+     "Hybrid"
+    ],
+    "tags3": [
+     "Sanjay VK"
+    ],
+    "promotion_value": 0,
+    "employment_type": "FULL_TIME",
+    "qualifications": "Basic 5+ years of hands-on software development experience in an object-oriented programming language such as C#, C++, or Java 5+ years of working with cloud deployment and configuration tools using scripting and configuration platforms Hands-on experience with cloud object storage (e.g., Azure Blob, Google Cloud Storage) and/or eventing/messaging platforms (e.g., Azure Event Hub, GCP Pub/Sub), including security hardening, lifecycle management, and cross-cloud abstraction patterns Hands-on experience with system architecture, API design, and distributed systems Proficiency in managing data platform infrastructure as code (IaC) using Terraform Experience with being part of an on-call rotation Preferred Experience in a SaaS environment and practical knowledge of cloud technologies for Distributed systems Experience with storage-related technologies in one of the cloud Azure, GCP, and AWS Worked on platform teams building cross cloud technologies",
+    "responsibilities": "Docusign is looking for a seasoned software engineer to join our microservices framework team, focused on building highly scalable, available, and reliable distributed systems. You will be responsible for designing high-performance, resilient architectures, developing microservices frameworks, and implementing cloud-based data platform systems to support global-scale business needs. You will also work on infrastructure automation, CI/CD pipelines, and Terraform-based deployments. This position is an individual contributor role reporting to the Senior Director, Engineering. Responsibility Think about how to solve problems at scale and build automation to manage complex software systems Develop testable, high-quality, and ship-ready code with ample test coverage Work with Product Management and other developers to understand and translate engineering requirements into design and architectural solutions Work as part of a cross-site development team to drive design, implementation, testing, and release of microservices platforms Manage infrastructure as code using Terraform to deploy and maintain cloud environments Implement best practices for cloud security, performance, and cost optimization Collaborate with cross-functional teams to define technical architecture and cloud strategies Participate in on-call rotations and contribute to improving system reliability and incident response Designing, building, and maintaining robust data platform solutions leveraging modern tools",
+    "posted_date": "2026-06-05T01:06:00+0000",
+    "apply_url": "https://indiacareers-docusign.icims.com/jobs/29553/login",
+    "internal": false,
+    "external": false,
+    "searchable": true,
+    "applyable": true,
+    "li_easy_applyable": true,
+    "ats_code": "icims",
+    "isFrontLineAIJob": false,
+    "meta_data": {
+     "last_mod": "2026-08-19T06:22:12.783+00:00",
+     "icims": {
+      "jps_is_public": true,
+      "date_updated": "2026-08-18T12:36:33Z",
+      "primary_posted_site_object": {
+       "site": "indiacareers-docusign",
+       "tenantId": "12844",
+       "siteId": "1140099f-4d2c-445b-a0df-f3bc9236fa20",
+       "datePosted": "2026-06-05T01:06:00+0000",
+       "siteType": "ATTRACT"
+      },
+      "config_keys": {
+       "icims.external.xml.feeds": "icims.indeed.xml.enabled,icims.resume-library.xml.enabled,icims.direct-employers.xml.enabled,icims.monster.xml.enabled,icims.adzuna.xml.enabled,icims.careerbuilder.xml.enabled,icims.ziprecruiter.xml.enabled,icims.craigslist.xml.enabled,icims.itjobscafe.xml.enabled,icims.recruitnet.xml.enabled,icims.upward.xml.enabled,icims.jobbio.xml.enabled,icims.propellum.xml.enabled,icims.snagajob.xml.enabled,icims.inhersight.xml.enabled,icims.pallet-labs.xml.enabled,icims.qkly.xml.enabled,icims.cv-library.xml.enabled,icims.linkedin.xml.enabled,icims.zippia.xml.enabled,icims.puck.xml.enabled,icims.offerup.xml.enabled,icims.jobted.xml.enabled,icims.edtech.xml.enabled,icims.jobgether.xml.enabled,icims.referio.xml.enabled,icims.careerjet.xml.enabled,icims.advantageai.xml.enabled,icims.unpostedjobs.xml.enabled,icims.allyenergy.xml.enabled,icims.stealthstartup.xml.enabled,icims.hiringcafe.xml.enabled,icims.retailappointment.xml.enabled,icims.jobget.xml.enabled,icims.hirebase.xml.enabled,icims.shaker.xml.enabled,icims.tariangroup.xml.enabled,icims.flatworld.xml.enabled,icims.nexxt.xml.enabled,icims.intelycare.xml.enabled,icims.calibersourcing.xml.enabled,icims.almazlabs.xml.enabled,icims.dentalpost.xml.enabled,icims.nejoflexco.xml.enabled,icims.skillsire.xml.enabled,icims.handshake.xml.enabled,icims.hackajob.xml.enabled,icims.jooobs.xml.enabled,icims.openai.xml.enabled",
+       "portal.id": "661850",
+       "ccc.attract.portal.url": "https://careers.docusign.com",
+       "icims.config.web.indeed.easy.apply": "0"
+      },
+      "revision_int": 10,
+      "uuid": "6f6233bb-58f5-493d-8427-8137ebba75a7"
+     },
+     "googlejobs": {
+      "jobName": "projects/helpful-passage-853/jobs/91646467483017926",
+      "jobTitleSnippet": "",
+      "companyName": "projects/helpful-passage-853/companies/9810ab3a-d8cd-4ba4-9ee5-ca421241fe3c",
+      "searchTextSnippet": "",
+      "derivedInfo": {
+       "jobCategories": [
+        "COMPUTER_AND_IT"
+       ],
+       "locations": [
+        {
+         "radiusInMiles": 8.440415114538303e-05,
+         "postalAddress": {
+          "regionCode": "IN",
+          "sortingCode": "",
+          "recipients": [],
+          "organization": "",
+          "postalCode": "560071",
+          "locality": "Bengaluru",
+          "sublocality": "Challaghatta",
+          "addressLines": [
+           "Cherry Hills, 8/2B-9, Embassy Golf Links Business Park, Challaghatta, Bengaluru, Karnataka 560071, India"
+          ],
+          "administrativeArea": "KA",
+          "languageCode": "",
+          "revision": 0
+         },
+         "locationType": "SUB_LOCALITY_2",
+         "latLng": {
+          "latitude": 12.9501606,
+          "longitude": 77.64173509999999
+         }
+        }
+       ]
+      },
+      "jobHash": "f598f07f18852d280966cd4a475c6f5f",
+      "jobSummary": "Docusign is looking for a seasoned software engineer to join our microservices framework team, focused on building highly scalable, available, and reliable distributed systems. You will be responsible for designing high-performance, resilient architectures, developing microservices frameworks, and implementing cloud-based data platform systems to support global-scale business needs. You will also work on infrastructure automation, CI/CD pipelines, and Terraform-based deployments. This position is an individual contributor role reporting to the Senior Director, Engineering. Responsibility Think about how to solve problems at scale and build automation to manage complex software systems Develop testable, high-quality, and ship-ready code with ample test coverage Work with Product Management and other developers to understand and translate engineering requirements into design and architectural solutions Work as part of a cross-site development team to drive design, implementation, testing, and release of microservices platforms Manage infrastructure as code using Terraform to deploy and maintain cloud environments Implement best practices for cloud security, performance, and cost optimization Collaborate with cross-functional teams to define technical architecture and cloud strategies Participate in on-call rotations and contribute to improving system reliability and incident response Designing, building, and maintaining robust data platform solutions leveraging modern tools"
+     },
+     "import_id": "bb0b82d9-b1d0-4aed-bc80-addac5244ba8",
+     "redirectOnApply": true,
+     "import_source": "ImporterService",
+     "canonical_url": "https://careers.docusign.com/jobs/29553?lang=en-us",
+     "client_code": "docusign",
+     "gdpr": false
+    },
+    "update_date": "2026-08-19T06:22:12+0000",
+    "create_date": "2026-06-05T01:07:44+0000",
+    "category": [
+     " Engineering"
+    ],
+    "full_location": "Bengaluru, India",
+    "short_location": "Bengaluru, India",
+    "multipleLocations": false
+   }
+  }
+ ]
+}

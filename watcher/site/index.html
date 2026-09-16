@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<title>Job Watch</title>
+<link rel="stylesheet" href="app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>👀</text></svg>">
+</head>
+<body>
+<header>
+  <div class="bar">
+    <h1>Job Watch</h1>
+    <span id="freshness" class="fresh">loading…</span>
+  </div>
+  <p id="stale" class="stale" hidden></p>
+  <div class="controls">
+    <input id="q" type="search" inputmode="search" placeholder="Filter titles…" autocomplete="off"
+           aria-label="Filter by title">
+    <select id="company" aria-label="Filter by company"><option value="">All companies</option></select>
+    <label class="toggle"><input id="newonly" type="checkbox"> New only</label>
+  </div>
+  <p id="summary" class="summary"></p>
+</header>
+
+<main id="list" aria-live="polite"></main>
+
+<p id="empty" class="empty" hidden>Nothing matches that filter.</p>
+<footer>
+  <p>Read-only view. Updated when the watcher on the laptop finds something.</p>
+</footer>
+
+<template id="row">
+  <article class="job">
+    <a class="hit" target="_blank" rel="noopener noreferrer">
+      <span class="title"></span>
+      <span class="meta"><span class="company"></span> · <span class="location"></span></span>
+      <span class="when"></span>
+    </a>
+    <button class="copy" type="button">Copy req</button>
+  </article>
+</template>
+
+<script src="app.js" defer></script>
+</body>
+</html>

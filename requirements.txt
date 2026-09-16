@@ -1,0 +1,5 @@
+# No third-party runtime dependencies: standard library only, so this runs on a
+# stock macOS /usr/bin/python3 with nothing installed.
+# Optional, for development only:
+#   pytest     (the suite also runs under `python3 -m unittest`)
+#   pyyaml     (tests cross-check watcher/yamlish.py against it when present)

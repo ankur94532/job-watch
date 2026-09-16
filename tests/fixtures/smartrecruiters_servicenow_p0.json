@@ -1,0 +1,238 @@
+{
+ "offset": 0,
+ "limit": 2,
+ "totalFound": 3,
+ "content": [
+  {
+   "id": "744000149697589",
+   "name": "Manager, Network Reliability and Resiliency",
+   "uuid": "399bbf4d-1c19-4872-a0c7-5eca1af97270",
+   "jobAdId": "46d962e7-115a-43c3-a4e8-1d2537ed5798",
+   "defaultJobAd": true,
+   "refNumber": "JB0074714",
+   "company": {
+    "identifier": "ServiceNow",
+    "name": "ServiceNow"
+   },
+   "releasedDate": "2026-09-15T19:01:06.598Z",
+   "location": {
+    "city": "Toronto",
+    "region": "Ontario",
+    "country": "ca",
+    "address": "129 Spadina Ave Suite 404",
+    "postalCode": "M5V 2L3",
+    "remote": false,
+    "hybrid": true,
+    "hybridDescription": "two days per week in the office",
+    "fullLocation": "Toronto, Ontario, Canada"
+   },
+   "industry": {
+    "id": "it_and_services",
+    "label": "Information Technology And Services"
+   },
+   "department": {
+    "id": "2294038",
+    "label": "Engineering, Infrastructure and Operations"
+   },
+   "function": {
+    "id": "engineering",
+    "label": "Engineering"
+   },
+   "typeOfEmployment": {
+    "id": "permanent",
+    "label": "Full-time"
+   },
+   "experienceLevel": {
+    "id": "not_applicable",
+    "label": "Not Applicable"
+   },
+   "customField": [
+    {
+     "fieldId": "60345fa28b4ba8595bef1863",
+     "fieldLabel": "Recruiting Team",
+     "valueId": "professional",
+     "valueLabel": "Professional"
+    },
+    {
+     "fieldId": "60345d5c5165a31b17288279",
+     "fieldLabel": "Region",
+     "valueId": "722a833b93e4437798309f43c0d25990",
+     "valueLabel": "AMS - North America and Canada"
+    },
+    {
+     "fieldId": "6034601b43915a29a4b3389b",
+     "fieldLabel": "Job Location",
+     "valueId": "L_TOR002",
+     "valueLabel": "161 Bay Street, Toronto, Ontario, M5J 2S1, Canada(L_TOR002)"
+    },
+    {
+     "fieldId": "60345e1a0b24a127cbdfa148",
+     "fieldLabel": "Employee Type",
+     "valueId": "0082f6cbe6154da19322cbab1f6aa5af",
+     "valueLabel": "Regular"
+    },
+    {
+     "fieldId": "5f63a78f1dae5c5c4e54ba2b",
+     "fieldLabel": "Department",
+     "valueId": "2294038",
+     "valueLabel": "Engineering, Infrastructure and Operations"
+    },
+    {
+     "fieldId": "COUNTRY",
+     "fieldLabel": "Country/Region",
+     "valueId": "ca",
+     "valueLabel": "Canada"
+    },
+    {
+     "fieldId": "5f63a78f1dae5c5c4e54ba2a",
+     "fieldLabel": "Brands",
+     "valueId": "default",
+     "valueLabel": "ServiceNow"
+    },
+    {
+     "fieldId": "603462175165a31b1728827d",
+     "fieldLabel": "Cost Center",
+     "valueId": "CC1005",
+     "valueLabel": "1005 GCS Cloud Network Services"
+    },
+    {
+     "fieldId": "618ed92b8f5e5f110e5bfb95",
+     "fieldLabel": "Work Persona",
+     "valueId": "5530c877-6b63-4bf5-bde8-215ef35bf172",
+     "valueLabel": "Flexible or Remote"
+    },
+    {
+     "fieldId": "690cc0e8c682c3dbadaa7d73",
+     "fieldLabel": "Job Posting Type",
+     "valueId": "professional",
+     "valueLabel": "Professional"
+    }
+   ],
+   "visibility": "PUBLIC",
+   "ref": "https://api.smartrecruiters.com/v1/companies/ServiceNow/postings/744000149697589",
+   "creator": {
+    "name": "Anca Fetea"
+   },
+   "language": {
+    "code": "fr-CA",
+    "label": "French (Canada)",
+    "labelNative": "fran\u00e7ais (Canada)"
+   }
+  },
+  {
+   "id": "744000149695499",
+   "name": "Principal Research Scientist",
+   "uuid": "a0768a44-924b-4e00-bd67-5990575c40f4",
+   "jobAdId": "4cfa13c6-2c5e-4a08-a0ec-e52744bab8b9",
+   "defaultJobAd": true,
+   "refNumber": "JB0075130",
+   "company": {
+    "identifier": "ServiceNow",
+    "name": "ServiceNow"
+   },
+   "releasedDate": "2026-09-15T18:48:10.762Z",
+   "location": {
+    "city": "Montreal",
+    "region": "QUEBEC",
+    "country": "ca",
+    "address": "6650 St. Urbain Street Suite 500",
+    "postalCode": "H2S 3G9",
+    "remote": false,
+    "hybrid": true,
+    "fullLocation": "Montreal, QUEBEC, Canada"
+   },
+   "industry": {
+    "id": "it_and_services",
+    "label": "Information Technology And Services"
+   },
+   "department": {
+    "id": "2294174",
+    "label": "Product"
+   },
+   "function": {
+    "id": "engineering",
+    "label": "Engineering"
+   },
+   "typeOfEmployment": {
+    "id": "permanent",
+    "label": "Full-time"
+   },
+   "experienceLevel": {
+    "id": "not_applicable",
+    "label": "Not Applicable"
+   },
+   "customField": [
+    {
+     "fieldId": "60345fa28b4ba8595bef1863",
+     "fieldLabel": "Recruiting Team",
+     "valueId": "professional",
+     "valueLabel": "Professional"
+    },
+    {
+     "fieldId": "60345d5c5165a31b17288279",
+     "fieldLabel": "Region",
+     "valueId": "722a833b93e4437798309f43c0d25990",
+     "valueLabel": "AMS - North America and Canada"
+    },
+    {
+     "fieldId": "6034601b43915a29a4b3389b",
+     "fieldLabel": "Job Location",
+     "valueId": "L_YUL005",
+     "valueLabel": "6650 St. Urbain Street, Montreal, Quebec, H2S 3G9, Canada(L_YUL005)"
+    },
+    {
+     "fieldId": "60345e1a0b24a127cbdfa148",
+     "fieldLabel": "Employee Type",
+     "valueId": "0082f6cbe6154da19322cbab1f6aa5af",
+     "valueLabel": "Regular"
+    },
+    {
+     "fieldId": "5f63a78f1dae5c5c4e54ba2b",
+     "fieldLabel": "Department",
+     "valueId": "2294174",
+     "valueLabel": "Product"
+    },
+    {
+     "fieldId": "COUNTRY",
+     "fieldLabel": "Country/Region",
+     "valueId": "ca",
+     "valueLabel": "Canada"
+    },
+    {
+     "fieldId": "5f63a78f1dae5c5c4e54ba2a",
+     "fieldLabel": "Brands",
+     "valueId": "default",
+     "valueLabel": "ServiceNow"
+    },
+    {
+     "fieldId": "603462175165a31b1728827d",
+     "fieldLabel": "Cost Center",
+     "valueId": "CC6376",
+     "valueLabel": "6376 AI Research"
+    },
+    {
+     "fieldId": "618ed92b8f5e5f110e5bfb95",
+     "fieldLabel": "Work Persona",
+     "valueId": "bf7551c6-9b06-4e7c-8217-3baf43edd060",
+     "valueLabel": "Flexible"
+    },
+    {
+     "fieldId": "690cc0e8c682c3dbadaa7d73",
+     "fieldLabel": "Job Posting Type",
+     "valueId": "professional",
+     "valueLabel": "Professional"
+    }
+   ],
+   "visibility": "PUBLIC",
+   "ref": "https://api.smartrecruiters.com/v1/companies/ServiceNow/postings/744000149695499",
+   "creator": {
+    "name": "Anca Fetea"
+   },
+   "language": {
+    "code": "fr-CA",
+    "label": "French (Canada)",
+    "labelNative": "fran\u00e7ais (Canada)"
+   }
+  }
+ ]
+}

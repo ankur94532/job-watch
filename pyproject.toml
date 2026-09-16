@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "job-watch"
+version = "0.1.0"
+description = "Poll public ATS job boards and alert on new matching postings"
+requires-python = ">=3.9"
+dependencies = []          # standard library only (see requirements.txt)
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.scripts]
+watcher = "watcher.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["watcher*"]

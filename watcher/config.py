@@ -1,0 +1,61 @@
+import os
+
+from . import yamlish
+from .adapters import ADAPTERS, UNSUPPORTED
+
+DEFAULT_INTERVAL = 900          # launchd fires every 15 minutes
+PAGED_INTERVAL = 3600           # paginated boards (Workday, Eightfold, amazon.jobs):
+                                # dozens of requests per sweep and mostly no ETag
+DUE_SLACK = 60                  # launchd's 900s can land a few seconds early
+
+
+def config_path(env=None):
+    env = os.environ if env is None else env
+    return os.path.expanduser(env.get("JOBSWATCH_CONFIG") or "config.yaml")
+
+
+def load(path):
+    with open(path) as f:
+        cfg = yamlish.loads(f.read()) or {}
+    cfg["defaults"] = cfg.get("defaults") or {}
+    cfg["companies"] = cfg.get("companies") or {}
+    for name, c in list(cfg["companies"].items()):
+        cfg["companies"][name] = c or {}
+    return cfg
+
+
+def active_companies(cfg, only=None):
+    """(name, cfg) for companies with a runnable adapter, plus (name, note) skipped."""
+    active, skipped = [], []
+    for name, c in cfg["companies"].items():
+        if only and name not in only:
+            continue
+        ats = c.get("ats")
+        if not ats or ats == UNSUPPORTED or c.get("enabled") is False:
+            skipped.append((name, c.get("note") or ("disabled" if c.get("enabled") is False else "no ats configured")))
+        elif ats not in ADAPTERS:
+            skipped.append((name, f"unknown ats {ats!r}"))
+        else:
+            active.append((name, c))
+    return active, skipped
+
+
+def export_settings(cfg):
+    """`export:` block, with the defaults that make a laptop + Pages setup work."""
+    e = dict(cfg.get("export") or {})
+    e.setdefault("enabled", False)
+    e.setdefault("out", "docs")
+    e.setdefault("publish", False)
+    e.setdefault("branch", "site")
+    e.setdefault("remote", "origin")
+    return e
+
+
+def interval_for(company_cfg, defaults):
+    """Per-company override, else hourly for boards that need many requests."""
+    if company_cfg.get("interval"):
+        return int(company_cfg["interval"])
+    adapter = ADAPTERS.get(company_cfg.get("ats"))
+    if adapter is not None and adapter.paginated:
+        return int(defaults.get("paged_interval") or PAGED_INTERVAL)
+    return int(defaults.get("interval") or DEFAULT_INTERVAL)

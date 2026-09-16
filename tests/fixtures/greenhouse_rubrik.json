@@ -1,0 +1,187 @@
+{
+ "jobs": [
+  {
+   "absolute_url": "https://www.rubrik.com/company/careers/departments/job.7510636?gh_jid=7510636",
+   "data_compliance": [
+    {
+     "type": "gdpr",
+     "requires_consent": false,
+     "requires_processing_consent": false,
+     "requires_retention_consent": false,
+     "retention_period": null,
+     "demographic_data_consent_applies": false
+    }
+   ],
+   "internal_job_id": 3329190,
+   "location": {
+    "name": "Bengaluru, India"
+   },
+   "metadata": [
+    {
+     "id": 943349,
+     "name": "Geo",
+     "value": "India",
+     "value_type": "single_select"
+    },
+    {
+     "id": 681454,
+     "name": "Projected Offer Accept Date (for FP&A)",
+     "value": "10-15-26 FY27 Q3",
+     "value_type": "single_select"
+    }
+   ],
+   "id": 7510636,
+   "updated_at": "2026-09-10T04:49:43-04:00",
+   "requisition_id": "IN10377",
+   "title": "Architect, AI Data Platform & Engineering",
+   "company_name": "Rubrik Job Board",
+   "first_published": "2026-01-22T03:01:28-05:00",
+   "language": "en",
+   "application_deadline": null,
+   "content": "&lt;h2&gt;&lt;span style=&quot;font-family: arial, helvetica, sans-serif;&quot;&gt;&lt;strong&gt;About the role:&lt;/strong&gt;&lt;/span&gt;&lt;/h2&gt;\n&lt;p&gt;As a&amp;nbsp;&lt;strong&gt;Architect&l",
+   "departments": [
+    {
+     "id": 53812,
+     "name": "Information Technology & Services",
+     "child_ids": [],
+     "parent_id": null
+    }
+   ],
+   "offices": [
+    {
+     "id": 22927,
+     "name": "Bangalore, India Office",
+     "location": "Bangalore East, Bengaluru, Karnataka, India",
+     "child_ids": [],
+     "parent_id": 63109
+    }
+   ],
+   "ai_disclaimer": null,
+   "include_ai_disclaimer": null,
+   "ai_opt_out_request_url": "http://app.greenhouse.io/ai_opt_out_request/job_post/7510636/ai_opt_out"
+  },
+  {
+   "absolute_url": "https://www.rubrik.com/company/careers/departments/job.7546762?gh_jid=7546762",
+   "data_compliance": [
+    {
+     "type": "gdpr",
+     "requires_consent": false,
+     "requires_processing_consent": false,
+     "requires_retention_consent": false,
+     "retention_period": null,
+     "demographic_data_consent_applies": false
+    }
+   ],
+   "internal_job_id": 3340590,
+   "location": {
+    "name": "Bangalore, India"
+   },
+   "metadata": [
+    {
+     "id": 943349,
+     "name": "Geo",
+     "value": "India",
+     "value_type": "single_select"
+    },
+    {
+     "id": 681454,
+     "name": "Projected Offer Accept Date (for FP&A)",
+     "value": "10-15-26 FY27 Q3",
+     "value_type": "single_select"
+    }
+   ],
+   "id": 7546762,
+   "updated_at": "2026-09-10T04:51:08-04:00",
+   "requisition_id": "IN10460",
+   "title": "Corporate IT Architect",
+   "company_name": "Rubrik Job Board",
+   "first_published": "2026-01-27T04:48:18-05:00",
+   "language": "en",
+   "application_deadline": null,
+   "content": "&lt;h2&gt;&lt;strong&gt;About The Team:&amp;nbsp;&lt;/strong&gt;&lt;/h2&gt;\n&lt;p&gt;Come join our growing Corporate IT team to architect and scale the technology foundation that powers Dynamic Work f",
+   "departments": [
+    {
+     "id": 53812,
+     "name": "Information Technology & Services",
+     "child_ids": [],
+     "parent_id": null
+    }
+   ],
+   "offices": [
+    {
+     "id": 22927,
+     "name": "Bangalore, India Office",
+     "location": "Bangalore East, Bengaluru, Karnataka, India",
+     "child_ids": [],
+     "parent_id": 63109
+    }
+   ],
+   "ai_disclaimer": null,
+   "include_ai_disclaimer": null,
+   "ai_opt_out_request_url": "http://app.greenhouse.io/ai_opt_out_request/job_post/7546762/ai_opt_out"
+  },
+  {
+   "absolute_url": "https://www.rubrik.com/company/careers/departments/job.8071013?gh_jid=8071013",
+   "data_compliance": [
+    {
+     "type": "gdpr",
+     "requires_consent": false,
+     "requires_processing_consent": false,
+     "requires_retention_consent": false,
+     "retention_period": null,
+     "demographic_data_consent_applies": false
+    }
+   ],
+   "internal_job_id": 3497017,
+   "location": {
+    "name": "Germany, Remote"
+   },
+   "metadata": [
+    {
+     "id": 943349,
+     "name": "Geo",
+     "value": "EMEA",
+     "value_type": "single_select"
+    },
+    {
+     "id": 681454,
+     "name": "Projected Offer Accept Date (for FP&A)",
+     "value": "09-15-26 FY27 Q3",
+     "value_type": "single_select"
+    }
+   ],
+   "id": 8071013,
+   "updated_at": "2026-09-03T14:19:37-04:00",
+   "requisition_id": "11145",
+   "title": "Account Executive, Named - Germany",
+   "company_name": "Rubrik Job Board",
+   "first_published": "2026-07-31T12:14:47-04:00",
+   "language": "en",
+   "application_deadline": null,
+   "content": "&lt;p data-start=&quot;162&quot; data-end=&quot;733&quot;&gt;&amp;nbsp;&lt;/p&gt;\n&lt;p&gt;&lt;strong&gt;About Team &amp;amp; About Role&lt;/strong&gt;&lt;/p&gt;\n&lt;p&gt;Rubrik&#39;s sales organisati",
+   "departments": [
+    {
+     "id": 54284,
+     "name": "Sales",
+     "child_ids": [],
+     "parent_id": null
+    }
+   ],
+   "offices": [
+    {
+     "id": 59077,
+     "name": "Germany - Remote",
+     "location": null,
+     "child_ids": [],
+     "parent_id": 59072
+    }
+   ],
+   "ai_disclaimer": null,
+   "include_ai_disclaimer": null,
+   "ai_opt_out_request_url": "http://app.greenhouse.io/ai_opt_out_request/job_post/8071013/ai_opt_out"
+  }
+ ],
+ "meta": {
+  "total": 3
+ }
+}

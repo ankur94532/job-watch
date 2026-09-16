@@ -1,0 +1,41 @@
+{
+ "positions": [
+  {
+   "id": 790318478981,
+   "name": "Screening Specialist, APAC (India)",
+   "location": "Mumbai,India",
+   "locations": [
+    "Mumbai,India"
+   ],
+   "department": "Marketing",
+   "t_update": 1789536877,
+   "display_job_id": "JR42587",
+   "canonicalPositionUrl": "https://explore.jobs.netflix.net/careers/job/790318478981"
+  },
+  {
+   "id": 790317836990,
+   "name": "Senior Manager, Communications - India",
+   "location": "Mumbai,India",
+   "locations": [
+    "Mumbai,India"
+   ],
+   "department": "Communications & Corporate Affairs",
+   "t_update": 1786924800,
+   "display_job_id": "JR42140",
+   "canonicalPositionUrl": "https://explore.jobs.netflix.net/careers/job/790317836990"
+  },
+  {
+   "id": 790317803844,
+   "name": "Manager, Marketing Planning and Studio Relations - India",
+   "location": "Mumbai,India",
+   "locations": [
+    "Mumbai,India"
+   ],
+   "department": "Product Discovery & Promotion",
+   "t_update": 1786665600,
+   "display_job_id": "JR42123",
+   "canonicalPositionUrl": "https://explore.jobs.netflix.net/careers/job/790317803844"
+  }
+ ],
+ "count": 3
+}

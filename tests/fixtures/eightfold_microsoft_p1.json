@@ -1,0 +1,56 @@
+{
+ "status": 200,
+ "error": {
+  "message": "",
+  "body": ""
+ },
+ "data": {
+  "positions": [
+   {
+    "id": 1970393556957365,
+    "displayJobId": "200047135",
+    "name": "Design Verification Engineer II",
+    "locations": [
+     "India, Multiple Locations, Multiple Locations"
+    ],
+    "standardizedLocations": [
+     "IN"
+    ],
+    "postedTs": 1786021708,
+    "solrScore": null,
+    "stars": 0,
+    "department": "Silicon Engineering",
+    "creationTs": 1785941384,
+    "isHot": 0,
+    "workLocationOption": "onsite",
+    "locationFlexibility": null,
+    "atsJobId": "200047135",
+    "positionUrl": "/careers/job/1970393556957365"
+   },
+   {
+    "id": 1970393556957363,
+    "displayJobId": "200047138",
+    "name": "Design Verification Engineer- Senior / Principal",
+    "locations": [
+     "India, Multiple Locations, Multiple Locations"
+    ],
+    "standardizedLocations": [
+     "IN"
+    ],
+    "postedTs": 1786076561,
+    "solrScore": null,
+    "stars": 0,
+    "department": "Silicon Engineering",
+    "creationTs": 1785942130,
+    "isHot": 0,
+    "workLocationOption": "onsite",
+    "locationFlexibility": null,
+    "atsJobId": "200047138",
+    "positionUrl": "/careers/job/1970393556957363"
+   }
+  ],
+  "count": 5,
+  "sortBy": "distance"
+ },
+ "metadata": null
+}

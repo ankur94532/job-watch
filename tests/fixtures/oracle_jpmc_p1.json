@@ -1,0 +1,870 @@
+{
+ "items": [
+  {
+   "SearchId": 1,
+   "Keyword": null,
+   "CorrectedKeyword": null,
+   "UseExactKeywordFlag": false,
+   "SuggestedKeyword": null,
+   "ExecuteSpellCheckFlag": true,
+   "Location": "India",
+   "LocationId": null,
+   "Radius": 0,
+   "RadiusUnit": "MI",
+   "SelectedTitlesFacet": null,
+   "SelectedCategoriesFacet": null,
+   "SelectedPostingDatesFacet": null,
+   "SelectedLocationsFacet": null,
+   "LastSelectedFacet": null,
+   "Facets": "TITLES;LOCATIONS;LOCATION_LEVEL1;LOCATION_LEVEL2;LOCATION_LEVEL3;CATEGORIES;POSTING_DATES;WORK_LOCATIONS;FLEX_FIELDS;ORGANIZATIONS;WORKPLACE_TYPES",
+   "Offset": 0,
+   "Limit": 200,
+   "SortBy": "POSTING_DATES_DESC",
+   "TotalJobsCount": 5,
+   "Latitude": null,
+   "Longitude": null,
+   "SiteNumber": "CX_1001",
+   "JobFamilyId": null,
+   "PostingStartDate": null,
+   "PostingEndDate": null,
+   "SelectedWorkLocationsFacet": null,
+   "RequisitionId": null,
+   "CandidateNumber": null,
+   "WorkLocationZipCode": null,
+   "WorkLocationCountryCode": null,
+   "SelectedFlexFieldsFacets": null,
+   "OrganizationId": null,
+   "SelectedOrganizationsFacet": null,
+   "UserTargetFacetName": null,
+   "UserTargetFacetInputTerm": null,
+   "HotJobFlag": null,
+   "WorkplaceType": null,
+   "SelectedWorkplaceTypesFacet": null,
+   "BotQRShortCode": null,
+   "requisitionList": [
+    {
+     "Id": "99990",
+     "Title": "Market Operations Analyst - Gift City",
+     "PostedDate": "2026-09-16",
+     "PostingEndDate": null,
+     "Language": "US",
+     "PrimaryLocationCountry": "IN",
+     "GeographyId": 300000081145706,
+     "HotJobFlag": false,
+     "WorkplaceTypeCode": null,
+     "JobFamily": "Trade Lifecycle",
+     "JobFunction": "Operations",
+     "WorkerType": null,
+     "ContractType": null,
+     "ManagerLevel": null,
+     "JobSchedule": null,
+     "JobShift": null,
+     "JobType": null,
+     "StudyLevel": null,
+     "DomesticTravelRequired": null,
+     "InternationalTravelRequired": null,
+     "WorkDurationYears": null,
+     "WorkDurationMonths": null,
+     "WorkHours": null,
+     "WorkDays": null,
+     "LegalEmployer": null,
+     "BusinessUnit": null,
+     "Department": null,
+     "Organization": null,
+     "BusinessUnitId": 300060261545756,
+     "LegalEmployerId": 300009908902792,
+     "OrganizationId": 300020007504678,
+     "MediaThumbURL": null,
+     "ShortDescriptionStr": "Promote branch buildout by leading markets operations, regulatory reporting, and",
+     "PrimaryLocation": "Gandhinagar, Gujarat, India",
+     "Distance": 1789516800000.0,
+     "TrendingFlag": false,
+     "BeFirstToApplyFlag": false,
+     "Relevancy": 9,
+     "WorkplaceType": "",
+     "ExternalQualificationsStr": null,
+     "ExternalResponsibilitiesStr": null,
+     "secondaryLocations": []
+    },
+    {
+     "Id": "99991",
+     "Title": "Software Engineer II - Java",
+     "PostedDate": "2026-09-15",
+     "PostingEndDate": null,
+     "Language": "US",
+     "PrimaryLocationCountry": "IN",
+     "GeographyId": 300000081151360,
+     "HotJobFlag": false,
+     "WorkplaceTypeCode": null,
+     "JobFamily": "Software Engineering",
+     "JobFunction": "Technology",
+     "WorkerType": null,
+     "ContractType": null,
+     "ManagerLevel": null,
+     "JobSchedule": null,
+     "JobShift": null,
+     "JobType": null,
+     "StudyLevel": null,
+     "DomesticTravelRequired": null,
+     "InternationalTravelRequired": null,
+     "WorkDurationYears": null,
+     "WorkDurationMonths": null,
+     "WorkHours": null,
+     "WorkDays": null,
+     "LegalEmployer": null,
+     "BusinessUnit": null,
+     "Department": null,
+     "Organization": null,
+     "BusinessUnitId": 300060261545756,
+     "LegalEmployerId": 300000087164225,
+     "OrganizationId": 300000164620678,
+     "MediaThumbURL": null,
+     "ShortDescriptionStr": "Serve as an emerging member of an agile team to design and deliver market-leadin",
+     "PrimaryLocation": "Mumbai, Maharashtra, India",
+     "Distance": 1789430400000.0,
+     "TrendingFlag": false,
+     "BeFirstToApplyFlag": false,
+     "Relevancy": 9,
+     "WorkplaceType": "",
+     "ExternalQualificationsStr": null,
+     "ExternalResponsibilitiesStr": null,
+     "secondaryLocations": []
+    }
+   ],
+   "categoriesFacet": [
+    {
+     "Id": 300000086152753,
+     "Name": "Software Engineering",
+     "TotalCount": 62
+    },
+    {
+     "Id": 300000086152508,
+     "Name": "Predictive Science",
+     "TotalCount": 25
+    },
+    {
+     "Id": 300000086249994,
+     "Name": "Controller",
+     "TotalCount": 23
+    },
+    {
+     "Id": 300000086250134,
+     "Name": "Analytics Solutions & Delivery",
+     "TotalCount": 14
+    },
+    {
+     "Id": 300000086251864,
+     "Name": "Product Management",
+     "TotalCount": 13
+    },
+    {
+     "Id": 300000086153065,
+     "Name": "Analysts",
+     "TotalCount": 12
+    },
+    {
+     "Id": 300000086152826,
+     "Name": "Financial Analysis",
+     "TotalCount": 11
+    },
+    {
+     "Id": 300000086152757,
+     "Name": "Credit Risk",
+     "TotalCount": 9
+    },
+    {
+     "Id": 300000086144003,
+     "Name": "Data Management",
+     "TotalCount": 8
+    },
+    {
+     "Id": 300000086153256,
+     "Name": "Risk Analytics/Modeling",
+     "TotalCount": 7
+    },
+    {
+     "Id": 300001586035427,
+     "Name": "Asset Servicing",
+     "TotalCount": 7
+    },
+    {
+     "Id": 300000086249821,
+     "Name": "Infrastructure Engineering",
+     "TotalCount": 6
+    },
+    {
+     "Id": 300000086153391,
+     "Name": "Associates",
+     "TotalCount": 5
+    },
+    {
+     "Id": 300000086249991,
+     "Name": "Control Officers",
+     "TotalCount": 5
+    },
+    {
+     "Id": 300001568270660,
+     "Name": "Lending Services",
+     "TotalCount": 5
+    },
+    {
+     "Id": 300001586035594,
+     "Name": "Fund Servicing",
+     "TotalCount": 5
+    },
+    {
+     "Id": 300001586035618,
+     "Name": "Trade Lifecycle",
+     "TotalCount": 5
+    },
+    {
+     "Id": 300021172603596,
+     "Name": "Firmwide Risk and Compliance",
+     "TotalCount": 5
+    },
+    {
+     "Id": 300067131678531,
+     "Name": "Compliance & Ops Risk Testing",
+     "TotalCount": 5
+    },
+    {
+     "Id": 300000086152512,
+     "Name": "Program Management",
+     "TotalCount": 4
+    },
+    {
+     "Id": 300000086251636,
+     "Name": "Strategy",
+     "TotalCount": 4
+    },
+    {
+     "Id": 300000086144190,
+     "Name": "Auditing",
+     "TotalCount": 3
+    },
+    {
+     "Id": 300000086153048,
+     "Name": "Transaction Management",
+     "TotalCount": 3
+    },
+    {
+     "Id": 300000086153090,
+     "Name": "Research",
+     "TotalCount": 3
+    },
+    {
+     "Id": 300000086249536,
+     "Name": "Risk Management",
+     "TotalCount": 3
+    },
+    {
+     "Id": 300000086249650,
+     "Name": "Quant Analytics",
+     "TotalCount": 3
+    },
+    {
+     "Id": 300000086249703,
+     "Name": "Business Support Management",
+     "TotalCount": 3
+    },
+    {
+     "Id": 300001586035378,
+     "Name": "Payments Lifecycle",
+     "TotalCount": 3
+    },
+    {
+     "Id": 300009195519534,
+     "Name": "CCOR LOB/CF/Country Coverage",
+     "TotalCount": 3
+    },
+    {
+     "Id": 300035862339235,
+     "Name": "Product Portfolio & Delivery",
+     "TotalCount": 3
+    },
+    {
+     "Id": 300000086143703,
+     "Name": "Risk Support",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300000086143856,
+     "Name": "Risk Reporting",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300000086144289,
+     "Name": "Sales Support",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300000086152607,
+     "Name": "Onboarding",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300000086152685,
+     "Name": "Business Analysis",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300000086249811,
+     "Name": "Sourcing",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300000086251909,
+     "Name": "Project Management",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300007929924867,
+     "Name": "Program & Project Management",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300026872751543,
+     "Name": "Security Engineering",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300049452668353,
+     "Name": "Technical Program Delivery",
+     "TotalCount": 2
+    }
+   ],
+   "locationsFacet": [
+    {
+     "Id": 300000000289360,
+     "Name": "India",
+     "TotalCount": 314
+    },
+    {
+     "Id": 300000081134215,
+     "Name": "Karnataka, India",
+     "TotalCount": 173
+    },
+    {
+     "Id": 300000081145775,
+     "Name": "Bengaluru, Karnataka, India",
+     "TotalCount": 173
+    },
+    {
+     "Id": 300000081134219,
+     "Name": "Maharashtra, India",
+     "TotalCount": 137
+    },
+    {
+     "Id": 300000081151360,
+     "Name": "Mumbai, Maharashtra, India",
+     "TotalCount": 137
+    },
+    {
+     "Id": 300000081134230,
+     "Name": "Telangana, India",
+     "TotalCount": 27
+    },
+    {
+     "Id": 300000081155702,
+     "Name": "Hyderabad, Telangana, India",
+     "TotalCount": 27
+    },
+    {
+     "Id": 300000081134210,
+     "Name": "Gujarat, India",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300000081145706,
+     "Name": "Gandhinagar, Gujarat, India",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300000000289738,
+     "Name": "United States",
+     "TotalCount": 1
+    },
+    {
+     "Id": 300000020657175,
+     "Name": "DE, United States",
+     "TotalCount": 1
+    },
+    {
+     "Id": 300000020657198,
+     "Name": "NJ, United States",
+     "TotalCount": 1
+    },
+    {
+     "Id": 300000020657200,
+     "Name": "NY, United States",
+     "TotalCount": 1
+    },
+    {
+     "Id": 300000020657203,
+     "Name": "OH, United States",
+     "TotalCount": 1
+    },
+    {
+     "Id": 300000020657211,
+     "Name": "TX, United States",
+     "TotalCount": 1
+    },
+    {
+     "Id": 300000020683471,
+     "Name": "Wilmington, DE, United States",
+     "TotalCount": 1
+    },
+    {
+     "Id": 300000020685544,
+     "Name": "Jersey City, NJ, United States",
+     "TotalCount": 1
+    },
+    {
+     "Id": 300000020694566,
+     "Name": "New York, NY, United States",
+     "TotalCount": 1
+    },
+    {
+     "Id": 300000020694866,
+     "Name": "Columbus, OH, United States",
+     "TotalCount": 1
+    },
+    {
+     "Id": 300000020709331,
+     "Name": "Plano, TX, United States",
+     "TotalCount": 1
+    }
+   ],
+   "postingDatesFacet": [
+    {
+     "Id": 7,
+     "Name": "Less than 7 days",
+     "TotalCount": 90
+    },
+    {
+     "Id": 30,
+     "Name": "Less than 30 days",
+     "TotalCount": 219
+    },
+    {
+     "Id": 31,
+     "Name": "Greater than 30 days",
+     "TotalCount": 95
+    }
+   ],
+   "titlesFacet": [
+    {
+     "Id": "TEC",
+     "Name": "Technology",
+     "TotalCount": 78
+    },
+    {
+     "Id": "D&A",
+     "Name": "Data & Analytics",
+     "TotalCount": 49
+    },
+    {
+     "Id": "FIN",
+     "Name": "Finance",
+     "TotalCount": 43
+    },
+    {
+     "Id": "OPS",
+     "Name": "Operations",
+     "TotalCount": 37
+    },
+    {
+     "Id": "RSK",
+     "Name": "Risk",
+     "TotalCount": 33
+    },
+    {
+     "Id": "PAA",
+     "Name": "Program Analysts & Associate",
+     "TotalCount": 17
+    },
+    {
+     "Id": "PRO",
+     "Name": "Product",
+     "TotalCount": 17
+    },
+    {
+     "Id": "O&C",
+     "Name": "Oversight & Control",
+     "TotalCount": 12
+    },
+    {
+     "Id": "PIM",
+     "Name": "Product/Investment Mgmt",
+     "TotalCount": 7
+    },
+    {
+     "Id": "CLM",
+     "Name": "Client Management",
+     "TotalCount": 4
+    },
+    {
+     "Id": "PPM",
+     "Name": "Project & Process Mgmt",
+     "TotalCount": 4
+    },
+    {
+     "Id": "AUD",
+     "Name": "Internal Audit",
+     "TotalCount": 3
+    },
+    {
+     "Id": "CMP",
+     "Name": "Compliance",
+     "TotalCount": 3
+    },
+    {
+     "Id": "S&D",
+     "Name": "Strategy & Development",
+     "TotalCount": 3
+    },
+    {
+     "Id": "GS",
+     "Name": "General Services",
+     "TotalCount": 2
+    },
+    {
+     "Id": "MKT",
+     "Name": "Marketing & Communications",
+     "TotalCount": 2
+    }
+   ],
+   "workLocationsFacet": [
+    {
+     "Id": 300000161082803,
+     "Name": "33436-JPMorgan Chase & Co Towers A ",
+     "TotalCount": 108
+    },
+    {
+     "Id": 300000161082797,
+     "Name": "33492-JPMorgan Chase & Co Towers, M",
+     "TotalCount": 78
+    },
+    {
+     "Id": 300000161082689,
+     "Name": "33437-Embassy Tech Village - Parcel",
+     "TotalCount": 26
+    },
+    {
+     "Id": 300000161078892,
+     "Name": "32183-Prima Bay",
+     "TotalCount": 25
+    },
+    {
+     "Id": 300000161082713,
+     "Name": "33435-JPMorgan Chase & Co Towers, H",
+     "TotalCount": 22
+    },
+    {
+     "Id": 300024997039681,
+     "Name": "00636-JPMorgan Chase & Co Tower D, ",
+     "TotalCount": 16
+    },
+    {
+     "Id": 300000161079572,
+     "Name": "32084-JPMorgan Towers",
+     "TotalCount": 14
+    },
+    {
+     "Id": 300000161082635,
+     "Name": "33308-Blue Bay Building",
+     "TotalCount": 10
+    },
+    {
+     "Id": 300000161131715,
+     "Name": "86856-Platina Block 3",
+     "TotalCount": 7
+    },
+    {
+     "Id": 300000161070318,
+     "Name": "32093-Ventura",
+     "TotalCount": 5
+    },
+    {
+     "Id": 300075431779750,
+     "Name": "01339-One Downtown Central",
+     "TotalCount": 4
+    },
+    {
+     "Id": 300000161068831,
+     "Name": "03874-Mindspace-Magnus Tower",
+     "TotalCount": 3
+    },
+    {
+     "Id": 300000161070691,
+     "Name": "04079-Mindspace-Paradigm",
+     "TotalCount": 3
+    },
+    {
+     "Id": 300000161072414,
+     "Name": "33417-Embassy Golf Links - Fairwind",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300000161122000,
+     "Name": "59179-Delaware Tech Center",
+     "TotalCount": 1
+    },
+    {
+     "Id": 300000161131841,
+     "Name": "86855-Prestige Technology Park",
+     "TotalCount": 1
+    },
+    {
+     "Id": 300004678979525,
+     "Name": "00254-Child Care Creche - Nirlon Kn",
+     "TotalCount": 1
+    },
+    {
+     "Id": 300030707953288,
+     "Name": "00802-Placeholder Mumbai 2nd campus",
+     "TotalCount": 1
+    },
+    {
+     "Id": 300074096870753,
+     "Name": "01338-The Skyview",
+     "TotalCount": 1
+    }
+   ],
+   "flexFieldsFacet": [],
+   "organizationsFacet": [
+    {
+     "Id": 300000164726859,
+     "Name": "311486-LA_UTIL_SHARED_PR_IN",
+     "TotalCount": 5
+    },
+    {
+     "Id": 300000164799004,
+     "Name": "268342-FRRA INDIA",
+     "TotalCount": 5
+    },
+    {
+     "Id": 300031210835227,
+     "Name": "467946-ICB-IPLAT-CLOUD-IN",
+     "TotalCount": 5
+    },
+    {
+     "Id": 300000164155925,
+     "Name": "268690-CB CREDIT RISK INDIA C&SI",
+     "TotalCount": 4
+    },
+    {
+     "Id": 300000164187822,
+     "Name": "372675-EMEA WS CORP",
+     "TotalCount": 3
+    },
+    {
+     "Id": 300000164423126,
+     "Name": "342638-GLOBAL PB RISK CREDIT QUALITY ASSURANCE (IND)",
+     "TotalCount": 3
+    },
+    {
+     "Id": 300000164461532,
+     "Name": "266239-INVESTMENT TECHNOLOGY- INDIA 3730",
+     "TotalCount": 3
+    },
+    {
+     "Id": 300000164501034,
+     "Name": "339132-AI FOR TECH BANGALORE 2",
+     "TotalCount": 3
+    },
+    {
+     "Id": 300000164510738,
+     "Name": "269379-NJE FO RECRUITING INDIA",
+     "TotalCount": 3
+    },
+    {
+     "Id": 300000164572465,
+     "Name": "269205-TCOE TESTING TECHNOLOGY - BNGLR",
+     "TotalCount": 3
+    },
+    {
+     "Id": 300003673660527,
+     "Name": "386598-CRE COLLATERAL ANALYSIS",
+     "TotalCount": 3
+    },
+    {
+     "Id": 300000164182813,
+     "Name": "267536-AM MUMBAI",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300000164204896,
+     "Name": "350801-CIB TREASURY CONTROLLERS - MUMBAI",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300000164208136,
+     "Name": "264694-RTC INDIA DCO JPMCB",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300000164240326,
+     "Name": "344787-AWM TECH ADMIN INDIA 3730",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300000164381379,
+     "Name": "340192-QTR - EQUITIES-MUMBAI",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300000164433713,
+     "Name": "268776-HRT RISK - INDIA",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300000164598805,
+     "Name": "264394-FINANCIAL REPORTING - MUMBAI",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300000164853313,
+     "Name": "372681-CRSM INDIA",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300000164870048,
+     "Name": "372909-RM&C CDO - INDIA",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300000165150906,
+     "Name": "371044-ICB-IPLAT-PRODUCT (FPD)-IN",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300000165153089,
+     "Name": "311694-CCB CONTROLLERS - CARD 313",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300000165230002,
+     "Name": "332484-APO - INDIA",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300000522759472,
+     "Name": "139743-TRANSFORMATIVE AI - BGL",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300003336403973,
+     "Name": "387108-USSO INC COMPLETIONS MUM",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300005498419138,
+     "Name": "394390-CARD ANALYTICS INDIA",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300007714897772,
+     "Name": "398963-CHNLT_SPS_BLR-3730",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300017030129674,
+     "Name": "442770-CDO BANGALORE",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300022846462977,
+     "Name": "450950-CONTENT CREATION COLLAB HC BNG",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300022846720048,
+     "Name": "451665-MRGR CIB TRADING_02_IN_M",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300031210834740,
+     "Name": "467977-ICB-IPLAT-DATA ENG-IN",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300035796926744,
+     "Name": "483423-CIB STRATEGY GLOBAL SUPPT INDIA",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300035797118156,
+     "Name": "483424-NAMR MANAGEMENT",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300038931516830,
+     "Name": "487156-ICB-IGER-BACK END-IN",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300040480089978,
+     "Name": "488341-CUSTODY MIDDLE OFFICE - INCOME",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300044815248723,
+     "Name": "494730-CRYPTOGRAPHIC CONTROLS CC BAN",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300050210800091,
+     "Name": "540581-VCG XVA MUM",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300050210816258,
+     "Name": "542597-GLOBAL PB RISK CREDIT QUALITY ASSURANCE (IND)",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300050210818057,
+     "Name": "540293-CASH & CHECK PRODUCT_HYD",
+     "TotalCount": 2
+    },
+    {
+     "Id": 300054670629797,
+     "Name": "545886-ICB-IPLAT-PROCESS ENG-IN",
+     "TotalCount": 2
+    }
+   ],
+   "workplaceTypesFacet": [
+    {
+     "Id": "ORA_ON_SITE",
+     "Name": "On-site",
+     "TotalCount": 314
+    }
+   ]
+  }
+ ],
+ "count": 1,
+ "hasMore": false,
+ "limit": 200,
+ "offset": 0,
+ "links": [
+  {
+   "rel": "self",
+   "href": "https://jpmc.fa.oraclecloud.com:443/hcmRestApi/resources/11.13.18.05/recruitingCEJobRequisitions",
+   "name": "recruitingCEJobRequisitions",
+   "kind": "collection"
+  },
+  {
+   "rel": "action",
+   "href": "https://jpmc.fa.oraclecloud.com:443/hcmRestApi/resources/11.13.18.05/recruitingCEJobRequisitions/action/getRequisitionsLocationCoordinates",
+   "name": "getRequisitionsLocationCoordinates",
+   "kind": "other"
+  },
+  {
+   "rel": "action",
+   "href": "https://jpmc.fa.oraclecloud.com:443/hcmRestApi/resources/11.13.18.05/recruitingCEJobRequisitions/action/getRequisitionDetailsForMap",
+   "name": "getRequisitionDetailsForMap",
+   "kind": "other"
+  }
+ ]
+}

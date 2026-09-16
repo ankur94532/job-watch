@@ -1,0 +1,12 @@
+# secrets: rendered into the launchd plist at install time, never committed
+deploy/jobswatch.env
+# the exported site lives on the orphan `site` branch, not on this one
+docs/
+*.db
+*.db-wal
+*.db-shm
+*.db.lock
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/

@@ -1,0 +1,77 @@
+{
+ "status": 200,
+ "error": {
+  "message": "",
+  "body": ""
+ },
+ "data": {
+  "positions": [
+   {
+    "id": 1970393556991708,
+    "displayJobId": "200054356",
+    "name": "Senior Software Engineer",
+    "locations": [
+     "India, Multiple Locations, Multiple Locations"
+    ],
+    "standardizedLocations": [
+     "IN"
+    ],
+    "postedTs": 1789470114,
+    "solrScore": null,
+    "stars": 0,
+    "department": "Software Engineering",
+    "creationTs": 1788966209,
+    "isHot": 0,
+    "workLocationOption": "onsite",
+    "locationFlexibility": null,
+    "atsJobId": "200054356",
+    "positionUrl": "/careers/job/1970393556991708"
+   },
+   {
+    "id": 1970393556911730,
+    "displayJobId": "200041085",
+    "name": "Software Engineering INTERN",
+    "locations": [
+     "India, Multiple Locations, Multiple Locations"
+    ],
+    "standardizedLocations": [
+     "IN"
+    ],
+    "postedTs": 1787910803,
+    "solrScore": null,
+    "stars": 0,
+    "department": "Software Engineering",
+    "creationTs": 1782131549,
+    "isHot": 0,
+    "workLocationOption": "onsite",
+    "locationFlexibility": null,
+    "atsJobId": "200041085",
+    "positionUrl": "/careers/job/1970393556911730"
+   },
+   {
+    "id": 1970393556939629,
+    "displayJobId": "200044306",
+    "name": "Account Executive",
+    "locations": [
+     "India, Multiple Locations, Multiple Locations"
+    ],
+    "standardizedLocations": [
+     "IN"
+    ],
+    "postedTs": 1787902504,
+    "solrScore": null,
+    "stars": 0,
+    "department": "Digital Account Management",
+    "creationTs": 1784248780,
+    "isHot": 0,
+    "workLocationOption": "onsite",
+    "locationFlexibility": null,
+    "atsJobId": "200044306",
+    "positionUrl": "/careers/job/1970393556939629"
+   }
+  ],
+  "count": 5,
+  "sortBy": "distance"
+ },
+ "metadata": null
+}
