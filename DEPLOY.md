@@ -10,10 +10,22 @@ The diff is against stored requisition ids, never against posted dates, so that
 catch-up run reports every req that appeared while the lid was shut, exactly
 once.
 
+## Where the repo lives
+
+**Not in `~/Downloads`, `~/Desktop` or `~/Documents`.** Those are TCC-protected:
+a launchd agent can `chdir` into them but every read returns `Operation not
+permitted`, so `python3 -m watcher` fails with a bare `No module named watcher`
+and nothing in the log explains why. This repo lives at `~/job-watch` for that
+reason. The alternative — granting Full Disk Access to `/usr/bin/python3` — hands
+that privilege to every script you ever run under it.
+
+The rendered plist also sets `PYTHONPATH` to the repo, so module resolution does
+not depend on launchd honouring `WorkingDirectory`.
+
 ## Install
 
 ```sh
-cd ~/Downloads/job-watch
+cd ~/job-watch
 make test                      # no network, ~0.2s
 
 cp deploy/jobswatch.env.example deploy/jobswatch.env

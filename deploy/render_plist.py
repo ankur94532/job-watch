@@ -38,6 +38,10 @@ def main(argv):
     python = argv[4] if len(argv) > 4 else sys.executable
     workdir = os.path.abspath(argv[5] if len(argv) > 5 else ".")
     env = read_env(env_file)
+    # Don't rely on WorkingDirectory for module resolution: launchd may not be able
+    # to chdir into the repo (TCC-protected locations such as ~/Downloads), and then
+    # `python3 -m watcher` fails with "No module named watcher".
+    env.setdefault("PYTHONPATH", workdir)
     env.setdefault("JOBSWATCH_CONFIG", os.path.join(workdir, "config.yaml"))
     env.setdefault("JOBSWATCH_DB", os.path.expanduser("~/.local/share/jobswatch/jobs.db"))
     logdir = os.path.expanduser(env.get("JOBSWATCH_LOGDIR", "~/Library/Logs/jobswatch"))

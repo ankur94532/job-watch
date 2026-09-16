@@ -8,7 +8,7 @@ LinkedIn, no paid APIs.
 Standard library only. It runs on a stock macOS `/usr/bin/python3`.
 
 ```sh
-make test                         # 112 tests, no network
+make test                         # 113 tests, no network
 python3 -m watcher seed           # FIRST: record every open req, alert nothing
 python3 -m watcher run            # fetch, diff, alert on what's new
 ```
