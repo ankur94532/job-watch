@@ -284,6 +284,19 @@ companies:
     site: CX_1001
     locations: [India]                   # 314 India reqs of 7394 total, 200 rows/page
 
+  # ---- Server-rendered pages whose search state is embedded JSON ------------
+
+  apple:
+    ats: apple
+    location_id: india-INDC              # country-level token. NOT india-IND —
+                                         # Apple silently rewrites that to Indianapolis.
+                                         # Key is location_id, not location: `location`
+                                         # is the per-company filter override.
+  google:
+    ats: google
+    location_id: India                   # page 1 only, date-sorted: robots.txt
+    interval: 3600                       # disallows ?page= for every user-agent
+
   # ---- Not watched: no adapter for their ATS --------------------------------
   # Each was checked live on 2026-09-16. Fix one by finding a real board URL and
   # running `watcher detect <url> --write`.
@@ -291,21 +304,15 @@ companies:
   linkedin:
     ats: unsupported
     note: "own board; Greenhouse 'linkedin' is 'LI Test Company' and Lever 'linkedin' is a sandbox"
-  apple:
-    ats: unsupported
-    note: "jobs.apple.com is a JS app; /api/role/search 301s away and no endpoint is in the served HTML"
   meta:
     ats: unsupported
     note: "metacareers.com GraphQL needs a doc_id + session token; answers 400 without them"
-  google:
-    ats: unsupported
-    note: "self-hosted google.com/about/careers"
   uber:
     ats: unsupported
     note: "self-hosted uber.com/careers; SmartRecruiters 'uber' is one 2021 'Test UAT' row"
   nutanix:
     ats: unsupported
-    note: "careers.nutanix.com is Cloudflare-gated; page references Jobvite"
+    note: "careers.nutanix.com robots.txt disallows /en/jobs/, and the page is Cloudflare-gated"
   chargebee:
     ats: unsupported
     note: "no public board at all — chargebee.com/careers sends applicants to LinkedIn"
@@ -332,7 +339,9 @@ companies:
     note: "self-hosted scylladb.com/careers"
   flipkart:
     ats: unsupported
-    note: "self-hosted flipkartcareers.com"
+    # Board is flipkart.turbohire.co/careerpage/4d757ba0-...; TurboHire's robots.txt
+    # is "User-agent: * / Disallow: /" and names anthropic-ai and Claude-Web explicitly.
+    note: "TurboHire board, but its robots.txt disallows every agent except Googlebot"
   myntra:
     ats: unsupported
     note: "self-hosted careers.myntra.com"
@@ -363,7 +372,7 @@ companies:
     ats: unsupported
     # WARNING: the Ashby board 'navi' is a San Francisco startup, NOT Navi
     # Technologies of Bangalore. Its rows are SF founding-engineer roles. Do not wire it up.
-    note: "self-hosted navi.com/careers/jobs; React app, no ATS in the page or its bundles"
+    note: "TurboHire board (navi.turbohire.co), robots.txt disallows all agents but Googlebot"
   quadeye:
     ats: unsupported
     note: "self-hosted quadeye.com careers"

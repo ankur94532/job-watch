@@ -30,8 +30,11 @@ class Filter:
     """An empty term list matches everything."""
 
     def __init__(self, title=None, location=None):
-        self.title_terms = list(title or [])
-        self.location_terms = list(location or [])
+        # A bare string is a single term, not a sequence of characters: writing
+        # `location: bengaluru` in config must not become ["b","e","n",...],
+        # which matches nearly everything and looks like the filter is off.
+        self.title_terms = [title] if isinstance(title, str) else list(title or [])
+        self.location_terms = [location] if isinstance(location, str) else list(location or [])
         self._title = compile_terms(self.title_terms)
         self._location = compile_terms(self.location_terms)
         self._title_each = [_bounded(re.escape(normalize(t))) for t in self.title_terms if normalize(t)]

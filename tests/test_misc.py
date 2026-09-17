@@ -26,6 +26,14 @@ class Filters(unittest.TestCase):
         self.assertFalse(self.f.title_ok("Distributed Systems Lead"))   # "mts" inside "systems"
         self.assertTrue(self.f.title_ok("SOFTWARE ENGINEER"))
 
+    def test_a_string_filter_is_one_term_not_a_pile_of_letters(self):
+        """`location: bengaluru` in config must not become ["b","e","n",...]."""
+        f = Filter(title="software engineer", location="bengaluru")
+        self.assertTrue(f.title_ok("Senior Software Engineer"))
+        self.assertTrue(f.location_ok("Bengaluru, India"))
+        self.assertFalse(f.location_ok("London"))          # would pass if split into letters
+        self.assertFalse(f.title_ok("Account Executive"))
+
     def test_no_seniority_filtering(self):
         for t in ("Software Engineer", "Senior Software Engineer", "Software Engineer II", "Principal Backend Engineer"):
             self.assertTrue(self.f.title_ok(t), t)
