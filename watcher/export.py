@@ -35,7 +35,10 @@ SITE_FILES = ("index.html", "app.css", "app.js")
 INDEX_FILE = "jobs.json"
 
 # Exactly the fields the page renders. Anything not listed here cannot leak.
-FIELDS = ("company", "title", "location", "url", "req_id", "first_seen", "last_seen", "ats")
+# `job_id` is the store's own key for the posting: it is what the page ticks off
+# as "dealt with", and it is the only identifier every ATS supplies — 1,364 rows
+# across Ashby, Greenhouse, Lever and Rippling carry no requisition number at all.
+FIELDS = ("company", "job_id", "title", "location", "url", "req_id", "first_seen", "last_seen", "ats")
 
 
 def collect(cfg, store, now=None):

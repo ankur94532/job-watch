@@ -109,13 +109,22 @@ main { padding: 8px 0 8px; }
   content: "NEW"; margin-left: 8px; padding: 1px 6px; border-radius: 999px;
   background: var(--new-bg); color: var(--new); font-size: 11px; font-weight: 700; vertical-align: 2px;
 }
-.copy {
-  flex: 0 0 auto; width: 92px; border: 0; border-left: 1px solid var(--line);
-  background: transparent; color: var(--accent); font-size: 13px; font-weight: 600;
-  cursor: pointer; padding: 0 8px;
+.actions {
+  flex: 0 0 auto; display: flex; flex-direction: column;
+  border-left: 1px solid var(--line); width: 96px;
 }
+.copy, .tick {
+  flex: 1 1 0; min-height: 44px;            /* a thumb-sized target for each */
+  border: 0; background: transparent; color: var(--accent);
+  font-size: 13px; font-weight: 600; cursor: pointer; padding: 0 8px;
+}
+.tick { border-top: 1px solid var(--line); color: var(--muted); }
+.tick:active, .copy:active { background: var(--bg); }
 .copy:disabled { color: var(--muted); }
 .copy.done { color: var(--new); }
+/* only visible while "Show ticked" is on, so it reads as already dealt with */
+.job.is-ticked { opacity: 0.55; }
+.job.is-ticked .tick { color: var(--accent); }
 .empty, footer p { color: var(--muted); font-size: 13px; text-align: center; padding: 16px 0; }
 @media (min-width: 720px) {
   body { max-width: 780px; margin: 0 auto; }

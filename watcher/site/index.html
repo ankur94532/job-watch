@@ -22,6 +22,7 @@
     <input id="q" type="search" inputmode="search" placeholder="Filter…" autocomplete="off"
            aria-label="Filter">
     <label class="toggle"><input id="newonly" type="checkbox"> New only</label>
+    <label class="toggle" id="showhiddenwrap" hidden><input id="showhidden" type="checkbox"> Show ticked</label>
     <button id="markread" class="markread" type="button" hidden>Mark read</button>
   </div>
   <p id="summary" class="summary"></p>
@@ -52,7 +53,10 @@
       <span class="meta"><span class="company"></span> · <span class="location"></span></span>
       <span class="when"></span>
     </a>
-    <button class="copy" type="button">Copy req</button>
+    <span class="actions">
+      <button class="copy" type="button">Copy req</button>
+      <button class="tick" type="button" title="Tick off: hide this job from the list">✓ Done</button>
+    </span>
   </article>
 </template>
 

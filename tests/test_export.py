@@ -75,6 +75,8 @@ class Collect(unittest.TestCase):
         jobs = export.collect(CFG, FakeStore(self.rows()), now=1000)
         for j in jobs:
             self.assertEqual(sorted(j), sorted(export.FIELDS))
+            # the page ticks jobs off by this key, and it is the only id every ATS gives
+            self.assertTrue(j["job_id"])
         body = export.index_payload(jobs, 3, now=1000)
         self.assertEqual(body["generated_at"], 1000)
         self.assertEqual(body["watched"], 3)

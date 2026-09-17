@@ -18,6 +18,8 @@ var PAGE_SIZE = 25;               // rows per page; "Load more" advances the cur
 var STALE_AFTER = 24 * 3600;      // seconds before the page says so out loud
 var STORAGE_KEY = "jobwatch:seenThrough";
 var LEGACY_KEY = "jobwatch:lastVisit";
+var TICKED_KEY = "jobwatch:ticked";
+var TICKED_CAP = 5000;            // plenty for years of ticking; bounds localStorage
 
 var REFRESH_EVERY = 60000;        // how often to re-check the index while you are reading
 
@@ -29,6 +31,7 @@ var state = {
   jobs: [],           // rows in play (one company, or everything unseen)
   shown: PAGE_SIZE,   // pagination cursor: how many of `jobs` are rendered
   seenThrough: 0,
+  ticked: {},         // "company|job_id" -> 1, the jobs you have dealt with
   firstRun: false,
   cache: {}           // file -> rows, so going back and forth refetches nothing
 };
@@ -51,6 +54,41 @@ function readSeenThrough() {
 function writeSeenThrough(ts) {
   try { window.localStorage.setItem(STORAGE_KEY, String(ts)); } catch (e) { /* fine */ }
 }
+/* Ticked-off jobs. Keyed on the store's own (company, job_id) — the only
+   identifier every ATS supplies; over a thousand rows carry no requisition
+   number, so req_id cannot be the key. */
+function tickKey(job) { return job.company + "|" + job.job_id; }
+function isTicked(job) { return state.ticked[tickKey(job)] === 1; }
+
+function readTicked() {
+  try {
+    var raw = window.localStorage.getItem(TICKED_KEY);
+    var list = raw ? JSON.parse(raw) : [];
+    var out = {};
+    if (Object.prototype.toString.call(list) === "[object Array]") {
+      list.forEach(function (k) { out[k] = 1; });
+    }
+    return out;
+  } catch (e) { return {}; }
+}
+function writeTicked() {
+  try {
+    var keys = Object.keys(state.ticked);
+    if (keys.length > TICKED_CAP) keys = keys.slice(keys.length - TICKED_CAP);
+    window.localStorage.setItem(TICKED_KEY, JSON.stringify(keys));
+  } catch (e) { /* storage full or blocked: the tick lasts this session only */ }
+}
+function toggleTicked(job) {
+  var key = tickKey(job);
+  if (state.ticked[key]) delete state.ticked[key]; else state.ticked[key] = 1;
+  writeTicked();
+  render();
+}
+
+/* A job you ticked is dealt with, so it should not keep the company badged as
+   having something new, nor count towards "unseen". */
+function countsAsUnseen(job) { return isNew(job) && !isTicked(job); }
+
 function newestPoll() {
   return ((state.index && state.index.companies) || []).reduce(
     function (m, c) { return Math.max(m, c.newest || 0); }, 0);
@@ -175,6 +213,7 @@ function renderHome() {
   list.appendChild(frag);
   el("#empty").hidden = shown !== 0;
   el("#more").hidden = true;                 // one screenful of companies, no paging needed
+  el("#showhiddenwrap").hidden = true;       // ticking is per job, so only on a job list
   el("#heading").textContent = "Job Watch";
   el("#back").hidden = true;
   el("#q").placeholder = "Filter companies…";
@@ -193,8 +232,11 @@ function renderJobs() {
   var newOnly = el("#newonly").checked;
   var frag = document.createDocumentFragment();
 
+  var showTicked = el("#showhidden").checked;
+  var tickedHere = state.jobs.filter(isTicked).length;
   var visible = state.jobs.filter(function (j) {
-    if (newOnly && !isNew(j)) return false;
+    if (!showTicked && isTicked(j)) return false;     // dealt with: gone until you ask
+    if (newOnly && !countsAsUnseen(j)) return false;
     return matchesQuery(j.title);
   });
   /* Offset pagination over the rows already in memory: `shown` is the cursor and
@@ -210,7 +252,8 @@ function renderJobs() {
     el(".company", node).textContent = job.company;
     el(".location", node).textContent = job.location || "—";
     el(".when", node).textContent = "found " + ago(now - job.first_seen);
-    if (isNew(job)) card.classList.add("is-new");
+    if (countsAsUnseen(job)) card.classList.add("is-new");
+    if (isTicked(job)) card.classList.add("is-ticked");
 
     var copy = el(".copy", node);
     if (job.req_id) {
@@ -220,6 +263,10 @@ function renderJobs() {
       copy.textContent = "no req id";
       copy.disabled = true;
     }
+
+    var tick = el(".tick", node);
+    tick.textContent = isTicked(job) ? "↩ Undo" : "✓ Done";
+    tick.addEventListener("click", function (ev) { ev.preventDefault(); toggleTicked(job); });
     frag.appendChild(node);
   });
 
@@ -232,12 +279,14 @@ function renderJobs() {
   more.hidden = remaining <= 0;
   more.textContent = "Load " + Math.min(PAGE_SIZE, remaining) + " more (" + remaining + " left)";
 
-  var unseen = state.jobs.filter(isNew).length;
+  var unseen = state.jobs.filter(countsAsUnseen).length;
   el("#heading").textContent = state.view === "new" ? "Unseen" : state.company.company;
   el("#back").hidden = false;
   el("#q").placeholder = "Filter titles…";
+  el("#showhiddenwrap").hidden = tickedHere === 0;
   el("#summary").textContent = "showing " + page.length + " of " + visible.length +
-    (unseen ? " · " + unseen + " unseen" : "");
+    (unseen ? " · " + unseen + " unseen" : "") +
+    (tickedHere ? " · " + tickedHere + " ticked off" : "");
   var mark = el("#markread");
   mark.hidden = unseen === 0;
   mark.textContent = "Mark " + unseen + " read";
@@ -299,6 +348,7 @@ function route(preserve) {
   if (!preserve) {                  // a refresh keeps your place; a navigation does not
     state.shown = PAGE_SIZE;
     el("#q").value = "";
+    el("#showhidden").checked = false;
   }
 
   var m = hash.match(/^\/c\/(.+)$/);
@@ -339,11 +389,13 @@ function route(preserve) {
 }
 
 function start() {
+  state.ticked = readTicked();
   state.seenThrough = readSeenThrough();
   state.firstRun = state.seenThrough === 0;
 
   el("#q").addEventListener("input", function () { state.shown = PAGE_SIZE; render(); });
   el("#newonly").addEventListener("input", function () { state.shown = PAGE_SIZE; render(); });
+  el("#showhidden").addEventListener("input", function () { state.shown = PAGE_SIZE; render(); });
   el("#markread").addEventListener("click", markAllRead);
   el("#more").addEventListener("click", function () { state.shown += PAGE_SIZE; render(); });
   el("#refresh").addEventListener("click", applyUpdate);

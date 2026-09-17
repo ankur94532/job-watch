@@ -57,6 +57,9 @@ companies:
   airbnb:
     ats: greenhouse
     token: airbnb                        # 158 postings, 9 in India (Bangalore, Gurugram)
+  lgelectronics:
+    ats: greenhouse
+    token: lgelectronics                 # 134 postings — but only 1 in India (mostly US R&D)
   algolia:
     ats: greenhouse
     token: algolia                       # 30 postings
@@ -306,6 +309,9 @@ companies:
   chargebee:
     ats: unsupported
     note: "no public board at all — chargebee.com/careers sends applicants to LinkedIn"
+  thoughtspot:
+    ats: unsupported
+    note: "thoughtspot.com/careers is a Next.js app; no ATS in the HTML or its bundles"
   hasura:
     ats: unsupported
     note: "self-hosted hasura.io/careers (PromptQL)"
