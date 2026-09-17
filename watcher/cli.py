@@ -225,6 +225,20 @@ def append_config(path, det):
         raise SystemExit(f"appending to {path} did not parse back (is `companies:` the last block?); restored")
 
 
+def cmd_trace(args):
+    """Dev-only: drives a real browser to find the XHR a careers SPA calls."""
+    from .trace import trace              # imported here so the poller never loads playwright
+    cfg = config_mod.load(args.config)
+    url = args.url
+    if not url:
+        c = cfg["companies"].get(args.company) or {}
+        url = c.get("careers_url")
+        if not url:
+            print(f"no --url given and no careers_url in config for {args.company}", file=sys.stderr)
+            return 2
+    return trace(url, args.company, interact=not args.no_interact)
+
+
 def cmd_detect(args):
     det = Detector(log=lambda m: print(m, file=sys.stderr)).detect(args.query)
     if det.samples:
@@ -271,6 +285,11 @@ def main(argv=None):
     p = sub.add_parser("test-adapter", help="one fetch, print counts and samples, write nothing")
     p.add_argument("company")
 
+    p = sub.add_parser("trace", help="DEV ONLY: drive a browser to find a careers SPA's XHR endpoint")
+    p.add_argument("company")
+    p.add_argument("--url", help="careers page to load (default: careers_url from config)")
+    p.add_argument("--no-interact", action="store_true", help="do not click pagination or scroll")
+
     p = sub.add_parser("detect", help="resolve a company's ATS and print a config block")
     p.add_argument("query", help="company name, domain, careers URL, or a job posting URL")
     p.add_argument("--write", action="store_true", help="append the block to config.yaml")
@@ -291,6 +310,7 @@ def main(argv=None):
         "export": cmd_export,
         "test-adapter": cmd_test_adapter,
         "detect": cmd_detect,
+        "trace": cmd_trace,
     }
     return handlers[args.cmd](args)
 

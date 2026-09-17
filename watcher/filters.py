@@ -62,6 +62,31 @@ class Filter:
         return (place, title_rank, len(hits))
 
 
+# Deliberately irrelevant: wrong trade, wrong continent, wrong everything. A
+# filter that accepts this is not filtering — the usual cause is a config value
+# that collapsed into a match-anything pattern.
+CANARY_TITLE = "Pastry Chef, Overnight Shift"
+CANARY_LOCATION = "Reykjavik, Iceland"
+
+
+class FilterTooLoose(ValueError):
+    pass
+
+
+def sanity_check(flt, where=""):
+    """Raise if the filter would accept a posting no filter should accept.
+
+    Cheap, and it runs before every company's fetch: a silently-open filter is
+    worse than a broken one, because the alerts keep arriving and look right.
+    """
+    if flt.title_ok(CANARY_TITLE) and flt.location_ok(CANARY_LOCATION):
+        raise FilterTooLoose(
+            f"{where}: filter matches {CANARY_TITLE!r} in {CANARY_LOCATION!r} — it is matching "
+            f"everything. Check title/location in config: a bare string, an empty list or a "
+            f"stray wildcard will do this. terms={flt.title_terms!r} / {flt.location_terms!r}")
+    return flt
+
+
 def filter_for(company_cfg, defaults):
     """Per-company `title` / `location` lists replace the defaults wholesale."""
     return Filter(

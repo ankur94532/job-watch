@@ -84,6 +84,18 @@ class Adapter(ABC):
             time.sleep(jitter(self.page_delay))
 
 
+def as_list(value, default=None):
+    """Config values that mean "one or more": a bare string is ONE item.
+
+    list("bengaluru") is ["b","e","n",...], which silently turns a filter or a
+    site list into nonsense that still runs. Every adapter takes its list-shaped
+    config through here.
+    """
+    if value is None or value == "":
+        return list(default or [])
+    return [value] if isinstance(value, str) else list(value)
+
+
 def join_locations(*parts):
     out = []
     for p in parts:

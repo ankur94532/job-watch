@@ -1,0 +1,105 @@
+# Robots.txt for TurboHire Platform
+# This file controls how web crawlers and bots interact with our site
+
+# Disallow all bots from crawling the entire site
+User-agent: *
+Disallow: /
+
+# Googlebot: allow only job pages
+User-agent: Googlebot
+Allow: /googe_jobs_sitemap.xml
+Allow: /job/
+Allow: /job/publicjobs/
+Allow: /jobdescription/
+Allow: /careerpage/
+
+# Allow ALL required rendering resources
+Allow: /*.js
+Allow: /*.css
+Allow: /*.png
+Allow: /*.jpg
+Allow: /*.jpeg
+Allow: /*.webp
+Allow: /static/
+Allow: /assets/
+Allow: /scripts/
+Allow: /favicon.ico
+
+# Explicitly block everything else
+Disallow: /
+
+# Optional: allow images for previews
+User-agent: Googlebot-Image
+Allow: /
+
+User-agent: Bingbot
+Disallow: /
+
+User-agent: Slurp
+Disallow: /
+
+User-agent: DuckDuckBot
+Disallow: /
+
+User-agent: Baiduspider
+Disallow: /
+
+User-agent: YandexBot
+Disallow: /
+
+User-agent: facebookexternalhit
+Disallow: /
+
+User-agent: Twitterbot
+Disallow: /
+
+User-agent: LinkedInBot
+Allow: /
+
+# Disallow AI training crawlers
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+# Disallow data scraping bots
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
+# Security and vulnerability scanners
+User-agent: Nmap
+Disallow: /
+
+User-agent: Nikto
+Disallow: /
+
+User-agent: sqlmap
+Disallow: /
+
+User-agent: w3af
+Disallow: /
+
+# Sitemap
+Sitemap: https://app.turbohire.co/googe_jobs_sitemap.xml
+
+# Crawl-delay for any bots that might ignore disallow
+Crawl-delay: 3600

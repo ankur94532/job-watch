@@ -3,6 +3,11 @@ import os
 from . import yamlish
 from .adapters import ADAPTERS, UNSUPPORTED
 
+# Deliberate policy decision, not an unfinished gap: `blocked: robots` means the
+# site's own robots.txt forbids us, `blocked: dynamic-challenge` means it needs a
+# live browser on every fetch.
+BLOCKED = "blocked"
+
 DEFAULT_INTERVAL = 900          # launchd fires every 15 minutes
 PAGED_INTERVAL = 3600           # paginated boards (Workday, Eightfold, amazon.jobs):
                                 # dozens of requests per sweep and mostly no ETag
@@ -31,8 +36,11 @@ def active_companies(cfg, only=None):
         if only and name not in only:
             continue
         ats = c.get("ats")
-        if not ats or ats == UNSUPPORTED or c.get("enabled") is False:
-            skipped.append((name, c.get("note") or ("disabled" if c.get("enabled") is False else "no ats configured")))
+        if not ats or ats in (UNSUPPORTED, BLOCKED) or c.get("enabled") is False:
+            why = c.get("note") or ("disabled" if c.get("enabled") is False else "no ats configured")
+            if ats == BLOCKED:
+                why = f"[{c.get('blocked') or 'blocked'}] {why}"
+            skipped.append((name, why))
         elif ats not in ADAPTERS:
             skipped.append((name, f"unknown ats {ats!r}"))
         else:

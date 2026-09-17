@@ -214,6 +214,47 @@ class Scheduling(Base):
         self.assertEqual(len(res.deferred), 1)
 
 
+class FilterSafety(Base):
+    """A filter that matches everything must never be silent."""
+
+    def test_open_filter_stops_the_company_before_it_polls(self):
+        from watcher.filters import FilterTooLoose, Filter, sanity_check
+        self.cfg["defaults"] = {"title": [], "location": []}
+        self.company("acme", [job("1")])
+        with self.assertRaises(FilterTooLoose):
+            sanity_check(Filter(title=[], location=[]), "acme")
+        res = self.run_once()
+        self.assertEqual(res.ok, [])
+        self.assertEqual(len(res.failed), 1)
+        self.assertIn("matching everything", res.failed[0][1])
+        self.assertEqual(FakeBoard.CALLS, [])          # never even fetched
+
+    def test_a_string_config_value_no_longer_matches_everything(self):
+        from watcher.filters import Filter, sanity_check
+        f = Filter(title="software engineer", location="india")
+        sanity_check(f, "string-config")               # would raise before the fix
+        self.assertFalse(f.location_ok("Reykjavik, Iceland"))
+
+    def test_every_row_matching_is_reported(self):
+        self.cfg["defaults"] = {"title": ["software engineer"], "location": ["india"]}
+        self.company("acme", [job(str(i)) for i in range(6)])
+        with self.assertLogs(runner.log, "WARNING") as logs:
+            self.run_once(seed=True)
+        self.assertIn("ALL 6 rows match", "".join(logs.output))
+
+    def test_window_limited_board_warns_when_the_whole_window_is_new(self):
+        class Windowed(FakeBoard):
+            ats = "fake"
+            window_limited = True
+        ADAPTERS["fake"] = Windowed
+        self.company("goog", [job("1")])
+        self.run_once(seed=True)                        # seeded, so later rows are genuinely new
+        FakeBoard.BOARDS["goog"] = [job(str(i)) for i in range(20, 26)]
+        with self.assertLogs(runner.log, "WARNING") as logs:
+            self.run_once()
+        self.assertIn("likely overflowed", "".join(logs.output))
+
+
 class Backoff(Base):
     def test_429_backs_off_exponentially_persisted_and_resets(self):
         self.company("acme", [job("1")])

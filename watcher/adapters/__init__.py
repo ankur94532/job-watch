@@ -11,6 +11,7 @@ from .oracle import OracleAdapter
 from .radancy import RadancyAdapter
 from .rippling import RipplingAdapter
 from .smartrecruiters import SmartRecruitersAdapter
+from .spire2grow import Spire2GrowAdapter
 from .workday import WorkdayAdapter
 
 ADAPTERS = {
@@ -19,7 +20,7 @@ ADAPTERS = {
         # multi-tenant ATS platforms
         GreenhouseAdapter, LeverAdapter, AshbyAdapter, SmartRecruitersAdapter,
         WorkdayAdapter, EightfoldAdapter, RipplingAdapter, RadancyAdapter, OracleAdapter,
-        JibeAdapter,
+        JibeAdapter, Spire2GrowAdapter,
         # single-company public JSON boards
         AmazonAdapter, AtlassianAdapter,
         # server-rendered pages whose search state is embedded JSON

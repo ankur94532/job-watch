@@ -42,6 +42,7 @@ import re
 import time
 from urllib.parse import quote
 
+from ..robots import fetch as fetch_robots
 from .base import Adapter, AdapterError, FetchContext, FetchResult, Posting, join_locations
 
 APPLE_PAGE = 20
@@ -53,7 +54,22 @@ GOOGLE_BLOCK = re.compile(r"AF_initDataCallback\((\{.*?\})\);", re.S)
 GOOGLE_DATA = re.compile(r"data:(\[.*\])\s*,\s*sideChannel", re.S)
 
 
-class AppleAdapter(Adapter):
+class RobotsAware(Adapter):
+    """Checks robots.txt before the first request of a sweep, and refuses if told to.
+
+    These adapters read a company's own careers site rather than an ATS built for
+    programmatic access, so the site's own policy is the thing to obey.
+    """
+
+    def check_robots(self, url):
+        r = fetch_robots(url)
+        from ..http import user_agent
+        if not r.allowed(user_agent(), url):
+            raise AdapterError(
+                f"{self.company}: robots.txt forbids {url} ({r.why(user_agent(), url)}) — not fetching")
+
+
+class AppleAdapter(RobotsAware):
     ats = "apple"
     # NOT "location": that key is the per-company filter override everywhere else
     # in this config, and a string there is iterated into single characters.
@@ -66,6 +82,8 @@ class AppleAdapter(Adapter):
         return base + ("&page=%d" % page if page > 1 else "")
 
     def page(self, page):
+        if page == 1:
+            self.check_robots(self.url(1))
         body, _ = self.http.request("GET", self.url(page), headers={"Accept": "text/html"})
         html = body.decode("utf-8", "replace")
         m = APPLE_HYDRATION.search(html)
@@ -135,8 +153,11 @@ class AppleAdapter(Adapter):
         )
 
 
-class GoogleAdapter(Adapter):
+class GoogleAdapter(RobotsAware):
     ats = "google"
+    # Only page one is allowed by robots, so anything pushed past row 20 between
+    # two polls is gone. The runner warns when the whole window comes back new.
+    window_limited = True
 
     def url(self):
         q = self.cfg.get("query")
@@ -147,6 +168,7 @@ class GoogleAdapter(Adapter):
 
     def fetch(self, ctx=None):
         ctx = ctx or FetchContext()
+        self.check_robots(self.url())
         body, _ = self.http.request("GET", self.url(), headers={"Accept": "text/html"})
         html = body.decode("utf-8", "replace")
         rows = self._rows(html)

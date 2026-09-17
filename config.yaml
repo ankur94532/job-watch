@@ -311,8 +311,12 @@ companies:
     ats: unsupported
     note: "self-hosted uber.com/careers; SmartRecruiters 'uber' is one 2021 'Test UAT' row"
   nutanix:
-    ats: unsupported
-    note: "careers.nutanix.com robots.txt disallows /en/jobs/, and the page is Cloudflare-gated"
+    ats: blocked
+    blocked: dynamic-challenge
+    # Correction: robots.txt ALLOWS us (/en/jobs/ is disallowed only for SemrushBot
+    # and PageFreezer). The blocker is a Cloudflare interstitial: 403 to any client
+    # without a solved challenge. Needs a live browser per fetch, so not worth it.
+    note: "Cloudflare challenge on careers.nutanix.com; robots.txt permits us"
   chargebee:
     ats: unsupported
     note: "no public board at all — chargebee.com/careers sends applicants to LinkedIn"
@@ -338,13 +342,18 @@ companies:
     ats: unsupported
     note: "self-hosted scylladb.com/careers"
   flipkart:
-    ats: unsupported
-    # Board is flipkart.turbohire.co/careerpage/4d757ba0-...; TurboHire's robots.txt
-    # is "User-agent: * / Disallow: /" and names anthropic-ai and Claude-Web explicitly.
-    note: "TurboHire board, but its robots.txt disallows every agent except Googlebot"
+    ats: blocked
+    blocked: robots
+    # Board found: flipkart.turbohire.co/careerpage/4d757ba0-3d57-448a-b82c-238ed87ac90f
+    # Checked 2026-09-18. flipkart.turbohire.co/robots.txt, group "User-agent: *":
+    #   Disallow: /
+    # Googlebot is allowed /careerpage/; anthropic-ai and Claude-Web are named and denied.
+    # Reachable, deliberately not polled. No email job-alert form on the board to use instead.
+    note: "TurboHire board; robots.txt Disallow: / for every agent but Googlebot"
   myntra:
-    ats: unsupported
-    note: "self-hosted careers.myntra.com"
+    ats: spire2grow                       # found with `watcher trace`: the page names no ATS
+    workspace_id: MYNTRA-93as3            # the only credential the API wants
+    board_url: https://jobs.myntra.com/home
   nykaa:
     ats: unsupported
     note: "self-hosted nykaa.com careers"
@@ -369,10 +378,14 @@ companies:
     ats: unsupported
     note: "self-hosted media.net careers; SmartRecruiters 'medianet' is one 2020 row in Tunisia"
   navi:
-    ats: unsupported
+    ats: blocked
+    blocked: robots
     # WARNING: the Ashby board 'navi' is a San Francisco startup, NOT Navi
     # Technologies of Bangalore. Its rows are SF founding-engineer roles. Do not wire it up.
-    note: "TurboHire board (navi.turbohire.co), robots.txt disallows all agents but Googlebot"
+    # Board found: navi.turbohire.co/dashboardv2?orgId=3e818601-0baa-429c-b6f8-4b21903ae0e6
+    # Checked 2026-09-18, same TurboHire robots.txt: "User-agent: * / Disallow: /".
+    # WARNING: Ashby board 'navi' is a San Francisco startup, not Navi Technologies.
+    note: "TurboHire board; robots.txt Disallow: / for every agent but Googlebot"
   quadeye:
     ats: unsupported
     note: "self-hosted quadeye.com careers"

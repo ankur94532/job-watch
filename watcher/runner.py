@@ -14,7 +14,7 @@ import os
 from . import config as config_mod
 from . import notify
 from .adapters import AdapterError, FetchContext, build_adapter
-from .filters import filter_for
+from .filters import FilterTooLoose, filter_for, sanity_check
 from .http import HttpClient, HttpStatusError, NetworkError, NotModified, jitter, network_up
 from .store import SENT
 
@@ -99,8 +99,10 @@ def run(cfg, store, sink=None, seed=False, only=None, http=None, budget=RUN_BUDG
         try:
             adapter = build_adapter(name, ccfg, http=http,
                                     page_delay=float(ccfg.get("page_delay") or page_delay))
-        except AdapterError as e:
+            sanity_check(filter_for(ccfg, defaults), name)   # never poll behind an open filter
+        except (AdapterError, FilterTooLoose) as e:
             res.failed.append((name, str(e)))
+            log.error("%s: %s", name, e)
             continue
         plan.append((name, ccfg, st, adapter))
 
@@ -216,6 +218,21 @@ def _poll_company(name, ccfg, st, adapter, store, res, defaults, seed, deadline,
 
     fresh = store.record(name, result.postings, now, is_match, suppress=silent)
     matched = 0 if silent else sum(1 for p in fresh if is_match(p))
+
+    # Everything matching is possible on a tiny, tightly-targeted board, but on
+    # anything else it means the filter stopped filtering. Say so out loud.
+    if len(result.postings) >= 5 and all(is_match(p) for p in result.postings):
+        log.warning("%s: ALL %d rows match the filters — verify config; a filter that matches "
+                    "everything looks identical to one that works", name, len(result.postings))
+
+    # A board we can only see one page of (Google: robots forbids pagination) has
+    # no way to show us what fell off the end. If the whole window is new, it
+    # probably overflowed between polls.
+    if getattr(adapter, "window_limited", False) and not silent and result.postings \
+            and len(fresh) == len(result.postings):
+        log.warning("%s: every one of the %d rows in the visible window is new — the window "
+                    "likely overflowed since the last poll and postings were missed. "
+                    "Consider a shorter interval or a narrower query.", name, len(result.postings))
     if result.throttled is not None:
         # Partial sweep cut short by 403/429: the rows are kept, the cursor is kept,
         # and the company is parked exactly as if the fetch had failed outright.
