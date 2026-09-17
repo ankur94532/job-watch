@@ -200,7 +200,11 @@ is normal.
 ### The page
 
 Mobile-first, no framework, no third-party requests at all: no CDN, no web
-fonts, no analytics. Newest first, filter by company or title text, and a
+fonts, no analytics. While the page is open it re-checks the 3.5KB index once a
+minute (and whenever you return to the tab). A poll that lands mid-read is
+**parked, not applied**: a "↻ 3 new roles — tap to load" pill appears and the
+list under your thumb does not move until you tap it. Tapping keeps your filter
+and your place in the pagination. Newest first, filter by company or title text, and a
 **copy-req-id button per row**, since retyping a requisition ID into a referral
 request from a phone is the actual friction. Rows first seen since your last
 visit are badged NEW (`localStorage`, wrapped in try/catch, renders fine when

@@ -57,6 +57,16 @@ input[type=search], select {
 }
 .markread:active { background: var(--bg); }
 .summary { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+/* Parked update, announced but not applied: tapping is what moves the list. */
+.refresh {
+  position: sticky; top: 118px; z-index: 3;
+  display: block; width: 100%; margin: 8px 0 0; padding: 10px 12px;
+  border: 1px solid var(--accent); border-radius: 999px;
+  background: var(--card); color: var(--accent);
+  font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.refresh:active { background: var(--bg); }
+
 main { padding: 8px 0 8px; }
 
 /* home: one row per company, tap target full width */

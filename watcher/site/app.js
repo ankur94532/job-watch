@@ -19,8 +19,11 @@ var STALE_AFTER = 24 * 3600;      // seconds before the page says so out loud
 var STORAGE_KEY = "jobwatch:seenThrough";
 var LEGACY_KEY = "jobwatch:lastVisit";
 
+var REFRESH_EVERY = 60000;        // how often to re-check the index while you are reading
+
 var state = {
   index: null,        // data/jobs.json
+  pending: null,      // a newer index, fetched but NOT applied until you tap
   view: "home",       // "home" | "company" | "new"
   company: null,      // index entry when view === "company"
   jobs: [],           // rows in play (one company, or everything unseen)
@@ -72,6 +75,40 @@ function getJSON(url) {
     if (!r.ok) throw new Error(url + ": HTTP " + r.status);
     return r.json();
   });
+}
+
+/* A poll can land while you are reading. Replacing the list under your thumb
+   would move the row you were about to tap, so a newer index is fetched,
+   parked, and announced — you decide when it lands. */
+function checkForUpdates() {
+  if (!state.index || (typeof document !== "undefined" && document.hidden === true)) return;
+  getJSON("data/jobs.json").then(function (fresh) {
+    var mine = state.index.polled_at || state.index.generated_at || 0;
+    var theirs = fresh.polled_at || fresh.generated_at || 0;
+    if (theirs > mine) {
+      state.pending = fresh;
+      showUpdatePill(fresh);
+    }
+  }, function () { /* offline or a failed push: try again next tick */ });
+}
+
+function showUpdatePill(fresh) {
+  var pill = el("#refresh");
+  var added = fresh.count - (state.index.count || 0);
+  pill.textContent = added > 0
+    ? "↻ " + added + (added === 1 ? " new role" : " new roles") + " — tap to load"
+    : "↻ New results — tap to load";
+  pill.hidden = false;
+}
+
+function applyUpdate() {
+  if (!state.pending) return;
+  state.index = state.pending;
+  state.pending = null;
+  state.cache = {};                 // company files are stale too, not just the index
+  el("#refresh").hidden = true;
+  renderFreshness();
+  route(true);                      // same screen, same filter, same page depth
 }
 
 function loadCompany(entry) {
@@ -256,20 +293,22 @@ function failed(err) {
   el("#list").textContent = "";
 }
 
-function route() {
+function route(preserve) {
   if (!state.index) return;
   var hash = (window.location.hash || "#/").replace(/^#/, "");
-  state.shown = PAGE_SIZE;
-  el("#q").value = "";
+  if (!preserve) {                  // a refresh keeps your place; a navigation does not
+    state.shown = PAGE_SIZE;
+    el("#q").value = "";
+  }
 
   var m = hash.match(/^\/c\/(.+)$/);
   if (m) {
     var wanted = decodeURIComponent(m[1]);
     var entry = (state.index.companies || []).filter(function (c) { return slug(c.company) === wanted; })[0];
-    if (!entry) { window.location.hash = "#/"; return; }
+    if (!entry) { window.location.hash = "#/"; return; }   // e.g. its last role closed
     state.view = "company";
     state.company = entry;
-    el("#newonly").checked = false;
+    if (!preserve) el("#newonly").checked = false;
     loadCompany(entry).then(function (rows) { state.jobs = rows; render(); }, failed);
     return;
   }
@@ -295,7 +334,7 @@ function route() {
   state.view = "home";
   state.company = null;
   state.jobs = [];
-  el("#newonly").checked = false;
+  if (!preserve) el("#newonly").checked = false;
   render();
 }
 
@@ -307,7 +346,8 @@ function start() {
   el("#newonly").addEventListener("input", function () { state.shown = PAGE_SIZE; render(); });
   el("#markread").addEventListener("click", markAllRead);
   el("#more").addEventListener("click", function () { state.shown += PAGE_SIZE; render(); });
-  window.addEventListener("hashchange", route);
+  el("#refresh").addEventListener("click", applyUpdate);
+  window.addEventListener("hashchange", function () { route(false); });
 
   getJSON("data/jobs.json").then(function (index) {
     state.index = index;
@@ -318,12 +358,18 @@ function start() {
       writeSeenThrough(state.seenThrough);
     }
     renderFreshness();
-    route();
+    route(false);
   }).catch(function (err) {
     el("#freshness").textContent = "could not load data";
     failed(err);
   });
-  setInterval(renderFreshness, 60000);
+  setInterval(function () { renderFreshness(); checkForUpdates(); }, REFRESH_EVERY);
+  /* Coming back to the tab is the moment you most want to know. */
+  if (typeof document.addEventListener === "function") {
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden !== true) checkForUpdates();
+    });
+  }
 }
 
 document.addEventListener("DOMContentLoaded", start);
