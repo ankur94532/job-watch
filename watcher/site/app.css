@@ -32,7 +32,11 @@ header {
   padding: 12px 0 8px;
   border-bottom: 1px solid var(--line);
 }
-.bar { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.bar { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.back {
+  flex: 0 0 auto; color: var(--accent); text-decoration: none;
+  font-size: 14px; font-weight: 600; padding: 4px 8px 4px 0;
+}
 h1 { font-size: 18px; margin: 0; letter-spacing: -0.01em; }
 .fresh { font-size: 13px; color: var(--muted); }
 .stale {
@@ -53,7 +57,31 @@ input[type=search], select {
 }
 .markread:active { background: var(--bg); }
 .summary { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
-main { padding: 8px 0 24px; }
+main { padding: 8px 0 8px; }
+
+/* home: one row per company, tap target full width */
+.company-row {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  margin-bottom: 8px; padding: 14px 12px; text-decoration: none; color: inherit;
+}
+.company-row:active { background: var(--bg); }
+.company-name { font-weight: 600; flex: 0 0 auto; }
+.company-meta { color: var(--muted); font-size: 13px; flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chev { color: var(--muted); font-size: 20px; line-height: 1; flex: 0 0 auto; }
+.company-row.is-new .company-name::after {
+  content: "NEW"; margin-left: 8px; padding: 1px 6px; border-radius: 999px;
+  background: var(--new-bg); color: var(--new); font-size: 11px; font-weight: 700; vertical-align: 2px;
+}
+
+.more-wrap { padding: 0 0 28px; text-align: center; }
+.more {
+  width: 100%; padding: 12px; font-size: 14px; font-weight: 600;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--card); color: var(--accent); cursor: pointer;
+}
+.more:active { background: var(--bg); }
 .job {
   display: flex; align-items: stretch; gap: 8px;
   background: var(--card); border: 1px solid var(--line); border-radius: 10px;

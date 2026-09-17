@@ -13,14 +13,14 @@
 <body>
 <header>
   <div class="bar">
-    <h1>Job Watch</h1>
+    <a id="back" class="back" href="#/" hidden>‹ Companies</a>
+    <h1 id="heading">Job Watch</h1>
     <span id="freshness" class="fresh">loading…</span>
   </div>
   <p id="stale" class="stale" hidden></p>
   <div class="controls">
-    <input id="q" type="search" inputmode="search" placeholder="Filter titles…" autocomplete="off"
-           aria-label="Filter by title">
-    <select id="company" aria-label="Filter by company"><option value="">All companies</option></select>
+    <input id="q" type="search" inputmode="search" placeholder="Filter…" autocomplete="off"
+           aria-label="Filter">
     <label class="toggle"><input id="newonly" type="checkbox"> New only</label>
     <button id="markread" class="markread" type="button" hidden>Mark read</button>
   </div>
@@ -29,10 +29,19 @@
 
 <main id="list" aria-live="polite"></main>
 
-<p id="empty" class="empty" hidden>Nothing matches that filter.</p>
+<p id="empty" class="empty" hidden>Nothing here.</p>
+<div class="more-wrap"><button id="more" class="more" type="button" hidden></button></div>
 <footer>
   <p>Read-only view. Updated when the watcher on the laptop finds something.</p>
 </footer>
+
+<template id="companyrow">
+  <a class="company-row" href="#/">
+    <span class="company-name"></span>
+    <span class="company-meta"></span>
+    <span class="chev" aria-hidden="true">›</span>
+  </a>
+</template>
 
 <template id="row">
   <article class="job">

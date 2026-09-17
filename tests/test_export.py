@@ -75,9 +75,9 @@ class Collect(unittest.TestCase):
         jobs = export.collect(CFG, FakeStore(self.rows()), now=1000)
         for j in jobs:
             self.assertEqual(sorted(j), sorted(export.FIELDS))
-        body = export.payload(jobs, 3, now=1000)
+        body = export.index_payload(jobs, 3, now=1000)
         self.assertEqual(body["generated_at"], 1000)
-        self.assertEqual(body["companies"], 3)
+        self.assertEqual(body["watched"], 3)
         self.assertEqual(body["count"], len(jobs))
 
     def test_nothing_sensitive_reaches_disk(self):
@@ -88,28 +88,43 @@ class Collect(unittest.TestCase):
                            "notified", "cursor", "tenant", "posted_at"):
                 self.assertNotIn(banned, text, banned)
             self.assertEqual(sorted(os.path.basename(f) for f in files),
-                             ["app.css", "app.js", "index.html", "jobs.json"])
+                             ["acme.json", "app.css", "app.js", "globex.json", "index.html", "jobs.json"])
             page = open(os.path.join(d, "index.html")).read()
             self.assertIn('name="robots" content="noindex, nofollow"', page)
             self.assertNotIn("http://", page.replace('http://www.w3.org', ''))   # no third-party
             self.assertNotIn("https://", page.replace("https://www.w3.org", ""))
 
-    def test_shards_when_the_payload_is_too_big(self):
+    def test_index_lists_companies_most_recently_active_first(self):
+        """The home screen reads only this file — no job rows in it at all."""
         with tempfile.TemporaryDirectory() as d:
-            files, blob = export.write(CFG, FakeStore(self.rows()), d, now=1000, max_bytes=200)
+            _, blob = export.write(CFG, FakeStore(self.rows()), d, now=1000)
             index = json.loads(blob)
-            self.assertEqual(index["jobs"], [])
-            self.assertEqual(sorted(s["company"] for s in index["shards"]), ["acme", "globex"])
+            self.assertNotIn("jobs", index)
+            self.assertEqual([c["company"] for c in index["companies"]], ["globex", "acme"])
             self.assertEqual(index["count"], 2)
-            for shard in index["shards"]:
-                rows = json.load(open(os.path.join(d, "data", shard["file"])))["jobs"]
-                self.assertEqual(len(rows), shard["count"])
+            self.assertEqual([c["count"] for c in index["companies"]], [1, 1])
+            self.assertEqual(index["companies"][0]["newest"], 600)      # globex job first_seen
+            self.assertEqual(index["companies"][0]["file"], "globex.json")
 
-    def test_switching_back_to_one_file_cleans_up_shards(self):
+    def test_each_company_file_is_newest_poll_first(self):
+        rows = self.rows() + [Row("acme", "9", "Backend Engineer", "India", 800, 900),
+                              Row("acme", "8", "Software Engineer", "India", 200, 900)]
         with tempfile.TemporaryDirectory() as d:
-            export.write(CFG, FakeStore(self.rows()), d, now=1000, max_bytes=200)
+            export.write(CFG, FakeStore(rows), d, now=1000)
+            acme = json.load(open(os.path.join(d, "data", "acme.json")))
+            self.assertEqual(acme["company"], "acme")
+            self.assertEqual(acme["count"], len(acme["jobs"]))
+            stamps = [j["first_seen"] for j in acme["jobs"]]
+            self.assertEqual(stamps, sorted(stamps, reverse=True))       # descending poll time
+            self.assertEqual(stamps, [800, 300, 200])
+
+    def test_a_company_that_stops_matching_leaves_no_orphan_file(self):
+        with tempfile.TemporaryDirectory() as d:
             export.write(CFG, FakeStore(self.rows()), d, now=1000)
-            self.assertEqual(os.listdir(os.path.join(d, "data")), ["jobs.json"])
+            self.assertIn("globex.json", os.listdir(os.path.join(d, "data")))
+            only_acme = [r for r in self.rows() if r["company"] == "acme"]
+            export.write(CFG, FakeStore(only_acme), d, now=1000)
+            self.assertEqual(sorted(os.listdir(os.path.join(d, "data"))), ["acme.json", "jobs.json"])
 
 
 class Publish(unittest.TestCase):

@@ -8,7 +8,7 @@ LinkedIn, no paid APIs.
 Standard library only. It runs on a stock macOS `/usr/bin/python3`.
 
 ```sh
-make test                         # 113 tests, no network
+make test                         # 114 tests, no network
 python3 -m watcher seed           # FIRST: record every open req, alert nothing
 python3 -m watcher run            # fetch, diff, alert on what's new
 ```
@@ -88,9 +88,9 @@ watcher/
   detect.py              ATS detection
   http.py                honest UA, conditional GET, retry/backoff
   yamlish.py             small YAML-subset parser (keeps the runtime dependency-free)
-  export.py              static render of open matching reqs
+  export.py              static render: company index + one file per company
   publish.py             one orphan commit on the `site` branch, force-pushed
-  site/                  the page itself: index.html + app.css + app.js, no build step
+  site/                  the page: companies -> company -> paginated jobs, no build step
 deploy/                  launchd plist template + env example
 tests/                   fixtures recorded from live boards; no network
 ```

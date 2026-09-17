@@ -140,8 +140,7 @@ def _export(cfg, store, clock):
 
     try:
         out = os.path.abspath(os.path.expanduser(settings["out"]))
-        files, blob = export_mod.write(cfg, store, out, now=int(clock()),
-                                       max_bytes=int(settings.get("max_bytes") or export_mod.MAX_BYTES))
+        files, blob = export_mod.write(cfg, store, out, now=int(clock()))
     except Exception as e:                      # a broken export must not sink a good run
         log.warning("export failed: %s", e)
         return f"export failed: {e}"

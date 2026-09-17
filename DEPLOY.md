@@ -183,12 +183,15 @@ main branch for the same reason.
 
 ### What gets published
 
-`data/jobs.json` plus `index.html`, `app.css`, `app.js`. The payload holds only
+`data/jobs.json` (a company index) plus one `data/<company>.json` per company,
+and `index.html`, `app.css`, `app.js`. The home screen downloads only the index —
+3.5KB for 45 companies — and opening one company fetches just that file (~11KB),
+rendered 25 rows at a time. The payload holds only
 open, currently-matching requisitions and only these fields: company, title,
 location, url, req_id, first_seen, last_seen, ats — plus `generated_at` and the
 count of companies watched. Never the config, the Telegram token, backoff state,
-error text, or raw ATS payloads. Today that is ~810 rows in 245KB; above 1MB it
-shards into one file per company and the page lazy-loads them.
+error text, or raw ATS payloads. Today that is 884 rows across 45 files, 376KB in total, of which a phone
+downloads 3.5KB to open the app.
 
 Pushes are skipped when the payload is byte-identical to the last one, which is
 most runs. A push failure is logged and the run continues — waking with no wifi

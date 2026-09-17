@@ -191,8 +191,7 @@ def cmd_export(args):
     out = os.path.abspath(os.path.expanduser(args.out or settings["out"]))
     store = Store(args.db)
     try:
-        files, blob = export_mod.write(cfg, store, out,
-                                       max_bytes=int(settings.get("max_bytes") or export_mod.MAX_BYTES))
+        files, blob = export_mod.write(cfg, store, out)
     finally:
         store.close()
     print(f"{len(files)} files, {len(blob)} bytes of JSON -> {out}", file=sys.stderr)
