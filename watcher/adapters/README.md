@@ -296,6 +296,10 @@ Slug guessing is the weakest signal and is always flagged:
   SmartRecruiters boards that a naive probe would happily accept.
 * Greenhouse `linkedin` → "LI Test Company"; Lever `linkedin` → "Anirban jobReq
   3 - public". Both are sandboxes.
+* Ashby `navi` → 9 live, current postings for a **San Francisco startup**, not
+  Navi Technologies of Bangalore. The freshest-looking false positive found so
+  far: nothing about the response says it is the wrong company except the
+  locations.
 
 Hence `detect --write` refuses a guessed board unless `--accept-guess` is passed,
 and prints sample rows plus the board's self-reported name first.

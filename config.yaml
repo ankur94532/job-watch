@@ -353,10 +353,17 @@ companies:
     note: "self-hosted blinkit.com/careers (Eternal), Cloudflare-gated"
   phonepe:
     ats: unsupported
-    note: "self-hosted phonepe.com/careers/job-openings"
+    note: "self-hosted phonepe.com/careers/job-openings; no ATS in the HTML, no Phenom
+          widgets API (the trick that exposed eBay's and WEX's Workday), no job URLs in
+          its sitemap"
   medianet:
     ats: unsupported
     note: "self-hosted media.net careers; SmartRecruiters 'medianet' is one 2020 row in Tunisia"
+  navi:
+    ats: unsupported
+    note: "navi.com/careers/jobs is a React app with no ATS in the page or its bundles.
+          WARNING: the Ashby board 'navi' is a San Francisco startup, NOT Navi
+          Technologies — its rows are SF founding-engineer roles. Do not wire it up."
   quadeye:
     ats: unsupported
     note: "self-hosted quadeye.com careers"
