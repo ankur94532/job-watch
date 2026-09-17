@@ -8,6 +8,7 @@
   --accent: #1c5fd6;
   --new: #0f7b4f;
   --new-bg: #e6f5ee;
+  --open-bg: #e7effd;
   --warn: #8a4b00;
   --warn-bg: #fdf0dc;
 }
@@ -15,6 +16,7 @@
   :root {
     --bg: #14161a; --card: #1c1f25; --ink: #e9eaec; --muted: #9aa1ad; --line: #2b3038;
     --accent: #7aa7ff; --new: #6ee7b7; --new-bg: #10352a; --warn: #f5c78a; --warn-bg: #3a2a12;
+    --open-bg: #1b2a44;
   }
 }
 * { box-sizing: border-box; }
@@ -122,6 +124,14 @@ main { padding: 8px 0 8px; }
 .tick:active, .copy:active { background: var(--bg); }
 .copy:disabled { color: var(--muted); }
 .copy.done { color: var(--new); }
+/* the row you just tapped through to, so you can find it again on the way back */
+.job.is-opened { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.opened {
+  align-self: flex-start; margin-top: 2px; padding: 1px 7px; border-radius: 999px;
+  background: var(--open-bg); color: var(--accent); font-size: 11px; font-weight: 700;
+}
+.job.is-opened .tick { color: var(--accent); }
+
 /* only visible while "Show ticked" is on, so it reads as already dealt with */
 .job.is-ticked { opacity: 0.55; }
 .job.is-ticked .tick { color: var(--accent); }

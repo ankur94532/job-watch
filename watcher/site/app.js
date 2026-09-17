@@ -20,6 +20,8 @@ var STORAGE_KEY = "jobwatch:seenThrough";
 var LEGACY_KEY = "jobwatch:lastVisit";
 var TICKED_KEY = "jobwatch:ticked";
 var TICKED_CAP = 5000;            // plenty for years of ticking; bounds localStorage
+var OPENED_KEY = "jobwatch:opened";
+var OPENED_CAP = 200;             // only needs to outlive a round trip to an ATS tab
 
 var REFRESH_EVERY = 60000;        // how often to re-check the index while you are reading
 
@@ -32,6 +34,7 @@ var state = {
   shown: PAGE_SIZE,   // pagination cursor: how many of `jobs` are rendered
   seenThrough: 0,
   ticked: {},         // "company|job_id" -> 1, the jobs you have dealt with
+  opened: {},         // "company|job_id" -> when you tapped through to the posting
   firstRun: false,
   cache: {}           // file -> rows, so going back and forth refetches nothing
 };
@@ -80,9 +83,39 @@ function writeTicked() {
 }
 function toggleTicked(job) {
   var key = tickKey(job);
-  if (state.ticked[key]) delete state.ticked[key]; else state.ticked[key] = 1;
+  if (state.ticked[key]) {
+    delete state.ticked[key];
+  } else {
+    state.ticked[key] = 1;
+    delete state.opened[key];      // dealt with: it no longer needs finding again
+    writeOpened();
+  }
   writeTicked();
   render();
+}
+
+/* Tapping a row opens the ATS posting in another tab. Coming back, the row you
+   just applied through has to be findable — otherwise you are re-reading titles
+   to work out where you were. Recorded on click and persisted, because a
+   background tab can be discarded and reloaded while you are away. */
+function isOpened(job) { return !!state.opened[tickKey(job)]; }
+
+function readOpened() {
+  try {
+    var raw = window.localStorage.getItem(OPENED_KEY);
+    var obj = raw ? JSON.parse(raw) : {};
+    return (obj && typeof obj === "object") ? obj : {};
+  } catch (e) { return {}; }
+}
+function writeOpened() {
+  try {
+    var keys = Object.keys(state.opened);
+    if (keys.length > OPENED_CAP) {
+      keys.sort(function (a, b) { return state.opened[a] - state.opened[b]; });
+      keys.slice(0, keys.length - OPENED_CAP).forEach(function (k) { delete state.opened[k]; });
+    }
+    window.localStorage.setItem(OPENED_KEY, JSON.stringify(state.opened));
+  } catch (e) { /* storage blocked: the highlight lasts this session only */ }
 }
 
 /* A job you ticked is dealt with, so it should not keep the company badged as
@@ -106,6 +139,7 @@ function ago(seconds) {
 }
 
 function el(sel, root) { return (root || document).querySelector(sel); }
+function now2() { return Math.floor(Date.now() / 1000); }
 function slug(name) { return String(name).toLowerCase().replace(/[^a-z0-9_-]+/g, "-"); }
 
 function getJSON(url) {
@@ -255,6 +289,22 @@ function renderJobs() {
     if (countsAsUnseen(job)) card.classList.add("is-new");
     if (isTicked(job)) card.classList.add("is-ticked");
 
+    var openedLabel = el(".opened", node);
+    var link = el(".hit", node);
+    function showOpened() {
+      card.classList.add("is-opened");
+      openedLabel.hidden = false;
+      openedLabel.textContent = "opened " + ago(now2() - state.opened[tickKey(job)]);
+    }
+    if (isOpened(job)) showOpened(); else openedLabel.hidden = true;
+    /* Marked on the way out, without a re-render: replacing the node mid-click
+       can cancel the navigation in some browsers. */
+    link.addEventListener("click", function () {
+      state.opened[tickKey(job)] = now2();
+      writeOpened();
+      showOpened();
+    });
+
     var copy = el(".copy", node);
     if (job.req_id) {
       copy.textContent = "Copy req";
@@ -390,6 +440,7 @@ function route(preserve) {
 
 function start() {
   state.ticked = readTicked();
+  state.opened = readOpened();
   state.seenThrough = readSeenThrough();
   state.firstRun = state.seenThrough === 0;
 
