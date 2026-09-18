@@ -533,3 +533,11 @@ companies:
     token: uipath
     # evidence: ATS link in HTML of https://www.uipath.com/careers
     # verified: 2026-09-18 live fetch, 104 open postings
+
+  cohesity:
+    ats: workday
+    tenant: cohesity
+    shard: wd5
+    sites: [Cohesity_Careers]
+    # evidence: ATS link in HTML of https://www.cohesity.com/careers/open-positions/?gh_jid=a1eab1667f1e10015d1c6fc6280a0000&type=wd
+    # verified: 2026-09-18 live fetch, 182 open postings
