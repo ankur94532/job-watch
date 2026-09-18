@@ -25,6 +25,8 @@ help:
 
 test:
 	cd $(REPO) && $(PYTHON) -m unittest discover -s tests -t . -v
+	@# the tick-sync Pages Function; skipped, loudly, where there is no node
+	@cd $(REPO) && if command -v node >/dev/null; then node --test tests/site_state.test.mjs; else echo 'node not found: skipped tests/site_state.test.mjs'; fi
 
 seed:
 	cd $(REPO) && $(PYTHON) -m watcher seed

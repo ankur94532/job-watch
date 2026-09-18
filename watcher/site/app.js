@@ -11,21 +11,32 @@
    be handed 900 rows to scroll, nor a 270KB download to read twenty.
 
    Opening index.html from disk against a local data/ works exactly like the
-   deployed copy. */
+   deployed copy, minus sync.
+
+   What you do here (ticks, "opened" marks, which poll each company was last
+   opened at) follows you between devices through api/state, a Pages Function
+   behind the same Cloudflare Access login. localStorage stays the working copy:
+   the page renders from it, works offline, and merges whenever it reaches the
+   endpoint. A local copy has no endpoint and says so once, with a link that
+   carries its ticks to the synced one. */
 "use strict";
 
 var PAGE_SIZE = 25;               // rows per page; "Load more" advances the cursor
 var STALE_AFTER = 24 * 3600;      // seconds before the page says so out loud
 var STORAGE_KEY = "jobwatch:seenThrough";
 var LEGACY_KEY = "jobwatch:lastVisit";
-var TICKED_KEY = "jobwatch:ticked";
+var TICKED_KEY = "jobwatch:ticked";     // legacy: a plain list of ticked keys, pre-sync
+var TICKLOG_KEY = "jobwatch:tickLog";   // "company|job_id" -> [1 ticked / 0 unticked, ms]
 var TICKED_CAP = 5000;            // plenty for years of ticking; bounds localStorage
+var TOMBSTONE_TTL = 60 * 24 * 3600 * 1000;   // an untick only has to outlive a sync
 var OPENED_KEY = "jobwatch:opened";
 var OPENED_CAP = 200;             // only needs to outlive a round trip to an ATS tab
 var VISITED_KEY = "jobwatch:visited";   // company -> the poll it was last opened at
 var SCROLL_KEY = "jobwatch:homeScroll"; // sessionStorage: survives this tab reloading
 
 var REFRESH_EVERY = 60000;        // how often to re-check the index while you are reading
+var SYNC_URL = "api/state";
+var SYNC_DELAY = 800;             // coalesce a burst of ticks into one request
 
 var state = {
   index: null,        // data/jobs.json
@@ -35,7 +46,8 @@ var state = {
   jobs: [],           // rows in play (one company, or everything unseen)
   shown: PAGE_SIZE,   // pagination cursor: how many of `jobs` are rendered
   seenThrough: 0,
-  ticked: {},         // "company|job_id" -> 1, the jobs you have dealt with
+  ticked: {},         // "company|job_id" -> 1, the jobs you have dealt with (derived)
+  tickLog: {},        // "company|job_id" -> [1|0, ms]: ticks AND unticks, for merging
   opened: {},         // "company|job_id" -> when you tapped through to the posting
   firstRun: false,
   cache: {},          // file -> rows, so going back and forth refetches nothing
@@ -44,7 +56,14 @@ var state = {
   homeScroll: 0,      // where you were in the company list
   restoreScroll: false,
   leavingHome: false, // a tap has fired; ignore the browser's own scroll
-  toTop: false
+  toTop: false,
+  sync: {
+    mode: "unknown",  // "ok" | "off" (no endpoint: a local copy) | "signedout" | "error"
+    inFlight: false,
+    dirty: false,     // changed since the last request left
+    timer: null,
+    adopting: false   // writing merged state back: must not trigger another sync
+  }
 };
 
 /* What counts as "seen" is a POLL timestamp from the data, not the wall-clock
@@ -89,6 +108,7 @@ function readVisited() {
 }
 function writeVisited() {
   try { window.localStorage.setItem(VISITED_KEY, JSON.stringify(state.visited)); } catch (e) { /* fine */ }
+  scheduleSync();
 }
 
 /* Called on entry to a company screen. Records the poll you have now seen it
@@ -112,6 +132,7 @@ function readSeenThrough() {
 }
 function writeSeenThrough(ts) {
   try { window.localStorage.setItem(STORAGE_KEY, String(ts)); } catch (e) { /* fine */ }
+  scheduleSync();
 }
 /* Ticked-off jobs. Keyed on the store's own (company, job_id) — the only
    identifier every ATS supplies; over a thousand rows carry no requisition
@@ -119,30 +140,57 @@ function writeSeenThrough(ts) {
 function tickKey(job) { return job.company + "|" + job.job_id; }
 function isTicked(job) { return state.ticked[tickKey(job)] === 1; }
 
-function readTicked() {
+/* A tick is stored with WHEN, and unticking leaves a [0, when] rather than
+   deleting the key. Without that, syncing could not tell "unticked on the
+   phone" from "never ticked here", and the laptop's older tick would come
+   straight back. */
+function readTickLog() {
   try {
-    var raw = window.localStorage.getItem(TICKED_KEY);
-    var list = raw ? JSON.parse(raw) : [];
+    var raw = window.localStorage.getItem(TICKLOG_KEY);
+    if (raw !== null) {
+      var log = JSON.parse(raw);
+      return (log && typeof log === "object") ? log : {};
+    }
+    /* Pre-sync storage: a bare list of ticked keys. Carried over as ticks from
+       the dawn of time, so any real action on another device wins over them. */
+    var list = JSON.parse(window.localStorage.getItem(TICKED_KEY) || "[]");
     var out = {};
     if (Object.prototype.toString.call(list) === "[object Array]") {
-      list.forEach(function (k) { out[k] = 1; });
+      list.forEach(function (k) { out[k] = [1, 1]; });
     }
     return out;
   } catch (e) { return {}; }
 }
-function writeTicked() {
-  try {
-    var keys = Object.keys(state.ticked);
-    if (keys.length > TICKED_CAP) keys = keys.slice(keys.length - TICKED_CAP);
-    window.localStorage.setItem(TICKED_KEY, JSON.stringify(keys));
-  } catch (e) { /* storage full or blocked: the tick lasts this session only */ }
+function tickedFrom(log) {
+  var out = {};
+  for (var k in log) {
+    if (Object.prototype.hasOwnProperty.call(log, k) && log[k] && log[k][0] === 1) out[k] = 1;
+  }
+  return out;
 }
+function readTicked() {
+  state.tickLog = readTickLog();
+  return tickedFrom(state.tickLog);
+}
+function writeTicked() {
+  state.ticked = tickedFrom(state.tickLog);
+  try {
+    var keys = Object.keys(state.tickLog);
+    if (keys.length > TICKED_CAP) {
+      keys.sort(function (a, b) { return state.tickLog[b][1] - state.tickLog[a][1]; });
+      keys.slice(TICKED_CAP).forEach(function (k) { delete state.tickLog[k]; });
+    }
+    window.localStorage.setItem(TICKLOG_KEY, JSON.stringify(state.tickLog));
+  } catch (e) { /* storage full or blocked: the tick lasts this session only */ }
+  scheduleSync();
+}
+function setTick(key, on) { state.tickLog[key] = [on ? 1 : 0, Date.now()]; }
 function toggleTicked(job) {
   var key = tickKey(job);
   if (state.ticked[key]) {
-    delete state.ticked[key];
+    setTick(key, false);
   } else {
-    state.ticked[key] = 1;
+    setTick(key, true);
     delete state.opened[key];      // dealt with: it no longer needs finding again
     writeOpened();
   }
@@ -154,7 +202,9 @@ function toggleTicked(job) {
    just applied through has to be findable — otherwise you are re-reading titles
    to work out where you were. Recorded on click and persisted, because a
    background tab can be discarded and reloaded while you are away. */
-function isOpened(job) { return !!state.opened[tickKey(job)]; }
+/* A ticked job is never shown as "opened": the mark is merged as a max across
+   devices, so deleting it on tick would not stick; ticking has to outrank it. */
+function isOpened(job) { return !!state.opened[tickKey(job)] && !isTicked(job); }
 
 function readOpened() {
   try {
@@ -172,6 +222,7 @@ function writeOpened() {
     }
     window.localStorage.setItem(OPENED_KEY, JSON.stringify(state.opened));
   } catch (e) { /* storage blocked: the highlight lasts this session only */ }
+  scheduleSync();
 }
 
 /* A job you ticked is dealt with, so it should not keep the company badged as
@@ -204,9 +255,151 @@ function pruneTicked(company, rows) {
   rows.forEach(function (j) { live[tickKey(j)] = 1; });
   var prefix = company + "|", changed = false;
   Object.keys(state.ticked).forEach(function (k) {
-    if (k.lastIndexOf(prefix, 0) === 0 && !live[k]) { delete state.ticked[k]; changed = true; }
+    if (k.lastIndexOf(prefix, 0) === 0 && !live[k]) { setTick(k, false); changed = true; }
   });
   if (changed) writeTicked();
+}
+
+/* ---- sync across devices ------------------------------------------------ */
+
+function localDoc() {
+  return { v: 1, ticks: state.tickLog, opened: state.opened, visited: state.visited,
+           seenThrough: state.seenThrough };
+}
+
+/* The same merge the endpoint runs (functions/api/state.js), so a response can
+   be folded into whatever you did while the request was in flight instead of
+   overwriting it. Order-free: timestamps take the max, ticks the newest action. */
+function mergeDocs(a, b) {
+  var ticks = {}, now = Date.now(), k;
+  var at = a.ticks || {}, bt = b.ticks || {};
+  for (k in at) if (Object.prototype.hasOwnProperty.call(at, k)) ticks[k] = at[k];
+  for (k in bt) {
+    if (!Object.prototype.hasOwnProperty.call(bt, k) || !bt[k]) continue;
+    if (!ticks[k] || bt[k][1] > ticks[k][1]) ticks[k] = bt[k];
+  }
+  for (k in ticks) if (ticks[k][0] === 0 && now - ticks[k][1] > TOMBSTONE_TTL) delete ticks[k];
+  return {
+    v: 1,
+    ticks: ticks,
+    opened: maxMerge(a.opened, b.opened),
+    visited: maxMerge(a.visited, b.visited),
+    seenThrough: Math.max(a.seenThrough || 0, b.seenThrough || 0)
+  };
+}
+function maxMerge(a, b) {
+  var out = {}, k;
+  a = a || {}; b = b || {};
+  for (k in a) if (Object.prototype.hasOwnProperty.call(a, k)) out[k] = a[k];
+  for (k in b) if (Object.prototype.hasOwnProperty.call(b, k)) out[k] = Math.max(out[k] || 0, b[k]);
+  return out;
+}
+
+/* Fold another device's state in. Returns true if anything you would see changed. */
+function adopt(doc) {
+  var before = JSON.stringify(localDoc());
+  var m = mergeDocs(localDoc(), doc || {});
+  state.tickLog = m.ticks;
+  state.opened = m.opened;
+  state.visited = m.visited;
+  state.seenThrough = m.seenThrough;
+  if (JSON.stringify(localDoc()) === before) return false;
+  state.sync.adopting = true;       // persist, but this is not a new local change
+  try { writeTicked(); writeOpened(); writeVisited(); writeSeenThrough(state.seenThrough); }
+  finally { state.sync.adopting = false; }
+  return true;
+}
+
+function scheduleSync() {
+  if (state.sync.adopting || state.sync.mode === "off") return;
+  state.sync.dirty = true;
+  if (state.sync.timer) clearTimeout(state.sync.timer);
+  state.sync.timer = setTimeout(function () { state.sync.timer = null; syncNow(); }, SYNC_DELAY);
+}
+
+/* One round trip: send everything, fold in what comes back. Resolves to true if
+   the merged state changed what is on screen. Never rejects: offline, signed
+   out and "no endpoint here" are all normal, and the local copy carries on. */
+function syncNow() {
+  var s = state.sync;
+  if (s.mode === "off" || typeof fetch !== "function") return Promise.resolve(false);
+  if (s.inFlight) { s.dirty = true; return Promise.resolve(false); }
+  if (window.location.protocol === "file:") { s.mode = "off"; showCarry(); return Promise.resolve(false); }
+  s.inFlight = true;
+  s.dirty = false;
+  var reached = false;
+  return fetch(SYNC_URL, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(localDoc()),
+    credentials: "same-origin",
+    cache: "no-store",
+    redirect: "manual"              // an expired Access session answers with a redirect
+  }).then(function (r) {
+    if (r.type === "opaqueredirect" || r.status === 401) { s.mode = "signedout"; return false; }
+    if (r.status === 404 || r.status === 405 || r.status === 501) { s.mode = "off"; return false; }
+    if (!r.ok) { s.mode = "error"; s.dirty = true; return false; }
+    return r.json().then(function (doc) { s.mode = "ok"; reached = true; return adopt(doc); });
+  }, function () {
+    s.mode = s.mode === "ok" ? "ok" : "error";    // offline: keep going locally
+    s.dirty = true;
+    return false;
+  }).then(function (changed) {
+    s.inFlight = false;
+    renderFreshness();
+    showCarry();
+    /* Something changed while the request was out: send it now. After a
+       failure, leave it for the minute timer rather than retry in a loop. */
+    if (reached && s.dirty) scheduleSync();
+    return changed;
+  });
+}
+
+/* ---- carrying a local copy's ticks to the synced one ---------------------- */
+
+function hasLocalState() {
+  return Object.keys(state.tickLog).length > 0 || Object.keys(state.visited).length > 0;
+}
+function b64urlEncode(text) {
+  var bytes = unescape(encodeURIComponent(text));
+  return btoa(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function b64urlDecode(s) {
+  s = s.replace(/-/g, "+").replace(/_/g, "/");
+  while (s.length % 4) s += "=";
+  return decodeURIComponent(escape(atob(s)));
+}
+
+/* Shown only on a copy with no sync endpoint that has something worth keeping.
+   The ticks ride in the URL fragment, which never leaves the browser. */
+function showCarry() {
+  var p = el("#carry");
+  if (!p) return;
+  var target = state.index && state.index.site_url;
+  var show = state.sync.mode === "off" && !!target && hasLocalState();
+  p.hidden = !show;
+  if (show) el("#carrylink").href = target + "#/import/" + b64urlEncode(JSON.stringify(localDoc()));
+}
+
+function importFrom(encoded) {
+  var doc;
+  try { doc = JSON.parse(b64urlDecode(encoded)); } catch (e) { doc = null; }
+  var n = doc && doc.ticks ? Object.keys(doc.ticks).filter(function (k) { return doc.ticks[k][0] === 1; }).length : 0;
+  if (doc && window.confirm("Bring over " + n + " ticked job" + (n === 1 ? "" : "s") +
+                            " and your read marks from the local copy?")) {
+    state.sync.adopting = false;
+    var m = mergeDocs(localDoc(), doc);
+    state.tickLog = m.ticks; state.opened = m.opened; state.visited = m.visited;
+    state.seenThrough = m.seenThrough;
+    writeTicked(); writeOpened(); writeVisited(); writeSeenThrough(state.seenThrough);
+    syncNow();
+  }
+  if (window.history && window.history.replaceState) {
+    window.history.replaceState(null, "", window.location.pathname + "#/");   // drop the payload from the URL
+    route(false);
+  } else {
+    window.location.hash = "#/";
+  }
 }
 
 function newestPoll() {
@@ -290,13 +483,22 @@ function renderFreshness() {
   var fresh = el("#freshness");
   var stale = el("#stale");
   if (age === null) { fresh.textContent = "unknown age"; return; }
-  fresh.textContent = "checked " + ago(age);
+  fresh.textContent = "checked " + ago(age) + syncLabel();
   if (age > STALE_AFTER) {
     stale.hidden = false;
     stale.textContent = "⚠ Boards last checked " + ago(age) + ". The watcher has not run since — " +
       "the laptop is probably asleep. Treat the list as out of date.";
   } else {
     stale.hidden = true;
+  }
+}
+
+function syncLabel() {
+  switch (state.sync.mode) {
+    case "ok": return " · synced";
+    case "signedout": return " · sync paused: reload to sign in";
+    case "error": return " · not synced yet";
+    default: return "";            // unknown (first request pending) or off (local copy)
   }
 }
 
@@ -578,6 +780,9 @@ function route(preserve) {
     state.anchors = {};             // a fresh visit re-reads what counts as seen
   }
 
+  var imp = hash.match(/^\/import\/(.+)$/);
+  if (imp) { importFrom(imp[1]); return; }
+
   var m = hash.match(/^\/c\/(.+)$/);
   if (m) {
     var wanted = decodeURIComponent(m[1]);
@@ -657,7 +862,12 @@ function start() {
   el("#markread").addEventListener("click", markAllRead);
   el("#more").addEventListener("click", function () { state.shown += PAGE_SIZE; render(); });
   el("#refresh").addEventListener("click", applyUpdate);
-  window.addEventListener("hashchange", function () { route(false); });
+  /* Opening a screen is when you want the other device's ticks, so every
+     navigation syncs too; a re-render then lands within the first moment. */
+  window.addEventListener("hashchange", function () {
+    route(false);
+    syncNow().then(function (changed) { if (changed) render(); });
+  });
 
   getJSON("data/jobs.json").then(function (index) {
     state.index = index;
@@ -669,15 +879,22 @@ function start() {
     }
     renderFreshness();
     route(false);
+    /* Render from the local copy first, then fold in the other devices. */
+    syncNow().then(function (changed) { if (changed) render(); });
   }).catch(function (err) {
     el("#freshness").textContent = "could not load data";
     failed(err);
   });
-  setInterval(function () { renderFreshness(); checkForUpdates(); }, REFRESH_EVERY);
+  /* Background syncs update state but do not re-render: the list must not move
+     under your thumb. Coming back to the tab is when other devices show up. */
+  setInterval(function () { renderFreshness(); checkForUpdates(); syncNow(); }, REFRESH_EVERY);
   /* Coming back to the tab is the moment you most want to know. */
   if (typeof document.addEventListener === "function") {
     document.addEventListener("visibilitychange", function () {
-      if (document.hidden !== true) checkForUpdates();
+      if (document.hidden !== true) {
+        checkForUpdates();
+        syncNow().then(function (changed) { if (changed) render(); });
+      }
     });
   }
 }

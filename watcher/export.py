@@ -1,8 +1,10 @@
 """Render the store to static files for the read-only phone view.
 
-Inert output only: an index plus one file per company, and a page that reads
-them. There is no API, no endpoint and no write path — the only writer is this
-laptop pushing a commit.
+Job data is inert: an index plus one file per company, and a page that reads
+them. The only writer of job data is this laptop pushing a commit. The one
+write path on the site is `functions/api/state.js`, a Cloudflare Pages Function
+that syncs the reader's ticks between devices, behind Cloudflare Access; it
+never sees the store.
 
 Layout:
 
@@ -31,7 +33,11 @@ from .filters import filter_for
 log = logging.getLogger(__name__)
 
 SITE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "site")
-SITE_FILES = ("index.html", "app.css", "app.js")
+SITE_FILES = (
+    "index.html", "app.css", "app.js",
+    "functions/api/state.js",   # cross-device tick sync (Cloudflare Pages Function)
+    "_routes.json",             # only /api/* runs the function; pages stay static
+)
 INDEX_FILE = "jobs.json"
 
 # Exactly the fields the page renders. Anything not listed here cannot leak.
@@ -85,7 +91,7 @@ def group(jobs):
     return by_company
 
 
-def index_payload(jobs, watched, now, polled_at=None):
+def index_payload(jobs, watched, now, polled_at=None, site_url=None):
     companies = []
     for company, rows in group(jobs).items():
         companies.append({
@@ -105,6 +111,10 @@ def index_payload(jobs, watched, now, polled_at=None):
     }
     if polled_at:
         body["polled_at"] = int(polled_at)
+    if site_url:
+        # Where the synced copy lives, so a local copy (127.0.0.1, file://) can
+        # offer to carry its ticks there.
+        body["site_url"] = site_url
     return body
 
 
@@ -116,7 +126,8 @@ def write(cfg, store, out_dir, now=None):
     data_dir = os.path.join(out_dir, "data")
     os.makedirs(data_dir, exist_ok=True)
 
-    body = index_payload(jobs, len(active), now, polled_at=last_poll(store, [n for n, _ in active]))
+    body = index_payload(jobs, len(active), now, polled_at=last_poll(store, [n for n, _ in active]),
+                         site_url=config_mod.export_settings(cfg).get("url"))
     blob = dumps(body)
     written = [write_file(os.path.join(data_dir, INDEX_FILE), blob)]
 
@@ -133,6 +144,7 @@ def write(cfg, store, out_dir, now=None):
 
     for name in SITE_FILES:
         dst = os.path.join(out_dir, name)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copyfile(os.path.join(SITE_DIR, name), dst)
         written.append(dst)
     log.info("exported %d open matching reqs across %d companies to %s",

@@ -89,8 +89,11 @@ class Collect(unittest.TestCase):
             for banned in ("token", "telegram", "backoff", "blocked_until", "last_error",
                            "notified", "cursor", "tenant", "posted_at"):
                 self.assertNotIn(banned, text, banned)
-            self.assertEqual(sorted(os.path.basename(f) for f in files),
-                             ["acme.json", "app.css", "app.js", "globex.json", "index.html", "jobs.json"])
+            # Exactly these, by path: the page, the job shards, and the one function
+            # (tick sync, behind Access). Anything new here has to be added on purpose.
+            self.assertEqual(sorted(os.path.relpath(f, d) for f in files),
+                             ["_routes.json", "app.css", "app.js", "data/acme.json", "data/globex.json",
+                              "data/jobs.json", "functions/api/state.js", "index.html"])
             page = open(os.path.join(d, "index.html")).read()
             self.assertIn('name="robots" content="noindex, nofollow"', page)
             self.assertNotIn("http://", page.replace('http://www.w3.org', ''))   # no third-party
@@ -192,6 +195,10 @@ class Publish(unittest.TestCase):
             self.assertEqual(again, "unchanged")
             changed = publish.publish_quietly(repo, out, [page], b'{"jobs":[1]}', state, push=False)
             self.assertTrue(changed.startswith("pushed"))
+            # Same jobs, new page code: that has to go out too, not wait for a job change.
+            open(page, "w").write("<html>v2</html>")
+            code = publish.publish_quietly(repo, out, [page], b'{"jobs":[1]}', state, push=False)
+            self.assertTrue(code.startswith("pushed"), code)
 
     def test_push_failure_is_reported_not_raised(self):
         with tempfile.TemporaryDirectory() as d:

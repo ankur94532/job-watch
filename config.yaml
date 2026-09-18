@@ -51,6 +51,7 @@ export:
   publish: true        # private remote: github.com/ankur94532/job-watch (site branch)
   branch: site
   remote: origin
+  url: https://job-watch-7om.pages.dev/   # Cloudflare Pages, behind Access
 
 companies:
 

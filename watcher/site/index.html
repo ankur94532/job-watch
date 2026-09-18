@@ -18,6 +18,8 @@
     <span id="freshness" class="fresh">loading…</span>
   </div>
   <p id="stale" class="stale" hidden></p>
+  <p id="carry" class="carry" hidden>This local copy does not sync. Sign in to the online copy once,
+    then <a id="carrylink" href="#">move your ticks there →</a></p>
   <div class="controls">
     <input id="q" type="search" inputmode="search" placeholder="Filter…" autocomplete="off"
            aria-label="Filter">
@@ -35,7 +37,7 @@
 <p id="empty" class="empty" hidden>Nothing here.</p>
 <div class="more-wrap"><button id="more" class="more" type="button" hidden></button></div>
 <footer>
-  <p>Read-only view. Updated when the watcher on the laptop finds something.</p>
+  <p>Updated when the watcher on the laptop finds something. Ticks sync across your devices.</p>
 </footer>
 
 <template id="companyrow">

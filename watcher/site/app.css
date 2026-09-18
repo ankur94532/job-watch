@@ -45,6 +45,12 @@ h1 { font-size: 18px; margin: 0; letter-spacing: -0.01em; }
   margin: 8px 0 0; padding: 8px 10px; border-radius: 8px;
   background: var(--warn-bg); color: var(--warn); font-size: 13px;
 }
+/* A local copy (127.0.0.1, file://) cannot sync; this carries its ticks online once. */
+.carry {
+  margin: 8px 0 0; padding: 8px 10px; border-radius: 8px;
+  background: var(--open-bg); font-size: 13px;
+}
+.carry a { color: var(--accent); font-weight: 600; text-decoration: none; }
 .controls { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 input[type=search], select {
   flex: 1 1 140px; min-width: 0; padding: 9px 10px; font-size: 16px; /* 16px: iOS won't zoom */

@@ -143,11 +143,15 @@ exactly like a company with no openings.
 
 ## Phone view (Cloudflare Pages)
 
-A read-only page of open matching reqs, browsable from anywhere, with the laptop
-switched off. **It is static files and nothing else** — no server, no API, no
-serverless function, no refresh button that calls anything. A visitor cannot
-trigger a poll, touch the store or reach this machine, because the deployed
-artifact is inert. The only writer is this laptop pushing a commit.
+A page of open matching reqs, browsable from anywhere, with the laptop switched
+off. **The job data is static files** — no server behind it and no refresh
+button that calls anything. A visitor cannot trigger a poll, touch the store or
+reach this machine; the only writer of job data is this laptop pushing a
+commit.
+
+The one exception is **tick sync** (below): a single Pages Function,
+`functions/api/state.js`, that stores what you ticked so the phone and the
+laptop agree. It never sees the store, and it sits behind the same Access login.
 
 `watcher run` renders it after any successful run:
 
@@ -204,6 +208,35 @@ touched — publishing builds the commit through a temporary git index, so a run
 interrupted by sleep leaves nothing to clean up. `docs/` is gitignored on the
 main branch for the same reason.
 
+### Tick sync (one-time setup)
+
+Ticks, "opened" marks and which poll each company was last opened at are kept
+per device in `localStorage`, and synced through `/api/state`:
+
+1. Workers & Pages → **KV** → Create namespace, e.g. `jobwatch-state`.
+2. The Pages project → Settings → **Bindings** → Add → KV namespace. Variable
+   name **`STATE`** (exactly), namespace `jobwatch-state`. Save.
+3. Bindings reach new deployments only: redeploy (Deployments → latest →
+   Retry deployment), or wait for the next run that changes anything.
+
+The function verifies the Access token itself (signature against the team's
+certs, issuer, expiry) and keys the document by the verified email, so a
+misconfigured Access application fails closed instead of opening a write
+endpoint. Merging is order-free — timestamps take the max, and a tick is
+last-writer-wins with unticks kept as timestamped tombstones, so an untick on
+the phone is not undone by the laptop's older tick. The page stays usable
+offline and says `synced`, `not synced yet` or `sync paused: reload to sign in`
+next to the freshness line.
+
+A local copy (`127.0.0.1`, `file://`) has no endpoint. If it holds ticks, it
+shows a one-time link that carries them to `export.url` in the URL fragment
+(which never leaves the browser); sign in to the online copy first, because
+the Access login flow does not preserve a fragment.
+
+Checks: `make test` runs the function's tests in Node;
+`devtools/sync_check.py` drives a "laptop" and a "phone" against the real
+function behind a fake Access (`devtools/pages_dev.mjs`).
+
 ### What gets published
 
 `data/jobs.json` (a company index) plus one `data/<company>.json` per company,
@@ -235,7 +268,7 @@ company's list and stays gone across reloads, with a "Show ticked" toggle to get
 it back — and a **copy-req-id button per row**, since retyping a requisition ID into a referral
 request from a phone is the actual friction. Rows first seen since your last
 visit are badged NEW (`localStorage`, wrapped in try/catch, renders fine when
-empty or blocked). `generated_at` shows as "updated 3h ago", and past 24h the
+empty or blocked, and synced across devices as above). `generated_at` shows as "updated 3h ago", and past 24h the
 page says so in a banner — a stale dashboard that looks live is worse than none,
 and a shut laptop is the normal reason.
 

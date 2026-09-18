@@ -75,10 +75,23 @@ def publish(repo, out_dir, files, branch="site", remote="origin", message=None, 
 
 
 def publish_quietly(repo, out_dir, files, blob, state_path, **kw):
-    """Publish only when the payload changed. Never raises; returns a status string."""
+    """Publish only when something published changed. Never raises; returns a status string.
+
+    The digest covers every file, not just the job index: keyed on the index
+    alone, a change to the page's own code (app.js, the sync function) sat
+    unpublished until the next time the job list happened to change.
+    """
     import hashlib
 
-    digest = hashlib.sha256(blob).hexdigest()
+    h = hashlib.sha256(blob)
+    for path in sorted(files):
+        h.update(os.path.relpath(path, out_dir).encode() + b"\0")
+        try:
+            with open(path, "rb") as f:
+                h.update(f.read())
+        except OSError:
+            pass                          # publish() will report the missing file
+    digest = h.hexdigest()
     try:
         with open(state_path) as f:
             if f.read().strip() == digest:
