@@ -175,11 +175,28 @@ open docs/index.html           # works straight from disk, against local data
      publish: true              # was false
    ```
 
-3. **Cloudflare Pages** → Create project → Connect to Git → pick the private repo.
+3. **Cloudflare Pages**: Workers & Pages → Create application → **Pages** tab
+   (not Workers) → Import an existing Git repository → GitHub → the private repo.
    - Production branch: **`site`**
-   - Framework preset: **None**. Build command: **empty**. Output directory: **`/`**
-   - After the first deploy: Settings → **Access Policy** → require your email.
-     The repo being private does not gate the deployed site; Access does.
+   - Framework preset: **None**. Build command: **empty**. Output directory: empty
+     (the `/` prefix shown is the root).
+   - Settings → Branch control → Preview deployments: **None**. Otherwise `main`
+     (code and config) is published at an ungated preview URL.
+
+4. **Lock it with Cloudflare Access.** The repo being private does not gate the
+   deployed site, and the project's own "Preview access → Restrict previews"
+   covers preview URLs only, NOT `<project>.pages.dev`. That needs Zero Trust:
+   - Zero Trust (Free plan) → Access → Applications → Create new application →
+     **Self-hosted and private**.
+   - Public hostname → *Switch to custom input* → `<project>.pages.dev` (the
+     domain dropdown lists only zones you own, and pages.dev is not one).
+   - Create new policy: Action **Allow**, Include **Emails** = your address.
+     Not "All authenticated users": that admits anyone with any email.
+   - Leave browser rendering (RDP/SSH/VNC) off. Create.
+   - Verify from a logged-out client: `curl -sI https://<project>.pages.dev/data/jobs.json`
+     must answer **302** to `…cloudflareaccess.com`, not 200.
+
+   Live since 2026-09-18 at `job-watch-7om.pages.dev`.
 
 `site` is an orphan branch holding a single commit that is replaced every push,
 so the repo does not accumulate a JSON blob per run. The working tree is never
