@@ -908,6 +908,8 @@ class IncrementalPolls(Base):
         finally:
             FakeBoard.fetch = orig
         self.assertEqual(res.sent, 1)                                    # 4 alerted
+        self.assertEqual([n for n, *_ in res.incremental], ["wf"])       # reported as such, not "ok"
+        self.assertEqual(res.ok, [])
         self.assertEqual(self.store.rows(closed=True), [])               # 2, 3 NOT retired
         self.assertEqual(self.store.state("wf")["last_complete"], swept) # not a sweep
         self.assertGreater(self.store.state("wf")["last_polled"], swept) # but it was polled

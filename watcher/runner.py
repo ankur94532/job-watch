@@ -58,6 +58,7 @@ BACKOFF_ALERT_AFTER = 2 * 3600
 class Result:
     ok: list = field(default_factory=list)          # (company, fetched, new, new_matches)
     partial: list = field(default_factory=list)     # (company, fetched_this_run, new)
+    incremental: list = field(default_factory=list) # (company, newest_rows_read, new, new_matches)
     unchanged: list = field(default_factory=list)   # company (HTTP 304)
     failed: list = field(default_factory=list)      # (company, error)
     not_due: list = field(default_factory=list)     # (company, due_at)
@@ -74,7 +75,7 @@ class Result:
     def exit_code(self):
         if self.offline:
             return 0
-        return 1 if self.failed and not (self.ok or self.partial or self.unchanged) else 0
+        return 1 if self.failed and not (self.ok or self.partial or self.unchanged or self.incremental) else 0
 
 
 def _check_starvation(cfg, store, res, now):
@@ -437,7 +438,7 @@ def _poll_company(name, ccfg, st, adapter, store, res, defaults, seed, deadline,
         return False
     if result.incremental:
         store.poll_incremental(name, now)
-        res.ok.append((name, len(result.postings), len(fresh), matched))
+        res.incremental.append((name, len(result.postings), len(fresh), matched))
         log.info("%s: incremental, read the %d newest rows, %d new, %d new matches",
                  name, len(result.postings), len(fresh), matched)
         return False

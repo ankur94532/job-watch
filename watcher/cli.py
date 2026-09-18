@@ -46,6 +46,9 @@ def print_summary(res, seed):
     for name, fetched, new, matched in res.ok:
         extra = "" if seed else f", {matched} new matches"
         print(f"  ok          {name:<22} {fetched:>5} open, {new} new{extra}", file=out)
+    for name, read, new, matched in res.incremental:
+        # Only the newest pages were read: the count is rows read, not the board's size.
+        print(f"  newest      {name:<22} {read:>5} newest read, {new} new, {matched} new matches", file=out)
     for name in res.unchanged:
         print(f"  unchanged   {name:<22} 304", file=out)
     for name, fetched, new in res.partial:
