@@ -6,6 +6,7 @@ import os
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 from tests.fakes import Clock
 from watcher import export, publish
@@ -249,3 +250,55 @@ class RunnerIntegration(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DirectUpload(unittest.TestCase):
+    """deploy: direct -- wrangler uploads the files; no Cloudflare build to queue or hang."""
+
+    def setUp(self):
+        self.d = tempfile.TemporaryDirectory()
+        self.wr = os.path.join(self.d.name, "wrangler")
+        open(self.wr, "w").write("#!/bin/sh\n")
+        os.chmod(self.wr, 0o755)
+        self.env = mock.patch.dict(os.environ, {"CLOUDFLARE_API_TOKEN": "t"})
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+        self.d.cleanup()
+
+    def test_it_runs_pages_deploy_from_the_export_directory(self):
+        seen = {}
+
+        def run(argv, **kw):
+            seen.update(argv=argv, cwd=kw["cwd"], path=kw["env"]["PATH"])
+            return mock.Mock(returncode=0, stdout="✨ Deployment complete! https://abc123.job-watch-live.pages.dev\n",
+                             stderr="")
+        url = publish.publish_direct(self.d.name, "job-watch-live", self.wr, runner=run)
+        self.assertEqual(url, "https://abc123.job-watch-live.pages.dev")
+        self.assertEqual(seen["argv"][1:5], ["pages", "deploy", ".", "--project-name"])
+        self.assertIn("job-watch-live", seen["argv"])
+        self.assertEqual(seen["cwd"], self.d.name)
+        self.assertTrue(seen["path"].startswith("/opt/homebrew/bin"))    # launchd has no PATH for node
+
+    def test_no_token_is_an_error_not_a_hang(self):
+        with mock.patch.dict(os.environ, {"CLOUDFLARE_API_TOKEN": ""}):
+            with self.assertRaisesRegex(publish.PublishError, "CLOUDFLARE_API_TOKEN"):
+                publish.publish_direct(self.d.name, "p", self.wr, runner=None)
+
+    def test_a_failed_upload_is_reported_and_retried_next_run(self):
+        fail = lambda argv, **kw: mock.Mock(returncode=1, stdout="", stderr="Authentication error [code: 10000]")
+        state = os.path.join(self.d.name, "h")
+        with mock.patch.object(publish.subprocess, "run", fail):
+            status = publish.publish_quietly(self.d.name, self.d.name, [], b"{}", state,
+                                             deploy="direct", project="p", wrangler=self.wr)
+        self.assertIn("Authentication error", status)
+        self.assertFalse(os.path.exists(state))                            # not marked as published
+
+    def test_export_writes_the_wrangler_config_with_the_kv_binding(self):
+        cfg = dict(CFG, export={"deploy": "direct", "project": "job-watch-live", "kv_state": "abc"})
+        files, _ = export.write(cfg, FakeStore([]), self.d.name, now=1000)
+        toml = open(os.path.join(self.d.name, "wrangler.toml")).read()
+        self.assertIn('name = "job-watch-live"', toml)
+        self.assertIn('binding = "STATE"', toml)
+        self.assertIn('id = "abc"', toml)

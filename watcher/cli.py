@@ -222,6 +222,7 @@ def cmd_export(args):
         status = publish_mod.publish_quietly(
             repo, out, files, blob, os.path.join(os.path.dirname(args.db), "export.sha256"),
             branch=settings["branch"], remote=settings["remote"],
+            deploy=settings["deploy"], project=settings.get("project"), wrangler=settings.get("wrangler"),
             message=f"site: update {time.strftime('%Y-%m-%d %H:%M')}")
         print(f"publish: {status}", file=sys.stderr)
     return 0

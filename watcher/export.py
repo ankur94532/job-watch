@@ -147,6 +147,17 @@ def write(cfg, store, out_dir, now=None):
         if stale not in keep:
             os.remove(os.path.join(data_dir, stale))
 
+    settings = config_mod.export_settings(cfg)
+    if settings["deploy"] == "direct":
+        # Direct upload runs `wrangler pages deploy` from out_dir, and wrangler
+        # takes the project and its KV binding (tick sync) from this file.
+        written.append(write_file(os.path.join(out_dir, "wrangler.toml"), (
+            f'name = "{settings["project"]}"\n'
+            'pages_build_output_dir = "."\n'
+            'compatibility_date = "2026-09-18"\n\n'
+            '[[kv_namespaces]]\nbinding = "STATE"\n'
+            f'id = "{settings["kv_state"]}"\n').encode()))
+
     for name in SITE_FILES:
         dst = os.path.join(out_dir, name)
         os.makedirs(os.path.dirname(dst), exist_ok=True)

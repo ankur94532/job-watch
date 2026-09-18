@@ -1,4 +1,13 @@
-"""Push the exported site to an orphan `site` branch, one commit, force.
+"""Publish the exported site: straight to Cloudflare Pages, or via a git branch.
+
+`deploy: direct` (the default since 2026-09-18) uploads the files with
+Cloudflare's own CLI, `wrangler pages deploy`. No build runs on Cloudflare, so
+nothing queues: the Git-connected setup built on every push, one build at a
+time, and a single build that hung at 20:44 froze the phone view for 40
+minutes. It would also have used up the free plan's 500 builds a month within
+a week, since every run changes the "checked" time.
+
+`deploy: git` is the older path, kept for a git-connected Pages project:
 
 Built with plumbing (`hash-object` / `update-index` / `commit-tree`) against a
 temporary index, so the working tree and the current branch are never touched —
@@ -12,6 +21,7 @@ A push failure is never fatal. Waking with no network is the normal case.
 
 import logging
 import os
+import re
 import subprocess
 import tempfile
 
@@ -74,7 +84,32 @@ def publish(repo, out_dir, files, branch="site", remote="origin", message=None, 
     return commit
 
 
-def publish_quietly(repo, out_dir, files, blob, state_path, **kw):
+DEFAULT_WRANGLER = "~/.local/share/jobswatch/wrangler/node_modules/.bin/wrangler"   # `make wrangler`
+NODE_DIRS = ("/opt/homebrew/bin", "/usr/local/bin")   # launchd gives jobs no PATH; wrangler needs node
+
+
+def publish_direct(out_dir, project, wrangler=None, branch="main", runner=None):
+    """Upload `out_dir` to the Pages project `project`. Returns the deployment URL."""
+    wrangler = os.path.expanduser(wrangler or DEFAULT_WRANGLER)
+    if not os.access(wrangler, os.X_OK):
+        raise PublishError(f"wrangler not found at {wrangler} (run `make wrangler`)")
+    if not os.environ.get("CLOUDFLARE_API_TOKEN"):
+        raise PublishError("CLOUDFLARE_API_TOKEN is not set (deploy/jobswatch.env)")
+    env = dict(os.environ)
+    env["PATH"] = os.pathsep.join([*NODE_DIRS, env.get("PATH", "")])
+    env.setdefault("WRANGLER_SEND_METRICS", "false")
+    try:
+        p = (runner or subprocess.run)([wrangler, "pages", "deploy", ".", "--project-name", project, "--branch", branch,
+                    "--commit-dirty=true"], cwd=out_dir, capture_output=True, text=True, env=env, timeout=300)
+    except subprocess.TimeoutExpired:
+        raise PublishError("wrangler timed out after 300s") from None
+    if p.returncode != 0:
+        raise PublishError(f"wrangler: {(p.stderr or p.stdout).strip()[-300:]}")
+    m = re.search(r"https://[\w.-]+\.pages\.dev", p.stdout or "")
+    return m.group(0) if m else "deployed"
+
+
+def publish_quietly(repo, out_dir, files, blob, state_path, deploy="git", project=None, wrangler=None, **kw):
     """Publish only when something published changed. Never raises; returns a status string.
 
     The digest covers every file, not just the job index: keyed on the index
@@ -99,7 +134,10 @@ def publish_quietly(repo, out_dir, files, blob, state_path, **kw):
     except OSError:
         pass
     try:
-        commit = publish(repo, out_dir, files, **kw)
+        if deploy == "direct":
+            result = publish_direct(out_dir, project, wrangler)
+        else:
+            result = publish(repo, out_dir, files, **kw)[:8]
     except (PublishError, OSError) as e:
         log.warning("site not published: %s", e)
         return f"failed: {e}"
@@ -108,4 +146,4 @@ def publish_quietly(repo, out_dir, files, blob, state_path, **kw):
             f.write(digest + "\n")
     except OSError as e:
         log.warning("could not record export hash: %s", e)
-    return f"pushed {commit[:8]}"
+    return f"{'deployed' if deploy == 'direct' else 'pushed'} {result}"

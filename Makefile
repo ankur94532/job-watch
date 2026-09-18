@@ -72,6 +72,13 @@ install-recheck: $(ENV_FILE)
 recheck:
 	cd $(REPO) && $(PYTHON) -m watcher recheck
 
+# Cloudflare's CLI for `deploy: direct` (see watcher/publish.py). Pinned under the
+# data dir, outside the repo, and called by absolute path: launchd has no PATH.
+wrangler:
+	mkdir -p $(HOME)/.local/share/jobswatch/wrangler
+	cd $(HOME)/.local/share/jobswatch/wrangler && { test -f package.json || echo '{"private":true}' > package.json; } \
+		&& npm install --no-fund --no-audit wrangler@4
+
 uninstall:
 	-launchctl bootout $(DOMAIN)/$(LABEL)
 	-launchctl bootout $(DOMAIN)/$(RECHECK_LABEL)
