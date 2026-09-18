@@ -101,24 +101,16 @@ companies:
     ats: greenhouse
     token: observeai                     # 18 postings, 10 in India
   postman:
-    ats: greenhouse
-    token: postman                       # 67 postings, 6 in India
-    enabled: false
-    note: "careers page down for maintenance until 2026-09-21; re-check then"
-    recheck:                             # `watcher recheck` reports when either comes back
-      - https://boards-api.greenhouse.io/v1/boards/postman/jobs
-      - https://www.postman.com/company/careers/open-positions/
-    # 2026-09-18: the board 404s, and it is NOT a token change -- postman,
-    # postmanlabs and getpostman all 404, and there is no Ashby board either.
-    # Their careers page says so outright: "maintenance on our Careers page. It
-    # will be back up and running on Monday, September 21." Left as-is on
-    # purpose; backoff absorbs the 404s. RE-CHECK AFTER 2026-09-21, and only
-    # then treat a continuing 404 as a real ATS move.
-    # Later on 2026-09-18: still down, and every ATS probed (Greenhouse
-    # postman/postmanlabs/getpostman, Ashby, Lever, SmartRecruiters, Dover,
-    # Gem, Workday) has no Postman board. A 404 is not a backoff status, so it
-    # was re-polled every 15 minutes and raised a starvation warning every run.
-    # Paused; set `enabled` back to true on the 21st.
+    ats: workday                         # MOVED from Greenhouse, 2026-09-18
+    tenant: postman
+    shard: wd108
+    sites: [careers]                     # 37 open postings on 2026-09-18
+    # History: the Greenhouse board (token: postman) 404'd from ~2026-09-17
+    # while postman.com/careers showed "maintenance until September 21". That
+    # was the switch to Workday; found via a live posting URL
+    # (postman.wd108.myworkdayjobs.com/careers/job/Bangalore-India/...), job
+    # link verified. Re-seeded silently: the new ids share nothing with the
+    # Greenhouse ones, so the first poll must not alert on the whole board.
   harness:
     ats: greenhouse
     token: harnessinc                    # 66 postings, 17 in India
