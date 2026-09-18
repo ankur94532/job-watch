@@ -20,7 +20,7 @@ help:
 	@echo "make status     per-company due times, backoff, sweeps in progress"
 	@echo "make export     render the phone view into docs/ (no publish)"
 	@echo "make sitecheck  drive the exported page in a browser (needs .venv-dev)"
-	@echo "make site       export and force-push it to the '$(SITE_BRANCH)' branch"
+	@echo "make site       export and publish using the method in config.yaml"
 	@echo "make install    render the plist and load the launchd agent (seed first)"
 	@echo "make kick       force a run now via launchctl"
 	@echo "make recheck    has a board appeared for a company with none? (monthly agent does this)"

@@ -45,16 +45,17 @@ defaults:
           back end, full stack, fullstack, distributed, search, relevance,
           infrastructure, platform, machine learning, low latency, systems engineer]
 
-# Read-only phone view: static files only, no server and no API (see DEPLOY.md).
-# `watcher run` renders these after a successful run; `publish` force-pushes them
-# to an orphan `site` branch that Cloudflare Pages serves from the private repo.
+# Read-only phone view: static files plus the tick-sync Pages Function (see DEPLOY.md).
+# `watcher run` renders these after a successful run and uploads them directly to
+# Pages. This avoids a Cloudflare build on every 15-minute refresh.
 export:
   enabled: true
   out: docs
-  publish: true        # private remote: github.com/ankur94532/job-watch (site branch)
-  branch: site
-  remote: origin
-  url: https://job-watch-7om.pages.dev/   # Cloudflare Pages, behind Access
+  publish: true
+  deploy: direct
+  project: job-watch-live
+  kv_state: 152c2da267bb450188ab82661736e670
+  url: https://job-watch-live.pages.dev/   # Cloudflare Pages, behind Access
 
 companies:
 

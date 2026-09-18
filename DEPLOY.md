@@ -160,8 +160,8 @@ exactly like a company with no openings.
 A page of open matching reqs, browsable from anywhere, with the laptop switched
 off. **The job data is static files** — no server behind it and no refresh
 button that calls anything. A visitor cannot trigger a poll, touch the store or
-reach this machine; the only writer of job data is this laptop pushing a
-commit.
+reach this machine; the only writer of job data is this laptop uploading the
+finished static files.
 
 The one exception is **tick sync** (below): a single Pages Function,
 `functions/api/state.js`, that stores what you ticked so the phone and the
@@ -171,67 +171,66 @@ laptop agree. It never sees the store, and it sits behind the same Access login.
 
 ```sh
 make export                    # render into docs/ only
-make site                      # render and force-push to the `site` branch
+make site                      # render and upload directly to Cloudflare Pages
 open docs/index.html           # works straight from disk, against local data
 ```
 
 ### One-time setup
 
-1. **Private repo.** The list reveals what you are looking at and when you
-   started; the postings themselves are public, that pattern is not.
+1. **Install Wrangler and create a direct-upload Pages project.** Direct upload
+   avoids a Cloudflare build on every 15-minute refresh, so builds cannot queue
+   or consume the monthly build allowance.
 
    ```sh
-   git init && git add -A && git commit -m "job watcher"
-   gh repo create job-watch --private --source=. --push      # or add a remote by hand
+   make wrangler
+   ~/.local/share/jobswatch/wrangler/node_modules/.bin/wrangler pages project create <project> --production-branch main --force
    ```
 
-2. **Turn publishing on** in `config.yaml`:
+   In Cloudflare, create a custom API token with Account / Cloudflare Pages /
+   Edit and Account / Workers KV Storage / Read. Put `CLOUDFLARE_API_TOKEN` and
+   `CLOUDFLARE_ACCOUNT_ID` in the gitignored `deploy/jobswatch.env`, then run
+   `make install` so launchd receives them.
+
+2. **Create tick storage.** Workers & Pages → KV → Create namespace, e.g.
+   `jobwatch-state`. Copy its namespace ID for the configuration below.
+
+3. **Lock the new hostname with Cloudflare Access before the first upload.**
+   Zero Trust → Access → Applications → Create new application → **Self-hosted**.
+   - Add two public hostnames using *Switch to custom input*:
+     `<project>.pages.dev` and `*.<project>.pages.dev`. The wildcard is required:
+     every Pages deployment also has a generated hostname such as
+     `<deployment>.<project>.pages.dev`, which otherwise bypasses the apex rule.
+   - Policy action **Allow**, Include **Emails** = your address. Do not use "All
+     authenticated users": that admits anyone with any email.
+   - Leave browser rendering (RDP/SSH/VNC) off and create the application.
+   - After the first upload, verify both the main URL and the generated deployment
+     URL shown by Wrangler. Each must answer **302** to `…cloudflareaccess.com`,
+     not 200, when requested from a logged-out client.
+
+4. **Turn direct publishing on** in `config.yaml`:
 
    ```yaml
    export:
      enabled: true
-     publish: true              # was false
+     out: docs
+     publish: true
+     deploy: direct
+     project: <project>
+     kv_state: <KV namespace ID>
+     url: https://<project>.pages.dev/
    ```
 
-3. **Cloudflare Pages**: Workers & Pages → Create application → **Pages** tab
-   (not Workers) → Import an existing Git repository → GitHub → the private repo.
-   - Production branch: **`site`**
-   - Framework preset: **None**. Build command: **empty**. Output directory: empty
-     (the `/` prefix shown is the root).
-   - Settings → Branch control → Preview deployments: **None**. Otherwise `main`
-     (code and config) is published at an ungated preview URL.
-
-4. **Lock it with Cloudflare Access.** The repo being private does not gate the
-   deployed site, and the project's own "Preview access → Restrict previews"
-   covers preview URLs only, NOT `<project>.pages.dev`. That needs Zero Trust:
-   - Zero Trust (Free plan) → Access → Applications → Create new application →
-     **Self-hosted and private**.
-   - Public hostname → *Switch to custom input* → `<project>.pages.dev` (the
-     domain dropdown lists only zones you own, and pages.dev is not one).
-   - Create new policy: Action **Allow**, Include **Emails** = your address.
-     Not "All authenticated users": that admits anyone with any email.
-   - Leave browser rendering (RDP/SSH/VNC) off. Create.
-   - Verify from a logged-out client: `curl -sI https://<project>.pages.dev/data/jobs.json`
-     must answer **302** to `…cloudflareaccess.com`, not 200.
-
-   Live since 2026-09-18 at `job-watch-7om.pages.dev`.
-
-`site` is an orphan branch holding a single commit that is replaced every push,
-so the repo does not accumulate a JSON blob per run. The working tree is never
-touched — publishing builds the commit through a temporary git index, so a run
-interrupted by sleep leaves nothing to clean up. `docs/` is gitignored on the
-main branch for the same reason.
+Run `make site` once. Each later successful watcher run renders and uploads a
+new production deployment. `docs/` and Wrangler's local cache are gitignored.
 
 ### Tick sync (one-time setup)
 
 Ticks, "opened" marks and which poll each company was last opened at are kept
 per device in `localStorage`, and synced through `/api/state`:
 
-1. Workers & Pages → **KV** → Create namespace, e.g. `jobwatch-state`.
-2. The Pages project → Settings → **Bindings** → Add → KV namespace. Variable
-   name **`STATE`** (exactly), namespace `jobwatch-state`. Save.
-3. Bindings reach new deployments only: redeploy (Deployments → latest →
-   Retry deployment), or wait for the next run that changes anything.
+The direct-upload configuration writes the namespace ID into the generated
+`wrangler.toml` with the exact binding name **`STATE`**. It is applied on every
+deployment; no separate dashboard binding is needed.
 
 The function verifies the Access token itself (signature against the team's
 certs, issuer, expiry) and keys the document by the verified email, so a

@@ -1,6 +1,6 @@
 """Publish the exported site: straight to Cloudflare Pages, or via a git branch.
 
-`deploy: direct` (the default since 2026-09-18) uploads the files with
+`deploy: direct` uploads the files with
 Cloudflare's own CLI, `wrangler pages deploy`. No build runs on Cloudflare, so
 nothing queues: the Git-connected setup built on every push, one build at a
 time, and a single build that hung at 20:44 froze the phone view for 40

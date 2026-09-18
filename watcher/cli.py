@@ -322,7 +322,7 @@ def main(argv=None):
 
     p = sub.add_parser("export", help="render open matching reqs to a static site (no server)")
     p.add_argument("--out", help="output directory (default: export.out in config, else docs/)")
-    p.add_argument("--publish", action="store_true", help="force-push it to the site branch")
+    p.add_argument("--publish", action="store_true", help="publish using export.deploy from config")
 
     p = sub.add_parser("test-adapter", help="one fetch, print counts and samples, write nothing")
     p.add_argument("company")

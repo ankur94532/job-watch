@@ -98,7 +98,7 @@ watcher/
   http.py                honest UA, conditional GET, retry/backoff
   yamlish.py             small YAML-subset parser (keeps the runtime dependency-free)
   export.py              static render: company index + one file per company
-  publish.py             one orphan commit on the `site` branch, force-pushed
+  publish.py             direct Cloudflare upload (or legacy git-branch publishing)
   site/                  the page: companies -> company -> paginated jobs, no build step
 deploy/                  launchd plist template + env example
 devtools/                site_check.py: drives the page in a real browser (dev-only)
