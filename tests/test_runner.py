@@ -787,6 +787,16 @@ class PartialSweeps(Base):
 
 
 
+class BackoffMin(Base):
+    def test_a_board_can_ask_for_a_longer_first_pause(self):
+        self.company("ms", HttpStatusError("u", 429), backoff_min=3600)
+        self.company("gh", HttpStatusError("u", 429))
+        self.run_once()
+        now = self.clock() - 900                                  # run_once advanced the clock
+        self.assertEqual(self.store.state("ms")["blocked_until"] - now, 3600)
+        self.assertEqual(self.store.state("gh")["blocked_until"] - now, 30 * 60)   # the default
+
+
 class FakeHtml(FakeBoard):
     """An HTML adapter: rows, plus what the page itself says (declared count,
     empty-state text). META[company] = (declared, empty_evidence)."""

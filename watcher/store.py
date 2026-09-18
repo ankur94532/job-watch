@@ -281,7 +281,7 @@ class Store:
         """A non-throttling failure (4xx config error, bad JSON). Wait the normal interval."""
         self._set(company, last_polled=now, last_error=error[:500])
 
-    def back_off(self, company, kind, now, error, retry_after=None, escalate=True):
+    def back_off(self, company, kind, now, error, retry_after=None, escalate=True, min_wait=0):
         """Persist exponential backoff; returns blocked_until.
 
         `escalate=False` parks the company for the base wait without advancing the
@@ -292,7 +292,7 @@ class Store:
         st = self.state(company)
         first, ceiling = BACKOFF[kind]
         level = (st["backoff_level"] or 0) if (st["backoff_kind"] == kind and escalate) else 0
-        wait = min(first * (2**level), ceiling)
+        wait = max(min(first * (2**level), ceiling), min_wait or 0)
         if retry_after:
             wait = max(wait, min(int(retry_after), MAX_RETRY_AFTER))
         until = now + wait

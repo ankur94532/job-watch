@@ -317,6 +317,10 @@ companies:
     locations: [India]                   # 221 open India positions, 10 rows/page
     page_delay: 6.0                      # Eightfold rate-limits by volume, not spacing:
     interval: 7200                       # 23 requests/sweep tripped 429 at 0.5s AND at 6s
+    backoff_min: 3600                    # after a 429, wait an hour, not the usual 30 min: on
+                                         # 2026-09-18 six of seven 30-min retries were throttled
+                                         # again within ~4 requests (the one that waited 34 min
+                                         # finished). Try 7200 if hourly retries keep failing.
                                          # once the hour's quota was spent. Two-hourly, slow,
                                          # and the persisted backoff absorbs the rest.
   amazon:

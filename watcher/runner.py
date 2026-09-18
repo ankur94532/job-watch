@@ -370,7 +370,7 @@ def _poll_company(name, ccfg, st, adapter, store, res, defaults, seed, deadline,
         return False
     except HttpStatusError as e:
         if e.code in (403, 429) or e.code >= 500:
-            _back_off(name, e, store, res, defaults, now)
+            _back_off(name, e, store, res, defaults, now, ccfg=ccfg)
         else:
             store.poll_failed(name, now, str(e))
         res.failed.append((name, str(e)))
@@ -427,7 +427,7 @@ def _poll_company(name, ccfg, st, adapter, store, res, defaults, seed, deadline,
         # and the company is parked exactly as if the fetch had failed outright.
         store.sweep_progress(name, now, sweep_started, result.cursor)
         # Progress was made, so park for the base wait without escalating.
-        _back_off(name, result.throttled, store, res, defaults, now, escalate=False)
+        _back_off(name, result.throttled, store, res, defaults, now, escalate=False, ccfg=ccfg)
         res.partial.append((name, len(result.postings), len(fresh)))
         return False
     if html_problem:
@@ -491,10 +491,14 @@ def _html_checks(name, result, st, store):
     return None
 
 
-def _back_off(name, err, store, res, defaults, now, escalate=True):
+def _back_off(name, err, store, res, defaults, now, escalate=True, ccfg=None):
     code = getattr(err, "code", 0)
     kind = "server" if code >= 500 else "blocked"
-    until = store.back_off(name, kind, now, str(err), getattr(err, "retry_after", None), escalate=escalate)
+    # `backoff_min` (seconds): a board whose quota refills slowly gets a longer
+    # first pause. Microsoft's does: retrying it every 30 minutes spent each new
+    # allowance on a few requests and was throttled again, most of a day.
+    until = store.back_off(name, kind, now, str(err), getattr(err, "retry_after", None), escalate=escalate,
+                           min_wait=int((ccfg or {}).get("backoff_min") or 0))
     st = store.state(name)
     alert_after = int(defaults.get("backoff_alert_after") or BACKOFF_ALERT_AFTER)
     if until - (st["fail_since"] or now) >= alert_after and not st["alert_state"]:
