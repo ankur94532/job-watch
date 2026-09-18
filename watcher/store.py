@@ -56,9 +56,22 @@ CREATE TABLE IF NOT EXISTS company_state (
   fail_since INTEGER,
   blocked_until INTEGER,
   last_error TEXT,
-  alert_state INTEGER DEFAULT 0
+  alert_state INTEGER DEFAULT 0,
+  zero_runs INTEGER DEFAULT 0 -- consecutive polls that parsed no rows (HTML adapters)
+);
+CREATE TABLE IF NOT EXISTS recheck (   -- `watcher recheck`: last fingerprint per URL
+  url TEXT PRIMARY KEY,
+  company TEXT,
+  fingerprint TEXT,
+  checked INTEGER
 );
 """
+
+# Columns added after databases already existed: CREATE TABLE IF NOT EXISTS
+# leaves an existing table exactly as it was, so these are added on open.
+ADDED_COLUMNS = {
+    "company_state": [("zero_runs", "INTEGER DEFAULT 0")],
+}
 
 
 def db_path(env=None):
@@ -96,6 +109,15 @@ class Store:
         _retry_locked(lambda: self.db.execute("PRAGMA journal_mode=WAL"))
         self.db.execute("PRAGMA busy_timeout=10000")
         _retry_locked(lambda: self.db.executescript(SCHEMA))
+        _retry_locked(self._migrate)
+
+    def _migrate(self):
+        for table, columns in ADDED_COLUMNS.items():
+            have = {r[1] for r in self.db.execute(f"PRAGMA table_info({table})")}
+            for name, decl in columns:
+                if name not in have:
+                    self.db.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+        self.db.commit()
 
     def close(self):
         self.db.close()
@@ -181,6 +203,7 @@ class Store:
         for k in ("last_polled", "last_complete", "last_count", "sweep_started", "backoff_kind",
                   "fail_since", "blocked_until", "last_error"):
             st.setdefault(k, None)
+        st["zero_runs"] = st.get("zero_runs") or 0
         st["cursor"] = json.loads(st["cursor"]) if st.get("cursor") else None
         st["cache"] = json.loads(st["cache"]) if st.get("cache") else {}
         return st
@@ -225,6 +248,31 @@ class Store:
             sweep_started=None, cursor=None, cache=cache or None, last_error=None,
         )
         self.reset_backoff(company)
+
+    def zero_rows(self, company):
+        """One more consecutive poll that parsed nothing. Returns the new streak."""
+        n = (self.state(company)["zero_runs"] or 0) + 1
+        self._set(company, zero_runs=n)
+        return n
+
+    def rows_seen(self, company):
+        """Rows parsed again: the zero streak is over."""
+        if self.state(company)["zero_runs"]:
+            self._set(company, zero_runs=0)
+
+    def poll_incremental(self, company, now):
+        """An incremental poll reached the board: it is polled, not swept."""
+        self._set(company, last_polled=now, last_error=None)
+        self.reset_backoff(company)
+
+    def recheck_get(self, url):
+        row = self._exec("SELECT fingerprint FROM recheck WHERE url = ?", (url,)).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def recheck_put(self, url, company, fingerprint, now):
+        self._exec("INSERT OR REPLACE INTO recheck (url, company, fingerprint, checked) VALUES (?,?,?,?)",
+                   (url, company, json.dumps(fingerprint, sort_keys=True), now))
+        self.commit()
 
     def drop_cursor(self, company):
         self._set(company, sweep_started=None, cursor=None)

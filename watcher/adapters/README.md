@@ -94,6 +94,17 @@ Confirmed against `salesforce.wd12` (1,465 reqs) and `rbs.wd3` (89):
   postings; the adapter accepts a sweep within 5% of `total` (logging a warning)
   and treats anything shorter as a failed fetch rather than mass-closing reqs.
 * `postedOn` is relative text ("Posted Today", "Posted 30+ Days Ago"), not a date.
+* **No sort parameter, no posted-date facet** (facets are job family, time type,
+  worker sub-type, location). But on some tenants the *default* order is
+  newest-first, checked 2026-09-18 by sampling `postedOn` at offsets 0 / 200 /
+  600: **yes** on `wf` (Wells Fargo; also identical across two reads),
+  `salesforce`, `paloaltonetworks`; **no** on `walmart` (1 day, 30 days, 1 day)
+  and `nvidia` (3, 3, 2, 3). On a newest-first tenant, `incremental: true` reads
+  pages only until two in a row hold nothing new (a normal Wells Fargo poll: 3
+  requests instead of 91), checks on every page that ages never go down (and
+  sweeps instead if they do), and never retires anything; a complete sweep
+  still runs every `full_sweep` seconds (default 12h), because only a complete
+  sweep can see that a req closed.
 * Tenant, shard (`wd1`…`wd504` — Walmart really does use a three-digit one) and
   site slug cannot be guessed; they come from a real posting URL.
 * A tenant may publish several sites; `sites:` takes a list and postings shared
@@ -263,10 +274,19 @@ nothing comparable, so this does not automatically generalise to TalentBrew.
 | Meta | `metacareers.com` GraphQL needs a `doc_id` plus a session token; answers 400 without them |
 | Myntra | `careers.myntra.com` redirects to a 2.5KB `jobs.myntra.com` SPA shell; no API in the served HTML or its bundles |
 | Chargebee | No board at all — `chargebee.com/careers` sends applicants to LinkedIn |
-| Nykaa | third-party ATS **Skima** (`careers.nykaa.com.skima.ai`); `api.skima.ai` exists but answers 404 on guessed paths |
+| ~~Nykaa~~ | polled since 2026-09-18 by the Skima HTML adapter (see below); no API exists |
 | Hasura, Gupshup, D. E. Shaw | jobs embedded in a Next.js `__NEXT_DATA__` payload — reading that on every poll is HTML scraping |
 | Zepto, BookMyShow, Blinkit, Qdrant, Krutrim, Vespa | careers host 403s, 404s, fails DNS, or rejects our TLS handshake |
-| Flipkart, Zomato, PhonePe, Media.net, LinkedIn, ScyllaDB, Quadeye | nothing job-shaped in the served HTML at all |
+| Flipkart, Zomato, PhonePe, LinkedIn, ScyllaDB, Quadeye | nothing job-shaped in the served HTML at all |
+
+Revised 2026-09-18 (evening), superseding the rows above where they disagree:
+**Media.net** is polled from its HTML (below). **Zepto** is bot protection, not
+server rendering: every careers path answers 202 with `x-amzn-waf-action:
+challenge`. **Zomato**: `eternal.com/careers` publishes no openings at all, only
+"find someone who can vouch for you" and `mailto:hr@eternal.com`. **Blinkit**'s
+board does exist, at `jobs.blinkit.com`, and blocks automated clients at
+Cloudflare, headless Chromium included. Bot protection is not worked around, so
+Zepto and Blinkit stay closed.
 
 A second pass read each site's same-origin JavaScript bundles looking for an API
 base, and probed `/api/jobs`, `/api/v1/jobs`, `/jobs.json`, `/wp-json/wp/v2/jobs`,
@@ -276,6 +296,39 @@ publish sitemaps that contain no individual job URLs; Nykaa runs a third-party
 ATS (Skima) whose API path could not be guessed.
 
 Each would need a browser-spoofed UA or a headless browser, which is out of scope.
+
+## HTML adapters (Media.net, Skima / Nykaa)
+
+`adapters/html.py`, for careers pages with no job API at all. The failure to
+design against is not a crash but a selector that quietly matches nothing, which
+reads exactly like a quiet week. So each adapter returns, besides its rows:
+
+* `declared`: the count the page states itself ("Showing 5 of 5 - Jobs", a
+  department's "4 Positions"). Parsed ≠ declared means the parse is partial: the
+  rows are kept, nothing is retired, and the poll shows as failed.
+* `empty_evidence`: the page's own words when it says there are no openings
+  ("Currently there are no job postings available"). Zero rows **with** it is a
+  genuinely empty board (a warning, but a valid sweep); zero rows **without** it
+  means the selector broke (a failure, nothing retired).
+
+and the runner (`_html_checks`) logs the parsed count on every run, warns on any
+zero, counts consecutive zero-row polls per company (`zero_runs`) and after 3
+logs `HTML adapter <company> returned 0 rows for N runs — verify manually`,
+saying which kind of zero it is. A drop below half the previous count is called
+out even when the page agrees. Structural anchors (Media.net's `#openings`
+section, Skima's job search box) raise `AdapterError`: a layout change fails the
+poll outright instead of reading as zero.
+
+* **Media.net** (`careers.media.net`, WordPress, no robots.txt): the home page
+  lists departments with counts; only departments declaring openings are
+  fetched. Openings are `<ul class="openings-list"><li><a>`. Location is only on
+  the job page (`<b>Location:</b> New York`), fetched for new rows; some pages
+  state none, and those count as location-unknown matches like any vague row.
+* **Skima** (`careers.nykaa.com`, Astro SSR, robots `Allow: /`): a card per job,
+  title linking to `/<uuid>`, then spans for location, workplace, type. Built
+  against `mccafe.skima.ai`, the same template with jobs, because Nykaa had none
+  when this was written. Pagination is buttons with `data-last-page`; `?page=N`
+  is tried and trusted only if the page answers `data-current-page="N"`.
 
 ## Detection notes
 

@@ -3,6 +3,9 @@ LABEL  := com.shashwattripathi.jobswatch
 REPO   := $(CURDIR)
 PLIST_SRC := $(REPO)/deploy/$(LABEL).plist
 PLIST     := $(HOME)/Library/LaunchAgents/$(LABEL).plist
+RECHECK_LABEL := $(LABEL).recheck
+RECHECK_SRC   := $(REPO)/deploy/$(RECHECK_LABEL).plist
+RECHECK_PLIST := $(HOME)/Library/LaunchAgents/$(RECHECK_LABEL).plist
 ENV_FILE  := $(REPO)/deploy/jobswatch.env
 LOGDIR    := $(HOME)/Library/Logs/jobswatch
 DB        ?= $(HOME)/.local/share/jobswatch/jobs.db
@@ -20,6 +23,7 @@ help:
 	@echo "make site       export and force-push it to the '$(SITE_BRANCH)' branch"
 	@echo "make install    render the plist and load the launchd agent (seed first)"
 	@echo "make kick       force a run now via launchctl"
+	@echo "make recheck    has a board appeared for a company with none? (monthly agent does this)"
 	@echo "make logs       tail stdout and stderr logs"
 	@echo "make uninstall  unload the agent (database and logs are kept)"
 
@@ -56,10 +60,22 @@ install: $(ENV_FILE)
 	launchctl enable $(DOMAIN)/$(LABEL)
 	@echo
 	@launchctl list | grep $(LABEL) || echo "not registered — check $(LOGDIR)/jobswatch.err.log"
+	@$(MAKE) --no-print-directory install-recheck
+
+# Monthly "has a board appeared?" check. Its own agent: never part of polling.
+install-recheck: $(ENV_FILE)
+	$(PYTHON) $(REPO)/deploy/render_plist.py $(RECHECK_SRC) $(ENV_FILE) $(RECHECK_PLIST) $(PYTHON) $(REPO)
+	-launchctl bootout $(DOMAIN)/$(RECHECK_LABEL) 2>/dev/null
+	launchctl bootstrap $(DOMAIN) $(RECHECK_PLIST)
+	launchctl enable $(DOMAIN)/$(RECHECK_LABEL)
+
+recheck:
+	cd $(REPO) && $(PYTHON) -m watcher recheck
 
 uninstall:
 	-launchctl bootout $(DOMAIN)/$(LABEL)
-	@rm -f $(PLIST)
+	-launchctl bootout $(DOMAIN)/$(RECHECK_LABEL)
+	@rm -f $(PLIST) $(RECHECK_PLIST)
 	@echo "agent removed; $(DB) and $(LOGDIR) kept"
 
 reinstall: uninstall install

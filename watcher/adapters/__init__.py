@@ -7,6 +7,7 @@ from .eightfold import EightfoldAdapter
 from .comeet import ComeetAdapter
 from .gem import GemAdapter
 from .greenhouse import GreenhouseAdapter
+from .html import MediaNetAdapter, SkimaAdapter
 from .jibe import JibeAdapter
 from .lever import LeverAdapter
 from .oracle import OracleAdapter
@@ -28,6 +29,8 @@ ADAPTERS = {
         AmazonAdapter, AtlassianAdapter,
         # server-rendered pages whose search state is embedded JSON
         AppleAdapter, GoogleAdapter, QuadeyeAdapter, DEShawAdapter, GemAdapter, ComeetAdapter,
+        # careers pages with no job API: parsed from the HTML (see adapters/html.py)
+        MediaNetAdapter, SkimaAdapter,
     )
 }
 

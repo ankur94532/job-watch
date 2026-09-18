@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template for the MONTHLY board re-check (`watcher recheck`), rendered by
+  `make install-recheck` exactly like the poller's plist. Separate job on
+  purpose: it is not part of polling, and a slow or failing check can never
+  delay a poll. It only reports; it never enables a company.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>@@LABEL@@</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>@@PYTHON@@</string>
+    <string>-m</string>
+    <string>watcher</string>
+    <string>recheck</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>@@WORKDIR@@</string>
+  <!-- The 1st of every month, 10:00. A calendar interval that passes while the
+       Mac sleeps runs on wake instead of being skipped. -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Day</key>
+    <integer>1</integer>
+    <key>Hour</key>
+    <integer>10</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>@@LOGDIR@@/recheck.log</string>
+  <key>StandardErrorPath</key>
+  <string>@@LOGDIR@@/recheck.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+@@ENVIRONMENT@@
+  </dict>
+</dict>
+</plist>

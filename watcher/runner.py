@@ -48,6 +48,9 @@ CURSOR_MAX_AGE = 3 * 3600  # an older unfinished sweep restarts from offset 0
 # not a busy one.
 STARVING_POLLS = 4
 STARVING_SWEEPS = 8
+# HTML adapters: this many polls in a row with zero rows parsed is announced
+# loudly. One zero is already a warning; three is a pattern someone must check.
+ZERO_ROWS_LOUD = 3
 BACKOFF_ALERT_AFTER = 2 * 3600
 
 
@@ -95,12 +98,26 @@ def _check_starvation(cfg, store, res, now):
             log.warning("%s has not been polled in %.1fh (%.0fx its %s interval)",
                         name, (now - polled) / 3600.0,
                         (now - polled) / interval, _fmt_interval(interval))
-        elif complete and now - complete > interval * STARVING_SWEEPS:
+        elif complete and now - complete > sweep_threshold(ccfg, defaults):
             # Polled but never finishing: closed reqs are never retired.
             res.starving.append((name, now - complete, interval, "sweep"))
             log.warning("%s is polled but has not COMPLETED a sweep in %.1fh "
                         "(%.0fx its interval) — closed reqs cannot be retired",
                         name, (now - complete) / 3600.0, (now - complete) / interval)
+
+
+def sweep_threshold(ccfg, defaults):
+    """How old the last COMPLETE sweep may get before it counts as starving.
+
+    Normally STARVING_SWEEPS intervals. An incremental board completes a sweep
+    only every `full_sweep` seconds by design, so its allowance starts there.
+    """
+    interval = config_mod.interval_for(ccfg, defaults)
+    expected = interval
+    if ccfg.get("incremental"):
+        from .adapters.workday import FULL_SWEEP
+        expected = int(ccfg.get("full_sweep") or FULL_SWEEP)
+    return expected + (STARVING_SWEEPS - 1) * interval
 
 
 def _fmt_interval(seconds):
@@ -331,7 +348,9 @@ def _poll_company(name, ccfg, st, adapter, store, res, defaults, seed, deadline,
     flt = filter_for(ccfg, defaults)
     cursor = st["cursor"]
     sweep_started = st["sweep_started"] if cursor else now
-    ctx = FetchContext(cache=dict(st["cache"]), cursor=cursor, deadline=deadline)
+    ctx = FetchContext(cache=dict(st["cache"]), cursor=cursor, deadline=deadline,
+                       known=store.known_ids(name) if getattr(adapter, "incremental", False) else None,
+                       last_complete=st["last_complete"], now=now)
     try:
         result = adapter.fetch(ctx)
     except NotModified:
@@ -360,6 +379,8 @@ def _poll_company(name, ccfg, st, adapter, store, res, defaults, seed, deadline,
         res.failed.append((name, f"{e.__class__.__name__}: {e}"))
         log.error("%s: FAILED: %s", name, e)
         return False
+
+    html_problem = _html_checks(name, result, st, store) if getattr(adapter, "html", False) else None
 
     # Never alert on a board we've never completed a sweep of: that's its whole backlog.
     silent = seed or st["last_complete"] is None
@@ -408,6 +429,18 @@ def _poll_company(name, ccfg, st, adapter, store, res, defaults, seed, deadline,
         _back_off(name, result.throttled, store, res, defaults, now, escalate=False)
         res.partial.append((name, len(result.postings), len(fresh)))
         return False
+    if html_problem:
+        # Rows that were parsed are kept, but the parse is not trusted as the
+        # whole board: nothing is retired, and the poll shows as failed.
+        store.poll_failed(name, now, html_problem)
+        res.failed.append((name, html_problem))
+        return False
+    if result.incremental:
+        store.poll_incremental(name, now)
+        res.ok.append((name, len(result.postings), len(fresh), matched))
+        log.info("%s: incremental, read the %d newest rows, %d new, %d new matches",
+                 name, len(result.postings), len(fresh), matched)
+        return False
     if result.complete:
         count = len(result.postings) + (len(cursor.get("ids", [])) if cursor else 0)
         store.sweep_complete(name, now, sweep_started, count, ctx.cache)
@@ -421,6 +454,40 @@ def _poll_company(name, ccfg, st, adapter, store, res, defaults, seed, deadline,
         log.info("%s: sweep paused at %s (%d fetched this run), resumes next run",
                  name, where, len(result.postings))
     return False
+
+
+def _html_checks(name, result, st, store):
+    """None if an HTML adapter's result can stand as a complete sweep, else why not.
+
+    The failure these exist for is not a crash: it is a selector that quietly
+    matches nothing, so every poll reports "no new postings" and it looks like
+    a quiet week. So zero rows is never a normal result here, the count is
+    logged every run so a slide (40 -> 3) is visible, and a count the page
+    states itself is held against what was parsed.
+    """
+    n, declared = len(result.postings), result.declared
+    log.info("%s: HTML adapter parsed %d rows%s", name, n,
+             "" if declared is None else f" (page declares {declared})")
+    if n == 0:
+        streak = store.zero_rows(name)
+        confirmed = bool(result.empty_evidence) and not declared
+        why = (f'page confirms no openings: "{result.empty_evidence}"' if confirmed else
+               "NO empty-state text on the page, so the selector has probably stopped matching")
+        log.warning("%s: 0 rows parsed; %s", name, why)
+        if streak >= ZERO_ROWS_LOUD:
+            log.warning("HTML adapter %s returned 0 rows for %d runs — verify manually (%s)",
+                        name, streak, why)
+        return None if confirmed else f"0 rows parsed and {why}"
+    store.rows_seen(name)
+    if declared is not None and n != declared:
+        why = f"parsed {n} rows but the page declares {declared}"
+        log.warning("%s: %s; some rows are not being matched, so nothing is retired", name, why)
+        return why
+    prev = st["last_count"]
+    if prev and prev >= 6 and n < prev / 2:
+        log.warning("%s: row count fell from %d to %d; the page agrees, but check it is a real drop",
+                    name, prev, n)
+    return None
 
 
 def _back_off(name, err, store, res, defaults, now, escalate=True):

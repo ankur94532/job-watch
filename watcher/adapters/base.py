@@ -27,6 +27,11 @@ class FetchContext:
     cache: dict = field(default_factory=dict)     # HTTP validators (ETag / Last-Modified)
     cursor: Optional[dict] = None                 # resume point of an unfinished sweep
     deadline: Optional[float] = None              # time.monotonic() value to stop paging at
+    # For adapters that can poll incrementally (newest-first boards): the ids
+    # already stored, and when the last COMPLETE sweep started. Unused otherwise.
+    known: Optional[set] = None
+    last_complete: Optional[int] = None
+    now: Optional[float] = None
 
 
 @dataclass
@@ -39,6 +44,17 @@ class FetchResult:
     # alternative — raising — throws away work that cost requests to get, which
     # matters on a board that only allows a handful of requests per window.
     throttled: Optional[Exception] = None
+    # HTML adapters only. `declared` is the count the page itself states
+    # ("Showing 5 of 5", "4 Positions"), checked against the rows parsed.
+    # `empty_evidence` is the page's own words when it says there are no
+    # openings: the only thing that separates "genuinely zero" from "the
+    # selector stopped matching", which otherwise look identical.
+    declared: Optional[int] = None
+    empty_evidence: Optional[str] = None
+    # A poll that read only the newest pages and stopped at known ids: it can
+    # add postings but says nothing about which ones closed, so it never
+    # retires anything and never counts as a complete sweep.
+    incremental: bool = False
 
 
 class AdapterError(Exception):
@@ -50,6 +66,10 @@ class Adapter(ABC):
     required = ()          # config keys this adapter needs
     paginated = False      # multi-request sweeps are scheduled after single-request boards
     max_parallel = None    # cap on this ATS's companies polled at once, even on different hosts
+    # Parses a web page rather than a JSON API. A page whose markup changes
+    # does not crash; it quietly yields zero rows, which reads exactly like a
+    # quiet week. The runner treats zero rows from these as a warning state.
+    html = False
 
     def __init__(self, company, cfg, http=None, page_delay=0.5):
         missing = [k for k in self.required if not cfg.get(k)]

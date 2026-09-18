@@ -116,6 +116,20 @@ Lines worth reacting to:
 | `deferred` | ran out of time this run, first in line next run |
 | `FAILED` | real error — bad config or a changed API |
 
+## Monthly board re-check
+
+`watcher recheck` (`make recheck`) looks at the URLs listed under `recheck:` for
+companies that have no board today (Krutrim, Qdrant, Gupshup, and Postman until
+its careers site is back) and reports, per URL, whether its HTTP status, jobs
+listed, linked ATS hosts or job-like links changed since the last check. A
+first check records a baseline. Anything that moved is sent as one message. It
+never enables a company.
+
+It runs from its own launchd agent on the 1st of each month at 10:00
+(`deploy/com.shashwattripathi.jobswatch.recheck.plist`, installed by
+`make install`, or alone with `make install-recheck`), logging to
+`recheck.log`, and is not part of polling.
+
 ## Rate limiting, and what happens if a board pushes back
 
 Everything is public and keyless, which is a courtesy, not a contract. The

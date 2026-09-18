@@ -149,10 +149,14 @@ def cmd_status(args):
             state = f"sweep in progress (at {pos})"
         elif st["last_complete"] is None:
             state = "never seeded"
-        elif now - st["last_complete"] > interval * runner.STARVING_SWEEPS:
+        elif now - st["last_complete"] > runner.sweep_threshold(c, defaults):
             # Polled fine, but the sweep never finishes, so closed reqs pile up.
             state = (f"STARVING: no complete sweep in "
                      f"{(now - st['last_complete']) / 3600:.1f}h, {st['last_count']} open")
+        elif st["zero_runs"]:
+            # HTML adapters: zero rows is never "fine". The run log says whether
+            # the page confirmed it was empty or the selector matched nothing.
+            state = f"0 rows for {st['zero_runs']} poll(s) in a row — see the log for why"
         elif st["last_error"]:
             state = f"last error: {st['last_error']}"
         else:
@@ -240,6 +244,22 @@ def append_config(path, det):
         raise SystemExit(f"appending to {path} did not parse back (is `companies:` the last block?); restored")
 
 
+def cmd_recheck(args):
+    """Has a board appeared for a company that had none? Monthly; never enables anything."""
+    from . import recheck
+    from .http import HttpClient
+
+    cfg = config_mod.load(args.config)
+    store = Store(args.db)
+    try:
+        lines = recheck.run(cfg, store, HttpClient(), sink=None if args.quiet else notify.from_env())
+    finally:
+        store.close()
+    for line in lines:
+        print(line)
+    return 0
+
+
 def cmd_trace(args):
     """Dev-only: drives a real browser to find the XHR a careers SPA calls."""
     from .trace import trace              # imported here so the poller never loads playwright
@@ -303,6 +323,9 @@ def main(argv=None):
     p = sub.add_parser("test-adapter", help="one fetch, print counts and samples, write nothing")
     p.add_argument("company")
 
+    p = sub.add_parser("recheck", help="monthly: has a board appeared for a company with none? (not polling)")
+    p.add_argument("--quiet", action="store_true", help="report only; send no message")
+
     p = sub.add_parser("trace", help="DEV ONLY: drive a browser to find a careers SPA's XHR endpoint")
     p.add_argument("company")
     p.add_argument("--url", help="careers page to load (default: careers_url from config)")
@@ -329,6 +352,7 @@ def main(argv=None):
         "test-adapter": cmd_test_adapter,
         "detect": cmd_detect,
         "trace": cmd_trace,
+        "recheck": cmd_recheck,
     }
     return handlers[args.cmd](args)
 

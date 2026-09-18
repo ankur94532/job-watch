@@ -174,3 +174,76 @@ class Detail(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def synthetic(n, ages):
+    """A newest-first board of n postings; ages[i] is posting i's age in days."""
+    def row(i):
+        age = ages[i]
+        when = "Posted Today" if age == 0 else "Posted Yesterday" if age == 1 else f"Posted {age} Days Ago"
+        return {"title": f"Engineer {i}", "externalPath": f"/job/Place/Engineer-{i}_R{i:05d}",
+                "locationsText": "Bengaluru", "postedOn": when, "bulletFields": [f"R{i:05d}"]}
+
+    def handler(method, url, payload, cache):
+        off = payload["offset"]
+        return {"total": n if off == 0 else 0, "jobPostings": [row(i) for i in range(off, min(off + 20, n))]}
+    return FakeHttp({JOBS: handler})
+
+
+class Incremental(unittest.TestCase):
+    """Wells Fargo re-read ~1,800 postings every sweep to find a handful of new
+    ones. On a tenant whose default order is newest first, a poll can stop once
+    it is back on known ground -- as long as it never pretends to be a sweep."""
+
+    CFG = dict(CFG, incremental=True)
+    NOW = 1_800_000_000
+
+    def ctx(self, known, last_complete_ago=3600):
+        return FetchContext(known=set(known), last_complete=self.NOW - last_complete_ago, now=self.NOW)
+
+    def ids(self, rng):
+        return {f"R{i:05d}" for i in rng}
+
+    def test_stops_after_two_pages_of_known_postings(self):
+        http = synthetic(400, [i // 20 for i in range(400)])
+        known = self.ids(range(5, 400))                        # 0-4 are new, at the top
+        res = WorkdayAdapter("wf", self.CFG, http=http, page_delay=0).fetch(self.ctx(known))
+        self.assertTrue(res.incremental)
+        self.assertFalse(res.complete)                          # never a sweep: retires nothing
+        self.assertEqual(offsets(http), [0, 20, 40])            # page with news, then two known pages
+        self.assertTrue(self.ids(range(5)) <= {p.job_id for p in res.postings})
+
+    def test_an_order_that_is_not_newest_first_falls_back_to_a_full_sweep(self):
+        ages = [i // 20 for i in range(100)]
+        ages[30] = 0                                            # a fresh posting deep in the list
+        http = synthetic(100, ages)
+        res = WorkdayAdapter("walmart", self.CFG, http=http, page_delay=0).fetch(self.ctx(self.ids(range(100))))
+        self.assertFalse(res.incremental)
+        self.assertTrue(res.complete)                           # swept, in the same run
+        self.assertEqual(len(res.postings), 100)
+
+    def test_a_full_sweep_still_runs_every_full_sweep_interval(self):
+        http = synthetic(60, [0] * 60)
+        res = WorkdayAdapter("wf", self.CFG, http=http, page_delay=0).fetch(
+            self.ctx(self.ids(range(60)), last_complete_ago=wd.FULL_SWEEP + 1))
+        self.assertFalse(res.incremental)
+        self.assertTrue(res.complete)
+
+    def test_so_much_new_that_sweeping_is_cheaper(self):
+        n = 20 * (wd.INCREMENTAL_MAX_PAGES + 3)
+        http = synthetic(n, [0] * n)
+        res = WorkdayAdapter("wf", self.CFG, http=http, page_delay=0).fetch(self.ctx({"old"}))
+        self.assertTrue(res.complete)                           # gave up on the shortcut
+
+    def test_off_unless_configured_and_never_on_an_unseeded_board(self):
+        http = synthetic(60, [0] * 60)
+        res = WorkdayAdapter("x", CFG, http=http, page_delay=0).fetch(self.ctx(self.ids(range(60))))
+        self.assertTrue(res.complete)                           # no `incremental: true`
+        http = synthetic(60, [0] * 60)
+        res = WorkdayAdapter("x", self.CFG, http=http, page_delay=0).fetch(FetchContext(now=self.NOW))
+        self.assertTrue(res.complete)                           # nothing known yet: sweep
+
+    def test_posted_age(self):
+        self.assertEqual([wd.posted_age(s) for s in ("Posted Today", "Posted Yesterday", "Posted 3 Days Ago",
+                                                     "Posted 30+ Days Ago", "Closing soon")],
+                         [0, 1, 3, 30, None])

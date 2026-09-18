@@ -17,6 +17,13 @@ Behaviour confirmed against live tenants on 2026-09-16 — see adapters/README.m
 * Multi-location postings list as "3 Locations"; the detail endpoint has them.
 * No ETag / Last-Modified (responses are `Cache-Control: no-store`), so every
   poll is a full sweep. That is why Workday defaults to an hourly interval.
+* No sort parameter and no posted-date facet. But on SOME tenants the default
+  order is newest first, and there `incremental: true` reads only the newest
+  pages (see fetch_incremental). Checked 2026-09-18 by sampling postedOn at
+  offsets 0 / 200 / 600: newest-first on wf (Wells Fargo, and stable between
+  requests), salesforce, paloaltonetworks; NOT on walmart (1 day, then 30, then
+  1 again) nor nvidia (3, 3, 2, 3 -- close, not ordered). Opt-in per tenant,
+  and re-verified on every incremental poll.
 """
 
 import logging
@@ -31,6 +38,19 @@ log = logging.getLogger(__name__)
 PAGE = 20            # Workday hard-caps this server-side
 MAX_PAGES = 200      # safety net against the wrap-around bug
 DUP_PAGES_BEFORE_WRAP = 3   # see the wrap-around note in the module docstring
+FULL_SWEEP = 12 * 3600      # incremental boards: a complete sweep at least this often
+INCREMENTAL_MAX_PAGES = 10  # more new than this and it is cheaper to just sweep
+KNOWN_PAGES_TO_STOP = 2     # consecutive all-known pages before an incremental poll stops
+POSTED = re.compile(r"Posted\s+(Today|Yesterday|(\d+)\+?\s+Days?\s+Ago)", re.I)
+
+
+def posted_age(text):
+    """Days since posting from Workday's "Posted 3 Days Ago", or None."""
+    m = POSTED.search(text or "")
+    if not m:
+        return None
+    word = m.group(1).lower()
+    return 0 if word == "today" else 1 if word == "yesterday" else int(m.group(2))
 MIN_COVERAGE = 0.95  # below this share of `total`, treat the fetch as failed
 
 MULTI_LOCATION = re.compile(r"^\d+\s+Locations?$", re.I)
@@ -58,6 +78,13 @@ class WorkdayAdapter(Adapter):
         s = self.cfg["sites"]
         return [s] if isinstance(s, str) else list(s)
 
+    @property
+    def incremental(self):
+        return bool(self.cfg.get("incremental"))
+
+    def full_sweep(self):
+        return int(self.cfg.get("full_sweep") or FULL_SWEEP)
+
     def fetch(self, ctx=None):
         """Sweep every site, page by page, until each site's `total` is reached.
 
@@ -70,6 +97,12 @@ class WorkdayAdapter(Adapter):
         shifted across a page boundary in the meantime are not skipped.
         """
         ctx = ctx or FetchContext()
+        if (self.incremental and not ctx.cursor and ctx.known and ctx.last_complete
+                and ctx.now is not None and ctx.now - ctx.last_complete < self.full_sweep()):
+            quick = self.fetch_incremental(ctx)
+            if quick is not None:
+                return quick
+            # Order broken or too much new: fall through to a full sweep, same run.
         cur = ctx.cursor or {}
         sites = self.sites()
         first_site = min(cur.get("site", 0), len(sites) - 1)
@@ -145,6 +178,55 @@ class WorkdayAdapter(Adapter):
                     raise AdapterError(msg + " — incomplete sweep, not trusting it")
                 log.warning(msg)
         return FetchResult(out)
+
+    def fetch_incremental(self, ctx):
+        """Read only the newest pages; None means "do a full sweep instead".
+
+        Only valid on a tenant whose default order is newest first. That is
+        checked as the pages come in -- posted ages must never go DOWN -- and a
+        violation abandons the shortcut for a full sweep rather than trusting an
+        order that no longer holds. It stops after KNOWN_PAGES_TO_STOP pages in a
+        row with nothing new: one is not enough, because postings from the same
+        day are not in a fixed order among themselves.
+
+        What it cannot do is notice closed requisitions, so the result is marked
+        incremental: the runner records new rows and retires nothing, and a
+        complete sweep still runs every `full_sweep` seconds.
+        """
+        out, seen = [], set()
+        for site in self.sites():
+            known_run, prev_age, reached_known = 0, -1, False
+            for n in range(INCREMENTAL_MAX_PAGES):
+                if ctx.deadline is not None and time.monotonic() >= ctx.deadline:
+                    return FetchResult(out, complete=False, incremental=True)
+                if n:
+                    self.pause()
+                rows = self.fetch_page(site, n * PAGE).get("jobPostings") or []
+                fresh_here = False
+                for raw in rows:
+                    age = posted_age(raw.get("postedOn"))
+                    if age is not None:
+                        if age < prev_age:
+                            log.warning("%s/%s: not newest-first at offset %d (%d days after %d); "
+                                        "doing a full sweep instead", self.company, site, n * PAGE, age, prev_age)
+                            return None
+                        prev_age = age
+                    p = self._posting(site, raw)
+                    if p.job_id in seen:
+                        continue
+                    seen.add(p.job_id)
+                    out.append(p)
+                    if p.job_id not in ctx.known:
+                        fresh_here = True
+                known_run = 0 if fresh_here else known_run + 1
+                if known_run >= KNOWN_PAGES_TO_STOP or len(rows) < PAGE:
+                    reached_known = True
+                    break
+            if not reached_known:
+                log.info("%s/%s: %d pages of new postings; sweeping instead", self.company, site,
+                         INCREMENTAL_MAX_PAGES)
+                return None
+        return FetchResult(out, complete=False, incremental=True)
 
     def fetch_page(self, site, offset):
         body = {"appliedFacets": {}, "limit": PAGE, "offset": offset, "searchText": ""}

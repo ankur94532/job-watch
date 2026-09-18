@@ -786,5 +786,138 @@ class PartialSweeps(Base):
         self.assertEqual([r["job_id"] for r in self.store.rows(closed=True)], ["2"])
 
 
+
+class FakeHtml(FakeBoard):
+    """An HTML adapter: rows, plus what the page itself says (declared count,
+    empty-state text). META[company] = (declared, empty_evidence)."""
+    ats = "fakehtml"
+    html = True
+    META = {}
+
+    def fetch(self, ctx=None):
+        r = FakeBoard.fetch(self, ctx)
+        r.declared, r.empty_evidence = FakeHtml.META.get(self.company, (None, None))
+        return r
+
+
+class HtmlAdapters(Base):
+    """A web page whose markup changes does not crash: a selector quietly
+    matches nothing and every poll says "no new postings", which reads exactly
+    like a quiet week. Zero rows from an HTML adapter is therefore never a
+    normal result, and "genuinely empty" must be told apart from "broken"."""
+
+    def setUp(self):
+        super().setUp()
+        ADAPTERS["fakehtml"] = FakeHtml
+        FakeHtml.META = {}
+
+    def tearDown(self):
+        ADAPTERS.pop("fakehtml", None)
+        super().tearDown()
+
+    def page(self, name, rows, declared=None, empty=None):
+        FakeBoard.BOARDS[name] = rows
+        FakeHtml.META[name] = (declared, empty)
+        self.cfg["companies"].setdefault(name, {"ats": "fakehtml", "token": name})
+
+    def poll(self):
+        with self.assertLogs(runner.log, "INFO") as logs:
+            res = self.run_once()
+        return res, "\n".join(logs.output)
+
+    def test_every_run_logs_the_row_count(self):
+        self.page("acme", [job("1"), job("2")], declared=2)
+        _, out = self.poll()
+        self.assertIn("acme: HTML adapter parsed 2 rows (page declares 2)", out)
+
+    def test_zero_rows_the_page_confirms_is_a_warning_but_a_valid_sweep(self):
+        self.page("nykaa", [], declared=0, empty="Currently there are no job postings available")
+        res, out = self.poll()
+        self.assertIn("WARNING:watcher.runner:nykaa: 0 rows parsed; page confirms no openings", out)
+        self.assertIn("Currently there are no job postings available", out)
+        self.assertEqual(res.failed, [])
+        self.assertIsNotNone(self.store.state("nykaa")["last_complete"])
+
+    def test_zero_rows_with_no_empty_text_is_a_broken_selector_and_retires_nothing(self):
+        self.page("acme", [job("1"), job("2")], declared=2)
+        self.run_once(seed=True)
+        self.page("acme", [], declared=None, empty=None)        # the markup changed under us
+        res, out = self.poll()
+        self.assertIn("NO empty-state text", out)
+        self.assertIn("selector has probably stopped matching", out)
+        self.assertEqual([n for n, _ in res.failed], ["acme"])
+        self.assertEqual(self.store.rows(closed=True), [])       # nothing wrongly marked closed
+
+    def test_three_zero_runs_in_a_row_are_announced_loudly_and_say_which_kind(self):
+        self.page("broken", [])
+        self.page("empty", [], declared=0, empty="no job postings")
+        outs = [self.poll()[1] for _ in range(3)]
+        self.assertNotIn("verify manually", outs[1])
+        self.assertIn("HTML adapter broken returned 0 rows for 3 runs — verify manually "
+                      "(NO empty-state text", outs[2])
+        self.assertIn("HTML adapter empty returned 0 rows for 3 runs — verify manually "
+                      "(page confirms no openings", outs[2])
+        self.assertEqual(self.store.state("broken")["zero_runs"], 3)
+
+    def test_rows_coming_back_end_the_streak(self):
+        self.page("acme", [])
+        self.poll(); self.poll()
+        self.page("acme", [job("1")], declared=1)
+        self.poll()
+        self.assertEqual(self.store.state("acme")["zero_runs"], 0)
+
+    def test_fewer_rows_than_the_page_declares_is_a_partial_parse(self):
+        self.page("medianet", [job("1"), job("2")], declared=2)
+        self.run_once(seed=True)
+        self.page("medianet", [job("1")], declared=7)            # 7 on the page, 1 matched
+        res, out = self.poll()
+        self.assertIn("parsed 1 rows but the page declares 7", out)
+        self.assertEqual([n for n, _ in res.failed], ["medianet"])
+        self.assertEqual(self.store.rows(closed=True), [])       # "2" is not retired on a partial parse
+
+    def test_a_sharp_drop_is_called_out_even_when_the_page_agrees(self):
+        self.page("acme", [job(str(i)) for i in range(40)], declared=40)
+        self.run_once(seed=True)
+        self.page("acme", [job(str(i)) for i in range(3)], declared=3)
+        _, out = self.poll()
+        self.assertIn("row count fell from 40 to 3", out)
+
+    def test_json_adapters_are_untouched(self):
+        self.company("gh", [])                                  # an API board with no openings
+        with self.assertLogs(runner.log, "INFO") as logs:
+            res = self.run_once()
+        self.assertNotIn("HTML adapter", "\n".join(logs.output))
+        self.assertEqual(res.failed, [])
+
+
+class IncrementalPolls(Base):
+    def test_an_incremental_poll_alerts_on_new_but_never_retires_or_counts_as_a_sweep(self):
+        self.company("wf", [job("1"), job("2"), job("3")])
+        self.run_once(seed=True)
+        swept = self.store.state("wf")["last_complete"]
+        orig = FakeBoard.fetch
+
+        def newest_only(self_, ctx=None):
+            r = orig(self_, ctx)
+            r.complete, r.incremental = False, True
+            return r
+        FakeBoard.fetch = newest_only
+        FakeBoard.BOARDS["wf"] = [job("4", "Backend Engineer"), job("1")]   # 2 and 3 simply not read
+        try:
+            res = self.run_once()
+        finally:
+            FakeBoard.fetch = orig
+        self.assertEqual(res.sent, 1)                                    # 4 alerted
+        self.assertEqual(self.store.rows(closed=True), [])               # 2, 3 NOT retired
+        self.assertEqual(self.store.state("wf")["last_complete"], swept) # not a sweep
+        self.assertGreater(self.store.state("wf")["last_polled"], swept) # but it was polled
+
+    def test_an_incremental_board_is_not_called_sweep_starved_between_full_sweeps(self):
+        from watcher.adapters.workday import FULL_SWEEP
+        ccfg = {"ats": "workday", "interval": 900, "incremental": True}
+        self.assertGreater(runner.sweep_threshold(ccfg, {}), FULL_SWEEP)
+        self.assertEqual(runner.sweep_threshold({"ats": "fake", "interval": 900}, {}), 900 * runner.STARVING_SWEEPS)
+
+
 if __name__ == "__main__":
     unittest.main()

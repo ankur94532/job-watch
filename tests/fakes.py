@@ -54,6 +54,15 @@ class FakeHttp:
     def post_json(self, url, payload, headers=None):
         return json.loads(json.dumps(self._respond("POST", url, payload)))
 
+    def get_text(self, url, headers=None):
+        return self._respond("GET", url)
+
+
+def page(name):
+    """A saved web page, for the HTML adapters."""
+    with open(os.path.join(FIXTURES, name), encoding="utf-8") as f:
+        return f.read()
+
 
 class RecordingSink:
     name = "recording"

@@ -105,6 +105,9 @@ companies:
     token: postman                       # 67 postings, 6 in India
     enabled: false
     note: "careers page down for maintenance until 2026-09-21; re-check then"
+    recheck:                             # `watcher recheck` reports when either comes back
+      - https://boards-api.greenhouse.io/v1/boards/postman/jobs
+      - https://www.postman.com/company/careers/open-positions/
     # 2026-09-18: the board 404s, and it is NOT a token change -- postman,
     # postmanlabs and getpostman all 404, and there is no Ashby board either.
     # Their careers page says so outright: "maintenance on our Careers page. It
@@ -230,8 +233,14 @@ companies:
     ats: workday
     tenant: wf                           # not "wellsfargo"; found via a live posting URL
     shard: wd1
-    sites: [WellsFargoJobs]              # 1968 reqs ≈ 99 requests per sweep
-    interval: 7200
+    sites: [WellsFargoJobs]              # 1818 reqs on 2026-09-18 ≈ 91 requests per full sweep
+    # Newest-first by default (no sort parameter exists; sampled at offsets
+    # 0/500/1000/1500 and stable between requests), so a normal poll reads only
+    # until two pages of known postings -- 3 requests, not 91 -- and a complete
+    # sweep, the only thing that can retire closed reqs, runs every 12h.
+    incremental: true
+    interval: 900
+    full_sweep: 43200
   warnerbros:
     ats: workday
     tenant: warnerbros
@@ -400,6 +409,9 @@ companies:
     # every path under /ms/candidate/careers returns the same 898-byte preview
     # stub with no listing and no XHR, so the public portal is switched off.
     note: "no public list of openings anywhere; careers page invites a message, not an application"
+    recheck:                             # `watcher recheck`, monthly: has a list appeared?
+      - https://www.gupshup.io/careers
+      - https://gupshup.darwinbox.in/ms/candidate/careers
   krutrim:
     ats: blocked
     blocked: no-board
@@ -408,6 +420,10 @@ companies:
     # to the homepage, and the homepage's only links are /ola-maps, /pricing,
     # /support and /terms. No careers page exists to poll.
     note: "careers page removed; /careers 404s (same body as any bad path)"
+    recheck:
+      - https://www.olakrutrim.com/careers
+      - https://api.ashbyhq.com/posting-api/job-board/krutrim
+      - https://api.lever.co/v0/postings/krutrim?mode=json
   qdrant:
     ats: blocked
     blocked: no-board
@@ -417,6 +433,10 @@ companies:
     # careers page at all. An earlier note called this server-rendered; that was
     # true when traced, and the page has since been removed.
     note: "careers page removed; qdrant.tech/careers 404s (same body as any bad path)"
+    recheck:
+      - https://qdrant.tech/careers/
+      - https://api.ashbyhq.com/posting-api/job-board/qdrant
+      - https://boards-api.greenhouse.io/v1/boards/qdrant/jobs
   vespa:
     ats: blocked
     blocked: robots
@@ -441,44 +461,59 @@ companies:
     workspace_id: MYNTRA-93as3            # the only credential the API wants
     board_url: https://jobs.myntra.com/home
   nykaa:
-    ats: blocked
-    blocked: server-rendered
-    # Re-checked 2026-09-18. careers.nykaa.com is a Skima careers site (Astro
-    # SSR, canonical careers.nykaa.com.skima.ai). The listing is rendered into
-    # the HTML, not fetched: the page carries no XHR and the Skima bundles hold
-    # no API host. Today it renders "Currently there are no job postings
-    # available", so there is also nothing to read yet.
-    note: "Skima ATS, server-rendered into the HTML; no JSON endpoint, and 0 postings today"
+    ats: skima                           # HTML adapter: the listing exists only in the page
+    host: careers.nykaa.com              # robots.txt: Allow / (checked 2026-09-18)
+    interval: 3600
+    # A Skima careers site (Astro SSR) with no job API. On 2026-09-18 it says
+    # "Currently there are no job postings available": the adapter reports that
+    # as confirmed-empty, which is different from parsing nothing. Parser built
+    # against mccafe.skima.ai, the same template WITH jobs (tests/fixtures).
   zepto:
     ats: blocked
-    blocked: server-rendered
-    note: "traced 2026-09-18 (/careers and /careers/jobs): no JSON job request"
+    blocked: dynamic-challenge
+    # Re-filed 2026-09-18: not server-rendered after all. /careers and
+    # /careers/jobs answer HTTP 202 with an empty body and
+    # `x-amzn-waf-action: challenge` (AWS WAF bot challenge) to any client that
+    # is not a full browser. Bot protection is not worked around here.
+    note: "AWS WAF challenge (202, x-amzn-waf-action: challenge) on every careers path"
   bookmyshow:
     ats: blocked
     blocked: dynamic-challenge
     note: "careers host 403s plain clients; no JSON job request seen in a browser"
   zomato:
     ats: blocked
-    blocked: server-rendered
-    # Traced 2026-09-18: no JSON job request on eternal.com/careers. SmartRecruiters
-    # "Zomato1" is a real but dead board (last posting 2016).
-    note: "server-rendered careers page; no job JSON to read"
+    blocked: no-board
+    # Re-filed 2026-09-18: eternal.com/careers (Zomato, Blinkit, District,
+    # Hyperpure) publishes NO openings in any form. The page's only data is its
+    # careers component, which holds culture copy -- "find someone in our team
+    # who can vouch for you" -- and mailto:hr@eternal.com, and it fetches
+    # nothing. SmartRecruiters "Zomato1" is a real but dead board (2016).
+    note: "Eternal hires by referral and email; no list of openings is published"
   blinkit:
     ats: blocked
     blocked: dynamic-challenge
-    # Cloudflare 403 to any plain client; traced in a real browser 2026-09-18 and the
-    # page makes no JSON job request at all — the listings are server-rendered.
-    note: "Cloudflare-gated, and server-rendered even in a browser"
+    # CLOSED 2026-09-18 after a second look. The earlier "no job data even in a
+    # browser" was checking the wrong page: Blinkit's openings live on a separate
+    # subdomain, jobs.blinkit.com. That host blocks automated clients at
+    # Cloudflare ("sorry, you have been blocked", 403), including a headless
+    # Chromium, so a person sees postings and this watcher cannot. No other
+    # route exists: Lever, Greenhouse, Ashby, SmartRecruiters (blinkit, grofers),
+    # Keka and Workable have no board, and Darwinbox serves the same shell for
+    # any subdomain. eternal.com/careers lists nothing (see zomato). Bot
+    # protection is not worked around here, so this stays closed.
+    note: "board is jobs.blinkit.com, which blocks automated clients (Cloudflare) — closed"
   phonepe:
     ats: smartrecruiters
     token: PHONEPELIMITED                # the legal-entity spelling; "phonepe" and
                                          # "PhonePe" both return an empty board.
                                          # Found via applyUrls in their own JSON feed.
   medianet:
-    ats: blocked
-    blocked: server-rendered
-    # SmartRecruiters "medianet" is a real board with one 2020 row in Tunisia — not this company.
-    note: "traced 2026-09-18: no JSON job request"
+    ats: medianet                        # HTML adapter: careers.media.net, WordPress
+    interval: 3600                       # home + one request per non-empty department
+    # No robots.txt on careers.media.net (404). The home page states a count per
+    # department ("4 Positions"), held against the rows parsed; locations come
+    # from each job's own page, for new rows only. SmartRecruiters "medianet" is
+    # a different company (one 2020 row in Tunisia).
   navi:
     ats: blocked
     blocked: robots

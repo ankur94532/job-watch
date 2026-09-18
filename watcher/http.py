@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import random
+import re
 import socket
 import threading
 import time
@@ -112,6 +113,16 @@ class HttpClient:
             if resp_headers.get("Last-Modified"):
                 cache["last_modified"] = resp_headers["Last-Modified"]
         return parsed
+
+    def get_text(self, url, headers=None):
+        """A web page, for the HTML adapters. Decoded leniently: a stray byte in
+        a careers page must not cost the whole poll."""
+        h = {"Accept": "text/html,application/xhtml+xml"}
+        h.update(headers or {})
+        body, resp_headers = self.request("GET", url, headers=h)
+        ctype = resp_headers.get("Content-Type", "") if resp_headers else ""
+        m = re.search(r"charset=([\w-]+)", ctype)
+        return body.decode(m.group(1) if m else "utf-8", errors="replace")
 
     def post_json(self, url, payload, headers=None):
         h = {"Content-Type": "application/json"}
