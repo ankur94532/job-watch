@@ -62,16 +62,41 @@ class WrapAround(unittest.TestCase):
     """Offset past the end returns rows again. The loop must still terminate."""
 
     def eighty_row_board(self, total):
+        """80 real rows, then the wrap: every later offset serves page one again.
+
+        More than one wrapped page is stubbed on purpose. A single all-duplicate
+        page is NOT proof of the end -- Walmart produces one mid-sweep because
+        its ordering is unstable -- so the adapter waits for a run of them.
+        """
         pages = {o: page(o) for o in (0, 20, 40, 60)}
         pages[0] = dict(pages[0], total=total)
-        pages[80] = page(100)          # recorded: past the end → page one again
+        for o in (80, 100, 120, 140):
+            pages[o] = page(100)       # recorded: past the end → page one again
         return pages
 
     def test_terminates_on_wrap_when_total_missing(self):
         http = board(self.eighty_row_board(total=0))
         res = WorkdayAdapter("natwest", CFG, http=http, page_delay=0).fetch()
+        self.assertEqual(len(res.postings), 80)          # the wrapped pages add nothing
+        # three consecutive duplicate pages, then it stops
+        self.assertEqual(offsets(http), [0, 20, 40, 60, 80, 100, 120])
+
+    def test_one_duplicate_page_mid_sweep_does_not_end_the_sweep(self):
+        """The Walmart bug: an unstable ordering yields an all-duplicate page in
+        the middle of a healthy board. Stopping there gave 360 of 2000, failed
+        the coverage check, and the sweep never completed -- so closed reqs were
+        never retired and the site kept linking to dead postings."""
+        pages = {0: dict(page(0), total=0),     # total unknown: isolate the dup rule
+                 20: page(0),                    # <- the duplicate, mid-sweep
+                 40: page(20), 60: page(40), 80: page(60)}
+        for o in (100, 120, 140):
+            pages[o] = page(60)                  # the real wrap, at the end
+        http = board(pages)
+        res = WorkdayAdapter("natwest", CFG, http=http, page_delay=0).fetch()
+        # It read straight past the duplicate at offset 20 and kept collecting,
+        # stopping only on three consecutive duplicate pages at the end.
+        self.assertEqual(offsets(http), [0, 20, 40, 60, 80, 100, 120, 140])
         self.assertEqual(len(res.postings), 80)
-        self.assertEqual(offsets(http), [0, 20, 40, 60, 80])
 
     def test_terminates_on_wrap_when_total_overstated_slightly(self):
         http = board(self.eighty_row_board(total=84))

@@ -3,7 +3,14 @@
 Behaviour confirmed against live tenants on 2026-09-16 — see adapters/README.md:
 
 * limit > 20 answers HTTP 400.
-* Pagination wraps: an offset past the end returns the first page again.
+* Pagination wraps: an offset past the end returns the first page again. The
+  giveaway is a page whose rows are all already seen — but ONE such page is not
+  proof. Walmart's ordering is not stable between requests (thousands of
+  near-identical store roles), so a single all-duplicate page turns up in the
+  middle of a healthy sweep. Treating that as the end stopped its sweep at
+  360 of 2000, which failed the coverage check, so the sweep never completed
+  and its closed requisitions were never retired. It now takes a run of
+  DUP_PAGES_BEFORE_WRAP consecutive duplicate pages.
 * `total` is only populated on the offset=0 response; later pages say 0.
 * bulletFields order is tenant-specific. Salesforce puts the req ID first,
   NatWest puts "Hybrid" / "Closing Date: ..." first. Never take [0] blindly.
@@ -23,6 +30,7 @@ log = logging.getLogger(__name__)
 
 PAGE = 20            # Workday hard-caps this server-side
 MAX_PAGES = 200      # safety net against the wrap-around bug
+DUP_PAGES_BEFORE_WRAP = 3   # see the wrap-around note in the module docstring
 MIN_COVERAGE = 0.95  # below this share of `total`, treat the fetch as failed
 
 MULTI_LOCATION = re.compile(r"^\d+\s+Locations?$", re.I)
@@ -70,7 +78,10 @@ class WorkdayAdapter(Adapter):
                 site_ids = set(cur.get("site_ids", []))
             else:
                 offset, total, site_ids = 0, None, set()
-            overlap_page = resuming
+            # Resuming deliberately re-reads the page before the cursor, so the
+            # first page back is all duplicates by design, not by wrapping.
+            first_after_resume = resuming
+            dup_run = 0
             pages = 0
 
             while True:
@@ -105,9 +116,16 @@ class WorkdayAdapter(Adapter):
                         out.append(p)
                 if len(rows) < PAGE:
                     break
-                if added == 0 and not overlap_page:      # wrapped
-                    break
-                overlap_page = False
+                if added == 0:
+                    if first_after_resume:
+                        first_after_resume = False
+                    else:
+                        dup_run += 1
+                        if dup_run >= DUP_PAGES_BEFORE_WRAP:
+                            break                    # genuinely wrapped
+                else:
+                    dup_run = 0
+                    first_after_resume = False
                 offset += PAGE
                 if total and (len(site_ids) >= total or offset >= total):
                     break
