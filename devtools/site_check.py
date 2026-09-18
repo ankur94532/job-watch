@@ -81,6 +81,13 @@ def main():
         p.reload(wait_until="networkidle")
         p.wait_for_selector(".company-row")
 
+        # Anything marked hidden must actually be invisible: .refresh set
+        # `display: block`, which beat the attribute, and an empty pill sat
+        # above the list on every visit.
+        leaks = p.evaluate("""() => [...document.querySelectorAll('[hidden]')]
+            .filter(e => getComputedStyle(e).display !== 'none').map(e => e.id || e.className)""")
+        check("nothing marked hidden is visible", leaks == [], repr(leaks))
+
         rows = p.locator(".company-row")
         n = rows.count()
         dots = p.locator(".company-row .dot:not([hidden])").count()

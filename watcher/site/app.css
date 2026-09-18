@@ -1,4 +1,7 @@
 /* Mobile first. No fonts, no CDN, nothing fetched from anywhere but this origin. */
+/* `hidden` must always win. A class that sets `display` otherwise overrides it:
+   .refresh did, and its empty pill sat above the list on every visit. */
+[hidden] { display: none !important; }
 :root {
   --bg: #fbfbfa;
   --card: #fff;
