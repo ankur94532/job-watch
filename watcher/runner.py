@@ -106,9 +106,19 @@ def run(cfg, store, sink=None, seed=False, only=None, http=None, budget=RUN_BUDG
             continue
         plan.append((name, ccfg, st, adapter))
 
-    # Cheap single-request boards first so a long Workday sweep can't starve them,
-    # then whoever has waited longest.
-    plan.sort(key=lambda x: (x[3].paginated, x[2]["last_polled"] or 0))
+    # Longest-waiting first, always. This used to sort on `paginated` FIRST, to
+    # stop a long Workday sweep starving the cheap single-request boards. It did
+    # the opposite: every paginated board sat permanently behind every cheap one,
+    # the ~50 cheap boards ate the whole 50s budget, and the Workday tenants were
+    # never reached at all. Seventeen companies went unpolled for two days, and
+    # their exports kept advertising requisitions that had long since closed.
+    #
+    # Ageing is what prevents starvation: whoever has waited longest goes first,
+    # so a company that misses a run moves up the order until it cannot miss
+    # another. Cost is only a tie-break, between companies that are equally
+    # stale. A big sweep can still take most of a run, but it yields at the
+    # deadline with a cursor, and it is no longer the stalest next time.
+    plan.sort(key=lambda x: (x[2]["last_polled"] or 0, x[3].paginated))
 
     if plan and not online():
         log.info("offline — skipping run (%d companies due)", len(plan))

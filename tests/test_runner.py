@@ -175,6 +175,53 @@ class Scheduling(Base):
         self.run_once(seed=True)
         self.assertEqual(FakeBoard.CALLS, ["acme", "big"])
 
+    def test_no_company_starves_when_the_budget_only_fits_a_few(self):
+        """The bug: sorting on `paginated` first partitioned the plan, and with
+        the cheap boards alone overflowing the budget the paginated ones were
+        NEVER reached. Seventeen real companies went unpolled for two days and
+        their exports kept listing requisitions that had closed."""
+        for i in range(6):
+            self.company("cheap%d" % i, [job("c%d" % i)])
+        for i in range(3):
+            self.company("paged%d" % i, [job("p%d" % i)], ats="fakeworkday")
+        everyone = set(self.cfg["companies"])
+
+        # Each fetch burns 20s of a 50s budget: about two companies per run.
+        self.cfg["defaults"].update({"run_budget": 50, "company_delay": 0, "page_delay": 0})
+        orig = FakeBoard.fetch
+
+        def slow(self_, ctx=None):
+            self.clock.mono += 20
+            return orig(self_, ctx)
+        FakeBoard.fetch = slow
+        try:
+            polled = set()
+            for _ in range(12):                 # 12 runs x ~2 = ample for 9 companies
+                self.run_once(advance=3600)     # past every interval, so all are due
+                polled.update(FakeBoard.CALLS)
+        finally:
+            FakeBoard.fetch = orig
+
+        self.assertEqual(polled, everyone,
+                         "never polled: %s" % sorted(everyone - polled))
+
+    def test_the_longest_waiting_company_is_polled_first(self):
+        self.company("fresh", [job("1")])
+        self.company("stale", [job("2")])
+        self.store.sweep_complete("fresh", self.clock(), None, 1, {})
+        self.store.sweep_complete("stale", self.clock() - 86400, None, 1, {})
+        self.run_once(advance=3600)
+        self.assertEqual(FakeBoard.CALLS[0], "stale")
+
+    def test_a_paginated_board_still_goes_first_when_it_is_the_stalest(self):
+        """Cost is a tie-break, not a partition -- that partition was the bug."""
+        self.company("cheap", [job("1")])
+        self.company("heavy", [job("2")], ats="fakeworkday")
+        self.store.sweep_complete("cheap", self.clock(), None, 1, {})
+        self.store.sweep_complete("heavy", self.clock() - 86400, None, 1, {})
+        self.run_once(advance=3600)
+        self.assertEqual(FakeBoard.CALLS[0], "heavy")
+
     def test_pacing_comes_from_config(self):
         self.cfg["defaults"].update({"company_delay": 0, "page_delay": 0, "run_budget": 30})
         self.company("a", [job("1")])
