@@ -566,3 +566,24 @@ companies:
     # /roles/ (the listing page is disallowed); the API host has none. Job links
     # are /roles/<sourceId>, checked in a browser: a 200 alone proves nothing
     # there, since the page answers 200 for any id.
+  morganstanley:
+    ats: eightfold                       # api: pcsx (default); the apply/v2 flavour answers 403
+    host: morganstanley.eightfold.ai
+    domain: morganstanley.com
+    locations: [India]                   # 102 India positions on 2026-09-18 ≈ 11 requests/sweep
+    page_delay: 2.0                      # Eightfold rate-limits by volume (see microsoft)
+    interval: 7200
+    # Not on the usual ATSes; careers site is Eightfold. Job link verified:
+    # /careers/job/<id> answers 200 and carries the posting's title.
+  jiostar:                               # JioHotstar
+    ats: workday
+    tenant: jiostar
+    shard: wd102
+    sites: [JioStar]                     # 260 postings, 208 in India, on 2026-09-18
+    # Linked from jiostar.com (careers.hotstar.com redirects there). Lever has
+    # empty 'hotstar' and 'jiostar' boards: not theirs in use. Job link verified.
+  devrev:
+    ats: greenhouse
+    token: devrev                        # 48 postings, 22 in India, on 2026-09-18
+    # Found by slug, then confirmed: the board names itself "DevRev" and the
+    # rows are its Bangalore/Mumbai roles. Job link verified (200, title shown).
