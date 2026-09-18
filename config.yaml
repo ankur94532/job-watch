@@ -48,7 +48,7 @@ defaults:
 export:
   enabled: true
   out: docs
-  publish: false       # flip to true once the repo has a private remote (DEPLOY.md)
+  publish: true        # private remote: github.com/ankur94532/job-watch (site branch)
   branch: site
   remote: origin
 
