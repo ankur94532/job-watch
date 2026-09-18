@@ -202,7 +202,14 @@ companies:
     ats: workday
     tenant: salesforce
     shard: wd12
-    sites: [External_Career_Site]        # 1465 reqs ≈ 74 requests per sweep
+    sites: [External_Career_Site]        # 1493 reqs on 2026-09-18 ≈ 75 requests per full sweep
+    # Newest-first and stable (2026-09-18: first 40 identical across two reads,
+    # posted age never decreasing over 10 samples through the board), so a
+    # normal poll reads only the newest pages; a full sweep every 12h retires
+    # closed reqs. See adapters/README.md, Workday.
+    incremental: true
+    interval: 900
+    full_sweep: 43200
   natwest:
     ats: workday
     tenant: rbs                          # NatWest's Workday tenant is still the RBS one
@@ -257,7 +264,14 @@ companies:
     ats: workday
     tenant: paloaltonetworks
     shard: wd5
-    sites: [panwexternalcareers]         # 1516 reqs ≈ 76 requests per sweep
+    sites: [panwexternalcareers]         # 1521 reqs on 2026-09-18 ≈ 76 requests per full sweep
+    # Newest-first and stable (2026-09-18: first 40 identical across two reads,
+    # posted age never decreasing over 10 samples through the board), so a
+    # normal poll reads only the newest pages; a full sweep every 12h retires
+    # closed reqs. See adapters/README.md, Workday.
+    incremental: true
+    interval: 900
+    full_sweep: 43200
   nvidia:
     ats: workday
     tenant: nvidia
