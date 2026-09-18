@@ -527,3 +527,9 @@ companies:
     ats: quadeye                         # own /api/zoho-recruit proxy in front of Zoho Recruit
   deshaw:
     ats: deshaw                          # Next.js data route; buildId is read per fetch
+
+  uipath:
+    ats: ashby
+    token: uipath
+    # evidence: ATS link in HTML of https://www.uipath.com/careers
+    # verified: 2026-09-18 live fetch, 104 open postings
