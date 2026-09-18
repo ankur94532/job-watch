@@ -546,3 +546,10 @@ companies:
     sites: [Cohesity_Careers]
     # evidence: ATS link in HTML of https://www.cohesity.com/careers/open-positions/?gh_jid=a1eab1667f1e10015d1c6fc6280a0000&type=wd
     # verified: 2026-09-18 live fetch, 182 open postings
+  cloudflare:
+    ats: greenhouse
+    token: cloudflare                    # 378 postings, 17 in India, on 2026-09-18
+    # Found by slug, then confirmed: the board names itself "Cloudflare" and its
+    # postings open "At Cloudflare, we are on a mission to help build a better
+    # Internet". (cloudflare.com/careers renders its list client-side, so the
+    # page source names no ATS.) Job link verified: HTTP 200.
