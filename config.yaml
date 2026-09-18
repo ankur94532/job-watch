@@ -325,14 +325,22 @@ companies:
   # running `watcher detect <url> --write`.
 
   linkedin:
-    ats: unsupported
-    note: "own board; Greenhouse 'linkedin' is 'LI Test Company' and Lever 'linkedin' is a sandbox"
+    ats: blocked
+    blocked: server-rendered
+    # Greenhouse "linkedin" is "LI Test Company"; Lever "linkedin" is a sandbox.
+    note: "traced 2026-09-18: no JSON job request on careers.linkedin.com"
   meta:
-    ats: unsupported
-    note: "metacareers.com GraphQL needs a doc_id + session token; answers 400 without them"
+    ats: blocked
+    blocked: dynamic-challenge
+    # GraphQL needs a rotating doc_id plus a session token; traced 2026-09-18 and the
+    # listing made no replayable JSON request.
+    note: "GraphQL behind rotating doc_id + session token"
   uber:
-    ats: unsupported
-    note: "self-hosted uber.com/careers; SmartRecruiters 'uber' is one 2021 'Test UAT' row"
+    ats: blocked
+    blocked: dynamic-challenge
+    # 406 to any honest client; in a browser the listing makes no JSON request we can
+    # replay. SmartRecruiters "uber" is one 2021 "Test UAT" row.
+    note: "406 to non-browser clients; no replayable JSON"
   nutanix:
     ats: blocked
     blocked: dynamic-challenge
@@ -341,12 +349,12 @@ companies:
     # without a solved challenge. Needs a live browser per fetch, so not worth it.
     note: "Cloudflare challenge on careers.nutanix.com; robots.txt permits us"
   chargebee:
-    ats: unsupported
-    note: "no public board at all — chargebee.com/careers sends applicants to LinkedIn"
+    ats: blocked
+    blocked: no-board
+    note: "no board of their own; chargebee.com/careers sends applicants to LinkedIn"
   thoughtspot:
-    ats: unsupported
-    # FOUND by `watcher trace` 2026-09-18: GET https://www.thoughtspot.com/api/getCareersListing
-    note: "own /api/getCareersListing endpoint found; adapter not written yet"
+    ats: rippling                        # their own /api/getCareersListing gave it away:
+    token: thoughtspot                   # every job url is ats.rippling.com/thoughtspot/...
   hasura:
     ats: unsupported
     note: "self-hosted hasura.io/careers (PromptQL)"
@@ -357,11 +365,13 @@ companies:
     # buildId rotates on每 deploy, so an adapter must read it from the page first.
     note: "Next.js data route found (buildId rotates); adapter not written yet"
   krutrim:
-    ats: unsupported
-    note: "self-hosted olakrutrim.com careers"
+    ats: blocked
+    blocked: server-rendered
+    note: "traced 2026-09-18: no JSON job request"
   qdrant:
-    ats: unsupported
-    note: "self-hosted qdrant.tech/careers"
+    ats: blocked
+    blocked: server-rendered
+    note: "traced 2026-09-18: no JSON job request; listings are in the page HTML"
   vespa:
     ats: blocked
     blocked: robots
@@ -385,31 +395,41 @@ companies:
     workspace_id: MYNTRA-93as3            # the only credential the API wants
     board_url: https://jobs.myntra.com/home
   nykaa:
-    ats: unsupported
-    note: "self-hosted nykaa.com careers"
+    ats: blocked
+    blocked: server-rendered
+    # Runs the Skima ATS (careers.nykaa.com.skima.ai). Traced 2026-09-18: the job
+    # rows arrive server-rendered, and api.skima.ai answers 404 on every guessed path.
+    note: "Skima ATS, server-rendered; no public JSON found"
   zepto:
-    ats: unsupported
-    note: "self-hosted zeptonow.com careers"
+    ats: blocked
+    blocked: server-rendered
+    note: "traced 2026-09-18 (/careers and /careers/jobs): no JSON job request"
   bookmyshow:
-    ats: unsupported
-    note: "self-hosted bookmyshow.com careers"
+    ats: blocked
+    blocked: dynamic-challenge
+    note: "careers host 403s plain clients; no JSON job request seen in a browser"
   zomato:
-    ats: unsupported
-    note: "self-hosted eternal.com/careers; SmartRecruiters 'Zomato1' is a dead 2016 board"
+    ats: blocked
+    blocked: server-rendered
+    # Traced 2026-09-18: no JSON job request on eternal.com/careers. SmartRecruiters
+    # "Zomato1" is a real but dead board (last posting 2016).
+    note: "server-rendered careers page; no job JSON to read"
   blinkit:
-    ats: unsupported
-    note: "self-hosted blinkit.com/careers (Eternal), Cloudflare-gated"
+    ats: blocked
+    blocked: dynamic-challenge
+    # Cloudflare 403 to any plain client; traced in a real browser 2026-09-18 and the
+    # page makes no JSON job request at all — the listings are server-rendered.
+    note: "Cloudflare-gated, and server-rendered even in a browser"
   phonepe:
-    ats: unsupported
-    # FOUND by `watcher trace` 2026-09-18, not yet adapted:
-    #   GET https://www.phonepe.com/apollo/job-postings/latest.json
-    #   200, 130 rows under .results, robots allows (Allow: /), no auth.
-    # Caveat: the feed includes status=NOT_PUBLISHED rows and test rows
-    # ("Test Job IJP"), so an adapter must keep only status=PUBLISHED with an applyUrl.
-    note: "own JSON feed found (apollo/job-postings/latest.json); adapter not written yet"
+    ats: smartrecruiters
+    token: PHONEPELIMITED                # the legal-entity spelling; "phonepe" and
+                                         # "PhonePe" both return an empty board.
+                                         # Found via applyUrls in their own JSON feed.
   medianet:
-    ats: unsupported
-    note: "self-hosted media.net careers; SmartRecruiters 'medianet' is one 2020 row in Tunisia"
+    ats: blocked
+    blocked: server-rendered
+    # SmartRecruiters "medianet" is a real board with one 2020 row in Tunisia — not this company.
+    note: "traced 2026-09-18: no JSON job request"
   navi:
     ats: blocked
     blocked: robots
@@ -420,12 +440,6 @@ companies:
     # WARNING: Ashby board 'navi' is a San Francisco startup, not Navi Technologies.
     note: "TurboHire board; robots.txt Disallow: / for every agent but Googlebot"
   quadeye:
-    ats: unsupported
-    # FOUND by `watcher trace` 2026-09-18, not yet adapted:
-    #   GET https://www.quadeye.com/api/zoho-recruit/job-openings
-    #   200, 26 rows under .data, robots has no rule, no auth. Zoho Recruit behind
-    #   their own proxy. Real rows: "Quantitative Researcher", "Linux Engineer - L2/L3".
-    note: "Zoho Recruit via own /api proxy; adapter not written yet"
+    ats: quadeye                         # own /api/zoho-recruit proxy in front of Zoho Recruit
   deshaw:
-    ats: unsupported
-    note: "self-hosted deshaw.com / deshawindia.com careers"
+    ats: deshaw                          # Next.js data route; buildId is read per fetch

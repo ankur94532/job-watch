@@ -8,6 +8,7 @@ from .greenhouse import GreenhouseAdapter
 from .jibe import JibeAdapter
 from .lever import LeverAdapter
 from .oracle import OracleAdapter
+from .ownfeed import DEShawAdapter, QuadeyeAdapter
 from .radancy import RadancyAdapter
 from .rippling import RipplingAdapter
 from .smartrecruiters import SmartRecruitersAdapter
@@ -24,7 +25,7 @@ ADAPTERS = {
         # single-company public JSON boards
         AmazonAdapter, AtlassianAdapter,
         # server-rendered pages whose search state is embedded JSON
-        AppleAdapter, GoogleAdapter,
+        AppleAdapter, GoogleAdapter, QuadeyeAdapter, DEShawAdapter,
     )
 }
 
