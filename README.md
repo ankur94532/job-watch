@@ -99,5 +99,11 @@ tests/                   fixtures recorded from live boards; no network
 
 No auto-apply, no LinkedIn, no headless browser, no paid scraping APIs, no
 daemon. Companies whose board is not reachable as public keyless JSON — or that
-refuse an honest User-Agent — are recorded as `ats: unsupported` with a note and
-skipped, rather than scraped or spoofed.
+refuse an honest User-Agent — are recorded as `ats: blocked` with a typed reason
+and skipped, rather than scraped or spoofed.
+
+Currently **69 companies polled, 17 not**. Every one of the 17 is typed
+`robots`, `dynamic-challenge`, `server-rendered` or `no-board`, and
+[EVIDENCE.md](EVIDENCE.md) gives the exact request/response pair behind each
+verdict. The three `robots` cases are never requested at all — only their
+`robots.txt` is read, and the disallow line is quoted.

@@ -326,9 +326,13 @@ companies:
 
   linkedin:
     ats: blocked
-    blocked: server-rendered
-    # Greenhouse "linkedin" is "LI Test Company"; Lever "linkedin" is a sandbox.
-    note: "traced 2026-09-18: no JSON job request on careers.linkedin.com"
+    blocked: no-board
+    # Re-checked 2026-09-18. careers.linkedin.com/jobs, the URL traced earlier,
+    # now 404s; careers.linkedin.com/ is a 200 marketing site whose every job
+    # link points at linkedin.com/jobs/search?f_C=1337... LinkedIn's own job
+    # search IS their board, and the build spec rules LinkedIn out. So this is
+    # excluded by the spec, not merely hard to read.
+    note: "no board of their own; job links go to linkedin.com/jobs/search, which the spec excludes"
   meta:
     ats: blocked
     blocked: dynamic-challenge
@@ -373,12 +377,21 @@ companies:
     note: "no public list of openings anywhere; careers page invites a message, not an application"
   krutrim:
     ats: blocked
-    blocked: server-rendered
-    note: "traced 2026-09-18: no JSON job request"
+    blocked: no-board
+    # Re-checked 2026-09-18: www.olakrutrim.com/careers returns the same
+    # 7408-byte "Krutrim Cloud" 404 body as a nonsense path, the apex redirects
+    # to the homepage, and the homepage's only links are /ola-maps, /pricing,
+    # /support and /terms. No careers page exists to poll.
+    note: "careers page removed; /careers 404s (same body as any bad path)"
   qdrant:
     ats: blocked
-    blocked: server-rendered
-    note: "traced 2026-09-18: no JSON job request; listings are in the page HTML"
+    blocked: no-board
+    # Re-checked 2026-09-18: the careers page is GONE, not server-rendered.
+    # /careers, /jobs and a nonsense path all return the identical 25508-byte
+    # "404 Page not found - Qdrant" template, and the homepage links to no
+    # careers page at all. An earlier note called this server-rendered; that was
+    # true when traced, and the page has since been removed.
+    note: "careers page removed; qdrant.tech/careers 404s (same body as any bad path)"
   vespa:
     ats: blocked
     blocked: robots
@@ -405,9 +418,12 @@ companies:
   nykaa:
     ats: blocked
     blocked: server-rendered
-    # Runs the Skima ATS (careers.nykaa.com.skima.ai). Traced 2026-09-18: the job
-    # rows arrive server-rendered, and api.skima.ai answers 404 on every guessed path.
-    note: "Skima ATS, server-rendered; no public JSON found"
+    # Re-checked 2026-09-18. careers.nykaa.com is a Skima careers site (Astro
+    # SSR, canonical careers.nykaa.com.skima.ai). The listing is rendered into
+    # the HTML, not fetched: the page carries no XHR and the Skima bundles hold
+    # no API host. Today it renders "Currently there are no job postings
+    # available", so there is also nothing to read yet.
+    note: "Skima ATS, server-rendered into the HTML; no JSON endpoint, and 0 postings today"
   zepto:
     ats: blocked
     blocked: server-rendered
