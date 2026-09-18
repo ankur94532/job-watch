@@ -587,3 +587,27 @@ companies:
     token: devrev                        # 48 postings, 22 in India, on 2026-09-18
     # Found by slug, then confirmed: the board names itself "DevRev" and the
     # rows are its Bangalore/Mumbai roles. Job link verified (200, title shown).
+  statestreet:
+    ats: workday
+    tenant: statestreet
+    shard: wd1
+    sites: [Global]                      # 1326 postings, 226 in India, on 2026-09-18 ≈ 67 requests/sweep
+    # Linked from careers.statestreet.com. Job link verified (200, title shown).
+  qualcomm:
+    ats: eightfold                       # api: pcsx (default)
+    host: careers.qualcomm.com
+    domain: qualcomm.com
+    locations: [India]                   # 580 India positions on 2026-09-18 ≈ 58 requests/sweep
+    page_delay: 2.0                      # Eightfold rate-limits by volume (see microsoft)
+    interval: 7200
+    # Careers site is Eightfold. Job link verified (200, title shown).
+  netapp:
+    ats: eightfold
+    api: apply                           # pcsx answers 403 on this host
+    host: netapp.eightfold.ai
+    domain: netapp.com
+    locations: [India]                   # 77 India positions on 2026-09-18 ≈ 8 requests/sweep
+    page_delay: 2.0
+    interval: 7200
+    # Careers site shows Eightfold (also Radancy/SuccessFactors traces). Job
+    # link verified (200, title shown).
