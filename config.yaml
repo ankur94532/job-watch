@@ -91,6 +91,12 @@ companies:
   postman:
     ats: greenhouse
     token: postman                       # 67 postings, 6 in India
+    # 2026-09-18: the board 404s, and it is NOT a token change -- postman,
+    # postmanlabs and getpostman all 404, and there is no Ashby board either.
+    # Their careers page says so outright: "maintenance on our Careers page. It
+    # will be back up and running on Monday, September 21." Left as-is on
+    # purpose; backoff absorbs the 404s. RE-CHECK AFTER 2026-09-21, and only
+    # then treat a continuing 404 as a real ATS move.
   harness:
     ats: greenhouse
     token: harnessinc                    # 66 postings, 17 in India
