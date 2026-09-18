@@ -189,6 +189,24 @@ class Store:
         self._exec(f"UPDATE company_state SET {cols} WHERE company = ?", (*fields.values(), company))
         self.commit()
 
+    def clear_cache(self, companies=None):
+        """Forget stored ETags so the next fetch gets a 200 body, not a 304.
+
+        Needed after an adapter changes how it derives a field: a conditional
+        GET that answers 304 skips the rows entirely, so the new code never
+        runs and the stored rows keep the old value. Only the validators are
+        dropped -- postings, first_seen and backoff are untouched, so nothing
+        is re-alerted.
+        """
+        if companies:
+            marks = ", ".join("?" for _ in companies)
+            cur = self._exec(f"UPDATE company_state SET cache = NULL WHERE company IN ({marks})",
+                             tuple(companies))
+        else:
+            cur = self._exec("UPDATE company_state SET cache = NULL")
+        self.commit()
+        return cur.rowcount
+
     def sweep_progress(self, company, now, sweep_started, cursor):
         self._set(company, last_polled=now, sweep_started=sweep_started, cursor=cursor, last_error=None)
         self.reset_backoff(company)

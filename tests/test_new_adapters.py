@@ -437,3 +437,59 @@ class Comeet(unittest.TestCase):
         http = FakeHttp({self.URL: {"error": "invalid token"}})
         with self.assertRaises(AdapterError):
             build_adapter("scylladb", self.CFG, http=http, page_delay=0).fetch()
+
+
+class Quadeye(unittest.TestCase):
+    """Their Zoho Recruit proxy. Fixture: live feed 2026-09-18, 3 of 26 rows.
+
+    These exist because the permalink shipped wrong: it was built from
+    `Job_Opening_ID` ("ZR_18_JOB") when the route keys on the Zoho record `id`,
+    so every link 404'd. The site is an SPA that answers 200 on every path, so
+    only a rendered page reveals a dead link -- which is why the URL SHAPE is
+    pinned here rather than trusted to a status check.
+    """
+
+    CFG = {"ats": "quadeye"}
+    URL = "https://www.quadeye.com/api/zoho-recruit/job-openings"
+
+    def postings(self):
+        http = FakeHttp({self.URL: fixture("quadeye_openings.json")})
+        return build_adapter("quadeye", self.CFG, http=http, page_delay=0).fetch().postings
+
+    def by_req(self, req):
+        return next(p for p in self.postings() if p.req_id == req)
+
+    def test_permalink_uses_the_record_id_never_the_job_opening_id(self):
+        p = self.by_req("ZR_18_JOB")
+        self.assertEqual(
+            p.url,
+            "https://www.quadeye.com/jobs/199893000000440465/"
+            "systems-engineer-c-developer?source=CareerSite")
+        # the exact bug that shipped: the ZR_ id must never appear in the URL
+        self.assertNotIn("ZR_18_JOB", p.url)
+        self.assertNotIn("/careers/", p.url)
+
+    def test_slug_matches_their_rule_for_punctuation(self):
+        # "C++" and " - " both collapse to a single dash, as their anchors do
+        self.assertIn("/systems-engineer-c-developer?", self.by_req("ZR_18_JOB").url)
+        self.assertIn("/operations-engineer?", self.by_req("ZR_12_JOB").url)
+
+    def test_job_id_stays_the_req_id_so_the_url_fix_does_not_realert(self):
+        # job_id is the dedup key. Changing it to the record id would have made
+        # all 26 rows look new and fired a false alert burst.
+        p = self.by_req("ZR_18_JOB")
+        self.assertEqual(p.job_id, "ZR_18_JOB")
+        self.assertEqual(p.job_id, p.req_id)
+
+    def test_falls_back_to_the_board_rather_than_inventing_a_link(self):
+        payload = {"data": [{"Job_Opening_ID": "ZR_99_JOB", "Posting_Title": "Ghost",
+                             "City": "Gurugram", "Country": "India"}]}     # no record id
+        http = FakeHttp({self.URL: payload})
+        p = build_adapter("quadeye", self.CFG, http=http, page_delay=0).fetch().postings[0]
+        self.assertEqual(p.url, "https://www.quadeye.com/jobs")
+        self.assertNotIn("ZR_99_JOB", p.url)
+
+    def test_raises_when_the_feed_loses_its_data_key(self):
+        with self.assertRaises(AdapterError):
+            build_adapter("quadeye", self.CFG, http=FakeHttp({self.URL: {"rows": []}}),
+                          page_delay=0).fetch()

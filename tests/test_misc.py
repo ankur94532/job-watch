@@ -13,6 +13,7 @@ from watcher.detect import Candidate, Detector, find_candidates, parse_query
 from watcher.filters import Filter
 from watcher.http import HttpClient, HttpStatusError, NetworkError, parse_retry_after, user_agent
 from watcher.lock import AlreadyRunning, RunLock
+from watcher.store import Store
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -258,3 +259,39 @@ class Detect(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ClearCache(unittest.TestCase):
+    """`--refetch` exists because a 304 re-derives nothing.
+
+    When an adapter changes how it builds a field (this happened to Quadeye's
+    permalink), boards that answer 304 keep the old stored value forever: the
+    body is never parsed, so the corrected code never runs.
+    """
+
+    def store(self):
+        s = Store(":memory:")
+        s.sweep_complete("quadeye", 100, None, 26, {"etag": 'W/"old"'})
+        s.sweep_complete("hasura", 100, None, 6, {"etag": 'W/"other"'})
+        return s
+
+    def test_clears_only_the_named_company(self):
+        s = self.store()
+        self.assertEqual(s.clear_cache({"quadeye"}), 1)
+        self.assertEqual(s.state("quadeye")["cache"], {})
+        self.assertEqual(s.state("hasura")["cache"], {"etag": 'W/"other"'})   # untouched
+        s.close()
+
+    def test_clears_every_company_when_none_named(self):
+        s = self.store()
+        self.assertEqual(s.clear_cache(), 2)
+        self.assertEqual(s.state("quadeye")["cache"], {})
+        self.assertEqual(s.state("hasura")["cache"], {})
+        s.close()
+
+    def test_leaves_the_postings_alone_so_nothing_realerts(self):
+        s = self.store()
+        before = s.state("quadeye")["last_count"]
+        s.clear_cache({"quadeye"})
+        self.assertEqual(s.state("quadeye")["last_count"], before)
+        s.close()

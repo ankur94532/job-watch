@@ -75,6 +75,10 @@ def cmd_run(args, seed=False):
             t0 = time.monotonic()
             store = Store(args.db)
             try:
+                if getattr(args, "refetch", False):
+                    n = store.clear_cache(set(args.company) if args.company else None)
+                    log.info("dropped stored validators for %d compan%s",
+                             n, "y" if n == 1 else "ies")
                 res = runner.run(
                     cfg,
                     store,
@@ -269,6 +273,9 @@ def main(argv=None):
                            ("run", "one sweep of due companies; alert on new matches")):
         p = sub.add_parser(name, help=helptext)
         p.add_argument("--company", action="append", help="limit to this company (repeatable)")
+        p.add_argument("--refetch", action="store_true",
+                       help="drop stored ETags first, so boards answer 200 instead of 304 "
+                            "(use after changing an adapter: a 304 re-derives nothing)")
 
     p = sub.add_parser("list", help="show stored postings")
     p.add_argument("--company")

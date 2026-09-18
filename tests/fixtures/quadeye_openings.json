@@ -1,0 +1,264 @@
+{
+ "success": true,
+ "data": [
+  {
+   "Client_Name": {
+    "name": "Trading: QST",
+    "id": "199893000003080502"
+   },
+   "$currency_symbol": "\u20b9",
+   "Posting_Title": "Quantitative Researcher",
+   "Account_Manager": {
+    "name": "Andrew Chang",
+    "id": "199893000001828140"
+   },
+   "Target_Date": "2028-09-08",
+   "Last_Activity_Time": "2026-09-15T10:14:04+05:30",
+   "Industry": "Quant Firms/HFT",
+   "$state": "save",
+   "$process_flow": false,
+   "Job_Location": [
+    "New York",
+    "Chicago"
+   ],
+   "Zip_Code": "10118",
+   "id": "199893000003455803",
+   "$approved": true,
+   "Date_Opened": "2026-09-08",
+   "$approval": {
+    "delegate": false,
+    "approve": false,
+    "reject": false,
+    "resubmit": false
+   },
+   "Created_Time": "2026-09-08T10:27:34+05:30",
+   "$followed": false,
+   "$editable": true,
+   "Is_Locked": false,
+   "City": "New York",
+   "Job_Opening_Status": "In-progress",
+   "Associated_Tags": [],
+   "Assigned_Recruiter": [
+    {
+     "name": "Sonali Kataria",
+     "id": "199893000000400011",
+     "email": "sonali@quadeye.com",
+     "photoSrc": "https://profile.zoho.in/file?ID=60058514302&fs=thumb"
+    }
+   ],
+   "Work_Experience": "Mid Level (1 to 4 Years)",
+   "Job_Type": "Full time",
+   "Job_Opening_Name": "Quantitative Researcher",
+   "Sub_Users": null,
+   "Number_of_Positions": "5",
+   "State": "New York",
+   "Internal_Referral__s": false,
+   "Country": "United States",
+   "Created_By": {
+    "name": "Sonali Kataria",
+    "id": "199893000000400011"
+   },
+   "Is_Attachment_Present": false,
+   "Keep_on_Career_Site": false,
+   "$job_mailbox": "rch9kj6m7h525@quadeye.zohorecruitmail.in",
+   "Salary": "75-100 Lakhs INR",
+   "Assigned_Recruiters": [
+    {
+     "name": "Sonali Kataria",
+     "id": "199893000000400011",
+     "email": "sonali@quadeye.com",
+     "photoSrc": "https://profile.zoho.in/file?ID=60058514302&fs=thumb"
+    }
+   ],
+   "Date_Closed": null,
+   "No_of_Candidates_Hired": 0,
+   "Modified_By": {
+    "name": "Asis Goswami",
+    "id": "199893000000344527"
+   },
+   "Is_Hot_Job_Opening": false,
+   "Internal_Apply__s": false,
+   "Publish": true,
+   "Designation": "Quantitative Strategist",
+   "Modified_Time": "2026-09-16T06:20:40+05:30",
+   "No_of_Candidates_Associated": 11,
+   "Job_Opening_ID": "ZR_48_JOB",
+   "$internal_publish_url": null,
+   "Pipeline__s": "Standard Pipeline",
+   "$approval_state": "approved"
+  },
+  {
+   "Client_Name": {
+    "name": "Infra: Systems",
+    "id": "199893000002592548"
+   },
+   "$currency_symbol": "\u20b9",
+   "Posting_Title": "Systems Engineer - (C++ Developer)",
+   "Account_Manager": {
+    "name": "Ghetia Siddharth Govinddas",
+    "id": "199893000001249308"
+   },
+   "Target_Date": "2026-03-09",
+   "Last_Activity_Time": "2026-09-10T14:47:25+05:30",
+   "Industry": "Quant Firms/HFT",
+   "$state": "save",
+   "$process_flow": false,
+   "Job_Location": [
+    "Gurugram",
+    "Singapore",
+    "New York"
+   ],
+   "Zip_Code": "122009",
+   "id": "199893000000440465",
+   "$approved": true,
+   "Date_Opened": "2026-01-23",
+   "$approval": {
+    "delegate": false,
+    "approve": false,
+    "reject": false,
+    "resubmit": false
+   },
+   "Created_Time": "2025-12-09T15:48:15+05:30",
+   "$followed": false,
+   "$editable": true,
+   "Is_Locked": false,
+   "City": "Gurugram",
+   "Job_Opening_Status": "In-progress",
+   "Associated_Tags": [],
+   "Assigned_Recruiter": [
+    {
+     "name": "Surbhi Hazarnis",
+     "id": "199893000000356001",
+     "email": "surbhih@quadeye.com",
+     "photoSrc": "https://profile.zoho.in/file?ID=60058042138&fs=thumb"
+    }
+   ],
+   "Work_Experience": "Mid Level (1 to 4 Years)",
+   "Job_Type": "Full time",
+   "Job_Opening_Name": "Systems Engineer - (C++ Developer)",
+   "Sub_Users": null,
+   "Number_of_Positions": "1",
+   "State": "Hariyana",
+   "Internal_Referral__s": false,
+   "Country": "India",
+   "Created_By": {
+    "name": "Riya Wali",
+    "id": "199893000000400005"
+   },
+   "Is_Attachment_Present": false,
+   "Keep_on_Career_Site": false,
+   "$job_mailbox": "rch9kj6d8ro65@quadeye.zohorecruitmail.in",
+   "Salary": "50-75 Lakhs INR",
+   "Assigned_Recruiters": [
+    {
+     "name": "Surbhi Hazarnis",
+     "id": "199893000000356001",
+     "email": "surbhih@quadeye.com",
+     "photoSrc": "https://profile.zoho.in/file?ID=60058042138&fs=thumb"
+    }
+   ],
+   "Date_Closed": null,
+   "No_of_Candidates_Hired": 0,
+   "Modified_By": {
+    "name": "Riya Wali",
+    "id": "199893000000400005"
+   },
+   "Is_Hot_Job_Opening": false,
+   "Internal_Apply__s": false,
+   "Publish": true,
+   "Designation": "Systems Engineer",
+   "Modified_Time": "2026-09-17T15:44:49+05:30",
+   "No_of_Candidates_Associated": 702,
+   "Job_Opening_ID": "ZR_18_JOB",
+   "$internal_publish_url": null,
+   "Pipeline__s": "Standard Pipeline",
+   "$approval_state": "approved"
+  },
+  {
+   "Client_Name": {
+    "name": "Infra",
+    "id": "199893000000378009"
+   },
+   "$currency_symbol": "\u20b9",
+   "Posting_Title": "Operations Engineer",
+   "Account_Manager": {
+    "name": "Saurabh Agrawal",
+    "id": "199893000000397061"
+   },
+   "Target_Date": "2026-03-09",
+   "Last_Activity_Time": "2026-09-14T15:55:11+05:30",
+   "Industry": "Quant Firms/HFT",
+   "$state": "save",
+   "$process_flow": false,
+   "Job_Location": [
+    "Gurugram"
+   ],
+   "Zip_Code": "122002",
+   "id": "199893000000440283",
+   "$approved": true,
+   "Date_Opened": "2026-09-03",
+   "$approval": {
+    "delegate": false,
+    "approve": false,
+    "reject": false,
+    "resubmit": false
+   },
+   "Created_Time": "2025-12-09T14:40:27+05:30",
+   "$followed": false,
+   "$editable": true,
+   "Is_Locked": false,
+   "City": "Gurugram",
+   "Job_Opening_Status": "In-progress",
+   "Associated_Tags": [],
+   "Assigned_Recruiter": [
+    {
+     "name": "Surbhi Hazarnis",
+     "id": "199893000000356001",
+     "email": "surbhih@quadeye.com",
+     "photoSrc": "https://profile.zoho.in/file?ID=60058042138&fs=thumb"
+    }
+   ],
+   "Work_Experience": "Fresher (Till 1 Years)",
+   "Job_Type": "Full time",
+   "Job_Opening_Name": "Operations Engineer",
+   "Sub_Users": null,
+   "Number_of_Positions": "2",
+   "State": "Haryana",
+   "Internal_Referral__s": false,
+   "Country": "India",
+   "Created_By": {
+    "name": "Riya Wali",
+    "id": "199893000000400005"
+   },
+   "Is_Attachment_Present": false,
+   "Keep_on_Career_Site": false,
+   "$job_mailbox": "rch9kj6d8ry55@quadeye.zohorecruitmail.in",
+   "Salary": "10-30 Lakhs INR",
+   "Assigned_Recruiters": [
+    {
+     "name": "Surbhi Hazarnis",
+     "id": "199893000000356001",
+     "email": "surbhih@quadeye.com",
+     "photoSrc": "https://profile.zoho.in/file?ID=60058042138&fs=thumb"
+    }
+   ],
+   "Date_Closed": null,
+   "No_of_Candidates_Hired": 0,
+   "Modified_By": {
+    "name": "Riya Wali",
+    "id": "199893000000400005"
+   },
+   "Is_Hot_Job_Opening": false,
+   "Internal_Apply__s": false,
+   "Publish": true,
+   "Designation": "Software Developer",
+   "Modified_Time": "2026-09-14T12:45:31+05:30",
+   "No_of_Candidates_Associated": 249,
+   "Job_Opening_ID": "ZR_12_JOB",
+   "$internal_publish_url": null,
+   "Pipeline__s": "Standard Pipeline",
+   "$approval_state": "approved"
+  }
+ ],
+ "cached": true
+}
