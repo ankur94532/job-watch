@@ -43,6 +43,11 @@ class EightfoldAdapter(Adapter):
     ats = "eightfold"
     required = ("host", "domain")
     paginated = True
+    # One Eightfold board at a time, even across different hosts. Each tenant
+    # has its own hostname, so parallel polling gave each its own lane, and on
+    # 2026-09-18 Microsoft and Qualcomm were throttled (429) within a minute of
+    # each other: the quota behaves as shared across tenants from one client.
+    max_parallel = 1
 
     def locations(self):
         locs = self.cfg.get("locations") or [""]
