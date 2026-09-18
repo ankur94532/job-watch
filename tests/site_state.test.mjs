@@ -24,7 +24,9 @@ async function token(claims = {}, key = privateKey, kid = "k1") {
 
 function kv() {
   const m = new Map();
-  return { m, get: async (k) => (m.has(k) ? JSON.parse(m.get(k)) : null), put: async (k, v) => { m.set(k, v); } };
+  const store = { m, puts: 0, get: async (k) => (m.has(k) ? JSON.parse(m.get(k)) : null),
+                  put: async (k, v) => { store.puts++; m.set(k, v); } };
+  return store;
 }
 const env = () => ({ STATE: kv(), ACCESS_TEAM: TEAM });
 async function call(e, method, body, tok) {
@@ -95,4 +97,17 @@ test("without the KV binding it says so instead of pretending", async () => {
   const r = await call({ ACCESS_TEAM: TEAM }, "GET", null, await token());
   assert.equal(r.status, 503);
   assert.match(r.body.error, /STATE/);
+});
+
+test("a sync with nothing new reads but does not write (free tier: 1,000 writes a day)", async () => {
+  const e = env(), t = await token();
+  const doc = { ticks: { "acme|1": [1, 1000], "acme|2": [0, 2000] }, visited: { acme: 50, beta: 7 }, seenThrough: 10 };
+  await call(e, "PUT", doc, t);
+  assert.equal(e.STATE.puts, 1);
+  await call(e, "PUT", doc, t);                                   // same state again
+  await call(e, "PUT", { visited: { beta: 7, acme: 50 } }, t);    // a subset, keys in another order
+  await call(e, "PUT", {}, t);                                    // a fresh device with nothing
+  assert.equal(e.STATE.puts, 1);
+  await call(e, "PUT", { ticks: { "acme|3": [1, 3000] } }, t);    // something actually new
+  assert.equal(e.STATE.puts, 2);
 });

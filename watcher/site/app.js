@@ -331,6 +331,13 @@ function syncNow() {
   if (s.mode === "off" || typeof fetch !== "function") return Promise.resolve(false);
   if (s.inFlight) { s.dirty = true; return Promise.resolve(false); }
   if (window.location.protocol === "file:") { s.mode = "off"; showCarry(); return Promise.resolve(false); }
+  /* A tab in the background has nothing to show and nothing new to send,
+     unless a change is still waiting to go. The minute timer keeps firing in
+     hidden tabs, and a laptop tab left open all day was most of the KV
+     traffic. Coming back to the tab syncs straight away. */
+  if (typeof document !== "undefined" && document.hidden === true && !s.dirty) {
+    return Promise.resolve(false);
+  }
   s.inFlight = true;
   s.dirty = false;
   var reached = false;

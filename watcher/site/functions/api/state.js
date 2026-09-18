@@ -16,7 +16,12 @@
    not quietly open a write endpoint. The document is keyed by the verified
    email.
 
-   Needs a KV namespace bound as STATE (Pages project -> Settings -> Bindings). */
+   Needs a KV namespace bound as STATE (Pages project -> Settings -> Bindings).
+
+   Writes only when the merge changed something. The free tier allows 1,000
+   KV writes a day against 100,000 reads, and every page syncs on load, on
+   navigation and once a minute: writing unconditionally used half the daily
+   allowance by the first evening. A sync with nothing new is now one read. */
 
 const TEAM = "https://white-river-f80d.cloudflareaccess.com";
 const MAX_BODY = 512 * 1024;
@@ -44,8 +49,11 @@ export async function onRequest({ request, env }) {
   let incoming;
   try { incoming = JSON.parse(text); } catch (e) { return json({ error: "bad json" }, 400); }
 
-  const merged = merge(normalise(await env.STATE.get(key, "json")), normalise(incoming), Date.now());
-  await env.STATE.put(key, JSON.stringify(merged));
+  const stored = normalise(await env.STATE.get(key, "json"));
+  const merged = merge(stored, normalise(incoming), Date.now());
+  if (canonical(merged) !== canonical(stored)) {
+    await env.STATE.put(key, JSON.stringify(merged));
+  }
   return json(merged);
 }
 
@@ -93,6 +101,16 @@ function cap(obj, n, when) {
   const out = {};
   for (const k of ks.slice(0, n)) out[k] = obj[k];
   return out;
+}
+
+/* Key order must not count as a change: the same state merged from two
+   devices can come out with its keys in a different order. */
+export function canonical(value) {
+  if (Array.isArray(value)) return "[" + value.map(canonical).join(",") + "]";
+  if (value && typeof value === "object") {
+    return "{" + Object.keys(value).sort().map((k) => JSON.stringify(k) + ":" + canonical(value[k])).join(",") + "}";
+  }
+  return JSON.stringify(value);
 }
 
 function pick(obj, ok) {
