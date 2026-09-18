@@ -98,8 +98,10 @@ Confirmed against `salesforce.wd12` (1,465 reqs) and `rbs.wd3` (89):
   worker sub-type, location). But on some tenants the *default* order is
   newest-first, checked 2026-09-18 by sampling `postedOn` at offsets 0 / 200 /
   600: **yes** on `wf` (Wells Fargo; also identical across two reads),
-  `salesforce`, `paloaltonetworks`; **no** on `walmart` (1 day, 30 days, 1 day)
-  and `nvidia` (3, 3, 2, 3). On a newest-first tenant, `incremental: true` reads
+  `paloaltonetworks`; **no** on `walmart` (1 day, 30 days, 1 day)
+  and `nvidia` (3, 3, 2, 3). `salesforce` passed that sample and failed the
+  live per-page check on its first incremental poll (Today after Yesterday at
+  offset 20), so it stays on full sweeps: a sample is not proof. On a newest-first tenant, `incremental: true` reads
   pages only until two in a row hold nothing new (a normal Wells Fargo poll: 3
   requests instead of 91), checks on every page that ages never go down (and
   sweeps instead if they do), and never retires anything; a complete sweep

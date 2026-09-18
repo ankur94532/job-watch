@@ -203,13 +203,12 @@ companies:
     tenant: salesforce
     shard: wd12
     sites: [External_Career_Site]        # 1493 reqs on 2026-09-18 ≈ 75 requests per full sweep
-    # Newest-first and stable (2026-09-18: first 40 identical across two reads,
-    # posted age never decreasing over 10 samples through the board), so a
-    # normal poll reads only the newest pages; a full sweep every 12h retires
-    # closed reqs. See adapters/README.md, Workday.
-    incremental: true
-    interval: 900
-    full_sweep: 43200
+    # NOT incremental. It passed a sampled order check (3 rows at 10 offsets),
+    # then failed the live one on its first poll: "Posted Today" right after
+    # "Posted Yesterday" at offset 20 (17:32, 2026-09-18). Probably per-location
+    # day labels near midnight, but not provable, and on a 15-minute interval
+    # every such fallback is a full sweep -- worse than hourly sweeps. Back to
+    # plain hourly full sweeps.
   natwest:
     ats: workday
     tenant: rbs                          # NatWest's Workday tenant is still the RBS one
