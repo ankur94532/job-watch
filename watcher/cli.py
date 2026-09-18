@@ -60,6 +60,10 @@ def print_summary(res, seed):
         print(f"  deferred    {len(res.deferred)} (out of time, next run): " + ", ".join(res.deferred), file=out)
     if res.skipped:
         print(f"  unsupported {len(res.skipped)}: " + ", ".join(n for n, _ in res.skipped), file=out)
+    for name, age, interval, kind in getattr(res, "starving", []):
+        what = "not polled" if kind == "poll" else "no complete sweep"
+        print(f"  STARVING    {name:<22} {what} in {age / 3600:.1f}h "
+              f"({age / interval:.0f}x its interval)", file=out)
     if getattr(res, "exported", None):
         print(f"  site        {res.exported}", file=out)
     if seed:
@@ -137,11 +141,18 @@ def cmd_status(args):
         due_at = (st["last_polled"] or 0) + interval - config_mod.DUE_SLACK
         if st["blocked_until"] and st["blocked_until"] > now:
             state = f"BACKED OFF until {fmt_ts(st['blocked_until'])}: {st['last_error']}"
+        elif st["last_polled"] and now - st["last_polled"] > interval * runner.STARVING_POLLS:
+            state = (f"STARVING: not polled in {(now - st['last_polled']) / 3600:.1f}h "
+                     f"({(now - st['last_polled']) / interval:.0f}x interval)")
         elif st["cursor"]:
             pos = next((st["cursor"][k] for k in ("offset", "start") if st["cursor"].get(k) is not None), "?")
             state = f"sweep in progress (at {pos})"
         elif st["last_complete"] is None:
             state = "never seeded"
+        elif now - st["last_complete"] > interval * runner.STARVING_SWEEPS:
+            # Polled fine, but the sweep never finishes, so closed reqs pile up.
+            state = (f"STARVING: no complete sweep in "
+                     f"{(now - st['last_complete']) / 3600:.1f}h, {st['last_count']} open")
         elif st["last_error"]:
             state = f"last error: {st['last_error']}"
         else:

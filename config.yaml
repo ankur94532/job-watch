@@ -13,14 +13,22 @@
 # Keep `companies:` as the last block — `watcher detect --write` appends to it.
 
 defaults:
-  # Pacing. Deliberately slow: one company at a time, one page at a time, both
-  # jittered ±30%. `run_budget` is the seconds of fetching per run — keep the
-  # whole run under ~60s so a poll never straddles a sleep transition.
-  # With 49 companies, 1.2s between them fits roughly 30 per run, so a company
-  # is polled every ~2 runs (~30 min). Raise company_delay to be gentler.
+  # Pacing. Deliberately slow PER HOST: one company at a time and one page at a
+  # time on any one server, both jittered ±30%. Different hosts are polled in
+  # parallel (`parallel` of them at once; Workday tenants at most 3 at a time),
+  # because serial polling could not keep up: 44 fifteen-minute boards alone
+  # needed ~88s of a 50s run, so a third of them starved for hours.
+  # `run_budget` is the seconds multi-page sweeps (Workday, Amazon...) may use
+  # per run; they pause on time and resume next run. Single-request boards may
+  # run `overrun` seconds past it, so every due one is polled every run: the ~22
+  # Greenhouse boards share one host, hence one lane, and need ~65s. A run is
+  # typically ~70s and never more than budget + overrun (~170s), well inside
+  # the 15-minute interval. `parallel: 1` restores strictly serial polling.
   company_delay: 1.2
   page_delay: 0.5
   run_budget: 50
+  overrun: 120
+  parallel: 8
 
   # Workday location strings usually omit the country ("Bengaluru", "Chennai"),
   # so India cities are listed explicitly alongside "india".
@@ -91,12 +99,19 @@ companies:
   postman:
     ats: greenhouse
     token: postman                       # 67 postings, 6 in India
+    enabled: false
+    note: "careers page down for maintenance until 2026-09-21; re-check then"
     # 2026-09-18: the board 404s, and it is NOT a token change -- postman,
     # postmanlabs and getpostman all 404, and there is no Ashby board either.
     # Their careers page says so outright: "maintenance on our Careers page. It
     # will be back up and running on Monday, September 21." Left as-is on
     # purpose; backoff absorbs the 404s. RE-CHECK AFTER 2026-09-21, and only
     # then treat a continuing 404 as a real ATS move.
+    # Later on 2026-09-18: still down, and every ATS probed (Greenhouse
+    # postman/postmanlabs/getpostman, Ashby, Lever, SmartRecruiters, Dover,
+    # Gem, Workday) has no Postman board. A 404 is not a backoff status, so it
+    # was re-polled every 15 minutes and raised a starvation warning every run.
+    # Paused; set `enabled` back to true on the 21st.
   harness:
     ats: greenhouse
     token: harnessinc                    # 66 postings, 17 in India

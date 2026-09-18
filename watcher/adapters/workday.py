@@ -40,9 +40,16 @@ class WorkdayAdapter(Adapter):
     ats = "workday"
     required = ("tenant", "shard", "sites")
     paginated = True
+    # Each tenant is its own subdomain, so each gets its own lane, but they all
+    # sit on a handful of shared wdN clusters. Three at once is what the big
+    # sweeps need to keep up without pointing the whole run at one provider.
+    max_parallel = 3
 
     def host(self):
         return f"https://{self.cfg['tenant']}.{self.cfg['shard']}.myworkdayjobs.com"
+
+    def lane(self):
+        return self.host()
 
     def api(self, site):
         return f"{self.host()}/wday/cxs/{self.cfg['tenant']}/{site}"

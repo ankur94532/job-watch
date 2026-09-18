@@ -1,5 +1,7 @@
 import os
 import tempfile
+import threading
+import time
 import unittest
 
 from tests.fakes import Clock, RecordingSink
@@ -49,7 +51,10 @@ class Base(unittest.TestCase):
         self.sink = RecordingSink()
         self.online = True
         self.cfg = {
-            "defaults": {"title": ["software engineer", "backend"], "location": ["india", "bengaluru", "remote"]},
+            # Serial by default: the ordering and budget tests share one fake clock
+            # and assert on call order. The Parallel class opts back in.
+            "defaults": {"title": ["software engineer", "backend"], "location": ["india", "bengaluru", "remote"],
+                         "parallel": 1},
             "companies": {},
         }
 
@@ -222,6 +227,68 @@ class Scheduling(Base):
         self.run_once(advance=3600)
         self.assertEqual(FakeBoard.CALLS[0], "heavy")
 
+    def starve(self, name, polled_ago, complete_ago):
+        """Leave `name` far behind AND make sure this run cannot reach it.
+
+        The check runs after polling, on purpose: a company that just got its
+        turn is no longer starving. So the warning is only meaningful for one
+        that stays unreached, which is what the real bug looked like -- deferred
+        every single run while the summary said everything was fine.
+        """
+        self.company("blocker", [job("0")])
+        self.company(name, [job("1")])
+        self.run_once(advance=0)
+        now = self.clock()
+        # last_complete is the sweep's START, so it must be passed explicitly.
+        self.store.sweep_complete(name, now - complete_ago, now - complete_ago, 1, {})
+        self.store._set(name, last_polled=now - polled_ago)
+        self.store.sweep_complete("blocker", now - 100000, None, 1, {})
+        self.cfg["defaults"].update({"run_budget": 50, "overrun": 0})   # a hard stop at 50s
+        orig = FakeBoard.fetch
+
+        def slow(self_, ctx=None):          # blocker eats the whole budget
+            self.clock.mono += 45
+            return orig(self_, ctx)
+        FakeBoard.fetch = slow
+        try:
+            return self.run_once(advance=0)
+        finally:
+            FakeBoard.fetch = orig
+
+    def test_a_starved_company_is_reported_loudly(self):
+        """The starvation bug was invisible: every run said `ok` while a third of
+        the boards went unpolled for two days. Falling behind must announce
+        itself, not wait for someone to notice a dead link."""
+        with self.assertLogs(runner.log, "WARNING") as logs:
+            res = self.starve("a", polled_ago=20 * 900, complete_ago=20 * 900)
+        self.assertIn(("a", "poll"), [(n, k) for n, _, _, k in res.starving])
+        self.assertIn("has not been polled", "\n".join(logs.output))
+
+    def test_a_company_that_never_finishes_a_sweep_is_reported(self):
+        """Polled fine but never completing: closed reqs are never retired and
+        the phone view keeps linking to postings that have gone. Walmart sat in
+        exactly this state while looking perfectly healthy."""
+        with self.assertLogs(runner.log, "WARNING") as logs:
+            res = self.starve("a", polled_ago=60, complete_ago=30 * 900)
+        self.assertIn(("a", "sweep"), [(n, k) for n, _, _, k in res.starving])
+        self.assertIn("COMPLETED a sweep", "\n".join(logs.output))
+
+    def test_a_backed_off_company_is_not_called_starving(self):
+        """Backoff is a deliberate pause, not neglect -- warning about it would
+        train you to ignore the warning."""
+        self.company("a", [job("1")])
+        self.run_once(advance=0)
+        self.store.sweep_complete("a", self.clock() - 20 * 900, None, 1, {})
+        self.store.back_off("a", "blocked", self.clock() + 3600, "HTTP 429")
+        self.clock.advance(1)
+        res = self.run_once(advance=0)
+        self.assertEqual(res.starving, [])
+
+    def test_a_healthy_company_is_never_called_starving(self):
+        self.company("a", [job("1")])
+        res = self.run_once()
+        self.assertEqual(res.starving, [])
+
     def test_pacing_comes_from_config(self):
         self.cfg["defaults"].update({"company_delay": 0, "page_delay": 0, "run_budget": 30})
         self.company("a", [job("1")])
@@ -246,6 +313,7 @@ class Scheduling(Base):
         self.assertEqual(len(res.ok), 1)
 
     def test_out_of_time_companies_are_deferred(self):
+        self.cfg["defaults"]["overrun"] = 0
         self.company("a", [job("1")])
         self.company("b", [job("2")])
 
@@ -259,6 +327,185 @@ class Scheduling(Base):
             FakeBoard.fetch = orig
         self.assertEqual(len(res.ok), 1)
         self.assertEqual(len(res.deferred), 1)
+
+    def slow_fetches(self, seconds):
+        orig = FakeBoard.fetch
+
+        def slow(self_, ctx=None):
+            self.clock.mono += seconds
+            return orig(self_, ctx)
+        FakeBoard.fetch = slow
+        self.addCleanup(setattr, FakeBoard, "fetch", orig)
+
+    def test_single_request_boards_overrun_the_budget_so_none_wait_a_run(self):
+        """The ~22 Greenhouse boards share one host and need ~65s: a strict 50s
+        budget left a third of them for the next run, every run."""
+        self.cfg["defaults"].update({"run_budget": 50, "overrun": 120})
+        for i in range(6):
+            self.company("gh%d" % i, [job(str(i))])
+        self.slow_fetches(15)                    # 6 x 15s = 90s: past 50, inside 170
+        res = self.run_once()
+        self.assertEqual(len(res.ok), 6)
+        self.assertEqual(res.deferred, [])
+
+    def test_multi_page_sweeps_still_stop_at_the_budget(self):
+        self.cfg["defaults"].update({"run_budget": 50, "overrun": 120})
+        for i in range(4):
+            self.company("wd%d" % i, [job(str(i))], ats="fakeworkday")
+        self.slow_fetches(30)
+        res = self.run_once()
+        self.assertEqual(len(res.ok), 2)         # 0s and 30s start; at 60s the budget is gone
+        self.assertEqual(len(res.deferred), 2)
+
+    def test_the_overrun_has_a_ceiling(self):
+        """A stalled host must not hold the run open until the next one is due."""
+        self.cfg["defaults"].update({"run_budget": 50, "overrun": 120})
+        for i in range(10):
+            self.company("gh%d" % i, [job(str(i))])
+        self.slow_fetches(40)                    # starts at 0,40,...,160; 200 > 170 is out
+        res = self.run_once()
+        self.assertEqual(len(res.ok), 5)
+        self.assertEqual(len(res.deferred), 5)
+
+
+class Parallel(Base):
+    """Hosts are polled at the same time; one host never sees two polls at once.
+
+    Serial polling was the capacity ceiling: 44 fifteen-minute boards alone
+    needed ~88s of a 50s run, so whichever order the plan took, most of them
+    starved. The per-request pacing is politeness towards a *server*; nothing
+    about it requires Greenhouse to wait for Workday.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.cfg["defaults"]["parallel"] = 8
+        self.lock = threading.Lock()
+        self.active = {}          # lane -> polls in flight
+        self.peak = {}            # lane -> most ever in flight at once
+        self.orig = FakeBoard.fetch
+
+    def tearDown(self):
+        FakeBoard.fetch = self.orig
+        FakePaged.max_parallel = None
+        super().tearDown()
+
+    def track(self, key_of, hold=0.02):
+        """Wrap fetch to record how many polls overlap, per whatever key_of says."""
+        orig = self.orig
+
+        def fetch(self_, ctx=None):
+            key = key_of(self_)
+            with self.lock:
+                self.active[key] = self.active.get(key, 0) + 1
+                self.peak[key] = max(self.peak.get(key, 0), self.active[key])
+            try:
+                time.sleep(hold)                 # real time: long enough to overlap
+                return orig(self_, ctx)
+            finally:
+                with self.lock:
+                    self.active[key] -= 1
+        FakeBoard.fetch = fetch
+
+    def test_different_hosts_really_are_polled_at_the_same_time(self):
+        # Each fetch waits for the other: serial polling would break the barrier.
+        barrier = threading.Barrier(2, timeout=5)
+        orig = self.orig
+
+        def fetch(self_, ctx=None):
+            barrier.wait()
+            return orig(self_, ctx)
+        FakeBoard.fetch = fetch
+        self.company("gh", [job("1")], host="greenhouse.example")
+        self.company("wd", [job("2")], host="workday.example")
+        res = self.run_once()
+        self.assertEqual(res.failed, [])
+        self.assertEqual(sorted(n for n, *_ in res.ok), ["gh", "wd"])
+
+    def test_one_host_is_never_polled_twice_at_once(self):
+        for i in range(4):
+            self.company("a%d" % i, [job("a%d" % i)], host="a.example")
+            self.company("b%d" % i, [job("b%d" % i)], host="b.example")
+        self.track(lambda a: a.lane())
+        res = self.run_once()
+        self.assertEqual(len(res.ok), 8)
+        self.assertEqual(self.peak, {"fake:a.example": 1, "fake:b.example": 1})
+
+    def test_boards_without_their_own_host_share_one_lane(self):
+        """All Greenhouse boards hit boards-api.greenhouse.io: they must queue."""
+        for i in range(4):
+            self.company("gh%d" % i, [job(str(i))])
+        self.track(lambda a: a.ats)
+        res = self.run_once()
+        self.assertEqual(len(res.ok), 4)
+        self.assertEqual(self.peak, {"fake": 1})
+
+    def test_max_parallel_caps_one_ats_across_its_hosts(self):
+        """Workday tenants are separate subdomains on shared clusters: capped."""
+        FakePaged.max_parallel = 2
+        for i in range(5):
+            self.company("wd%d" % i, [job(str(i))], ats="fakeworkday", host="t%d.example" % i)
+        self.track(lambda a: a.ats, hold=0.05)
+        res = self.run_once()
+        self.assertEqual(len(res.ok), 5)
+        self.assertEqual(self.peak, {"fakeworkday": 2})
+
+    def test_priority_order_still_holds_on_a_shared_host(self):
+        for name, ago in (("fresh", 1000), ("stalest", 90000), ("stale", 5000)):
+            self.company(name, [job(name)])
+            self.store.sweep_complete(name, self.clock() - ago, self.clock() - ago, 1, {})
+        self.company("elsewhere", [job("x")], host="other.example")
+        self.run_once()
+        self.assertEqual([c for c in FakeBoard.CALLS if c != "elsewhere"], ["stalest", "stale", "fresh"])
+
+    def test_a_crash_in_a_worker_is_recorded_not_swallowed(self):
+        self.company("ok", [job("1")], host="a.example")
+        self.company("boom", [job("2")], host="b.example")
+        orig = runner._poll_company
+
+        def poll(name, *args):
+            if name == "boom":
+                raise RuntimeError("store exploded")
+            return orig(name, *args)
+        runner._poll_company = poll
+        try:
+            with self.assertLogs(runner.log, "ERROR"):
+                res = self.run_once()
+        finally:
+            runner._poll_company = orig
+        self.assertEqual([n for n, *_ in res.ok], ["ok"])
+        self.assertEqual(res.failed, [("boom", "RuntimeError: store exploded")])
+
+    def test_out_of_time_is_still_deferred_with_threads(self):
+        self.cfg["defaults"]["overrun"] = 0
+        for i in range(3):
+            self.company("a%d" % i, [job("a%d" % i)], host="a.example")
+            self.company("b%d" % i, [job("b%d" % i)], host="b.example")
+        orig = self.orig
+
+        def slow(self_, ctx=None):
+            with self.lock:
+                self.clock.mono += 30          # two overlapping polls exhaust the 50s
+            return orig(self_, ctx)
+        FakeBoard.fetch = slow
+        res = self.run_once()
+        self.assertTrue(res.deferred)
+        self.assertEqual(sorted([n for n, *_ in res.ok] + res.deferred), sorted(self.cfg["companies"]))
+
+    def test_offline_mid_run_stops_every_worker(self):
+        for i in range(3):
+            self.company("a%d" % i, [job("a%d" % i)], host="a.example")
+            self.company("b%d" % i, [job("b%d" % i)], host="b.example")
+        orig = self.orig
+
+        def drop(self_, ctx=None):
+            self.online = False
+            raise NetworkError("no route to host")
+        FakeBoard.fetch = drop
+        res = self.run_once()
+        self.assertTrue(res.offline)
+        self.assertLessEqual(len(FakeBoard.CALLS), 2)   # at most the two already in flight
+        self.assertEqual(res.deferred, [])
 
 
 class FilterSafety(Base):

@@ -1,4 +1,4 @@
-"""One sweep: pick due companies, fetch serially, diff, notify, exit.
+"""One sweep: pick due companies, fetch them (one host at a time, hosts in parallel), diff, notify, exit.
 
 No scheduler lives here — launchd starts the process every 15 minutes and
 everything that must carry over (due times, backoff, validators, unfinished
@@ -6,7 +6,9 @@ sweeps) is read from and written to the store.
 """
 
 import logging
+import threading
 import time
+from collections import Counter
 from dataclasses import dataclass, field
 
 import os
@@ -22,10 +24,30 @@ log = logging.getLogger(__name__)
 
 RUN_BUDGET = 50            # seconds of fetching per run; the whole run should stay under ~60s
 MIN_COMPANY_BUDGET = 6     # don't start a company with less than this left
+# Single-request boards (Greenhouse, Lever, Ashby...) may run past the budget,
+# up to this much, so every one that is due gets polled every run. They are
+# the 15-minute boards and cost one request each; it is the multi-page sweeps
+# the budget exists for, and those still pause on time. The ceiling only stops
+# a stalled host from holding the run open indefinitely.
+OVERRUN = 120
 PAGE_DELAY = 0.5           # between requests within a company (±30% jitter)
-COMPANY_DELAY = 2.0        # between companies (±30% jitter)
+COMPANY_DELAY = 2.0        # between companies on the same host (±30% jitter)
+PARALLEL = 8               # hosts polled at once; 1 = the old strictly serial run
 MAX_ENRICH = 10            # detail fetches per company per run
 CURSOR_MAX_AGE = 3 * 3600  # an older unfinished sweep restarts from offset 0
+
+# A company is starving when it falls this far behind its own interval. Both
+# halves matter and they fail differently:
+#   POLL     — never reached. A scheduling bug starved 17 companies for two days
+#              and every run still said "ok"; the only visible symptom was the
+#              deferred list, which looks like ordinary pacing.
+#   COMPLETE — reached, but its sweep never finishes, so closed requisitions are
+#              never retired and the phone view keeps linking to dead postings.
+#              Walmart sat like this indefinitely while looking healthy.
+# Generous multiples, because deferral is normal: these fire on a stuck company,
+# not a busy one.
+STARVING_POLLS = 4
+STARVING_SWEEPS = 8
 BACKOFF_ALERT_AFTER = 2 * 3600
 
 
@@ -39,6 +61,7 @@ class Result:
     backed_off: list = field(default_factory=list)  # (company, blocked_until, error)
     deferred: list = field(default_factory=list)    # company — out of time this run
     skipped: list = field(default_factory=list)     # (company, note) — unsupported / disabled
+    starving: list = field(default_factory=list)    # (company, age, interval, kind)
     offline: bool = False
     sent: int = 0
     unsent: int = 0
@@ -49,6 +72,39 @@ class Result:
         if self.offline:
             return 0
         return 1 if self.failed and not (self.ok or self.partial or self.unchanged) else 0
+
+
+def _check_starvation(cfg, store, res, now):
+    """Say so, loudly, when a company has fallen far behind its own interval.
+
+    This exists because the starvation bug was invisible: `run` reported `ok`
+    every time while a third of the boards went unpolled for two days. Nothing
+    here changes what is polled — it only makes the condition visible in the
+    launchd log instead of waiting for someone to notice a dead link.
+    """
+    active, _ = config_mod.active_companies(cfg)
+    defaults = cfg.get("defaults") or {}
+    for name, ccfg in active:
+        st = store.state(name)
+        if st["blocked_until"] and st["blocked_until"] > now:
+            continue                       # deliberately paused, not starving
+        interval = config_mod.interval_for(ccfg, defaults)
+        polled, complete = st["last_polled"], st["last_complete"]
+        if polled and now - polled > interval * STARVING_POLLS:
+            res.starving.append((name, now - polled, interval, "poll"))
+            log.warning("%s has not been polled in %.1fh (%.0fx its %s interval)",
+                        name, (now - polled) / 3600.0,
+                        (now - polled) / interval, _fmt_interval(interval))
+        elif complete and now - complete > interval * STARVING_SWEEPS:
+            # Polled but never finishing: closed reqs are never retired.
+            res.starving.append((name, now - complete, interval, "sweep"))
+            log.warning("%s is polled but has not COMPLETED a sweep in %.1fh "
+                        "(%.0fx its interval) — closed reqs cannot be retired",
+                        name, (now - complete) / 3600.0, (now - complete) / interval)
+
+
+def _fmt_interval(seconds):
+    return f"{seconds // 60}m" if seconds < 3600 else f"{seconds / 3600:.0f}h"
 
 
 def _due(st, interval, now):
@@ -67,10 +123,11 @@ def run(cfg, store, sink=None, seed=False, only=None, http=None, budget=RUN_BUDG
     http = http or HttpClient(online=online)
     active, skipped = config_mod.active_companies(cfg, only)
     defaults = cfg.get("defaults") or {}
-    # Tunable, because the pacing decides how many companies fit in one run:
-    # at 2s between companies only ~20 of 49 fit in the 50s budget, so each is
-    # polled about every third run. The rest are deferred, least-recently-polled
-    # first, so nothing starves — it just lengthens the effective interval.
+    # Tunable, because the pacing decides how many companies fit in one run.
+    # Pacing holds per host (see _Dispatcher). The budget bounds multi-page
+    # sweeps; single-request boards may overrun it (OVERRUN) so the busiest
+    # host, ~22 Greenhouse boards at ~2-3s each, finishes every run. Anything
+    # that still does not fit is deferred and goes early next run.
     budget = float(defaults.get("run_budget") or budget)
     if budget <= MIN_COMPANY_BUDGET:
         # Below this nothing would ever start: every company defers immediately.
@@ -125,21 +182,121 @@ def run(cfg, store, sink=None, seed=False, only=None, http=None, budget=RUN_BUDG
         res.offline = True
         return res
 
+    parallel = max(1, int(defaults.get("parallel") or PARALLEL))
     deadline = None if seed else monotonic() + budget
-    for i, (name, ccfg, st, adapter) in enumerate(plan):
-        if deadline is not None and deadline - monotonic() < MIN_COMPANY_BUDGET:
-            res.deferred.append(name)
-            continue
-        if i:
-            sleep(jitter(company_delay))
-        if _poll_company(name, ccfg, st, adapter, store, res, defaults, seed, deadline, clock, monotonic, online):
-            break                                       # went offline mid-run
+    overrun = float(defaults.get("overrun", OVERRUN))
+    hard_deadline = None if seed else deadline + overrun
+    queue = _Dispatcher(plan, deadline, hard_deadline, monotonic)
+
+    def worker():
+        while True:
+            got = queue.take()
+            if got is None:
+                return
+            (name, ccfg, st, adapter), lane, lane_used = got
+            try:
+                if lane_used:                       # same host as a poll just now: be polite
+                    sleep(jitter(company_delay))
+                if _poll_company(name, ccfg, st, adapter, store, res, defaults, seed,
+                                 queue.deadline_for(adapter), clock, monotonic, online):
+                    queue.halt()                    # went offline mid-run
+            except Exception as e:                  # a thread must never die silently
+                log.exception("%s: poll crashed", name)
+                res.failed.append((name, f"{e.__class__.__name__}: {e}"))
+            finally:
+                queue.done(lane, adapter)
+
+    threads = min(parallel, queue.lanes())
+    if threads <= 1:
+        worker()                                    # serial: no threads, same code path
+    else:
+        pool = [threading.Thread(target=worker, name=f"poll-{i}", daemon=True) for i in range(threads)]
+        for t in pool:
+            t.start()
+        for t in pool:
+            t.join()
+    if not res.offline:
+        res.deferred.extend(name for name, *_ in queue.pending)
+
+    if not res.offline:
+        _check_starvation(cfg, store, res, clock())
 
     if not seed and sink is not None and not res.offline:
         _notify(cfg, store, sink, res, clock)
     if not res.offline and res.exit_code == 0:
         res.exported = _export(cfg, store, clock)
     return res
+
+
+class _Dispatcher:
+    """Hands the plan to worker threads in priority order, one company per lane.
+
+    A worker takes the first company whose lane (host) is idle, so a busy host
+    never holds up the rest, and a company is only ever skipped over for one
+    that is further down the list AND on a free host. The priority order still
+    decides who goes first on every host.
+
+    Two deadlines: multi-page sweeps stop at the run budget, single-request
+    boards carry on to `hard_deadline` (see OVERRUN).
+    """
+
+    def __init__(self, plan, deadline, hard_deadline, monotonic):
+        self.pending = list(plan)
+        self.deadline = deadline
+        self.hard_deadline = hard_deadline
+        self.monotonic = monotonic
+        self.busy = set()                 # lanes with a poll in flight
+        self.used = set()                 # lanes polled already this run
+        self.in_flight = Counter()        # ats -> polls in flight, for max_parallel
+        self.stopped = False
+        self.cond = threading.Condition()
+
+    def lanes(self):
+        return len({a.lane() for *_, a in self.pending})
+
+    def deadline_for(self, adapter):
+        return self.deadline if adapter.paginated else self.hard_deadline
+
+    def _out_of_time(self, adapter):
+        dl = self.deadline_for(adapter)
+        return dl is not None and dl - self.monotonic() < MIN_COMPANY_BUDGET
+
+    def take(self):
+        """The next company to poll, or None when the run is over for this worker."""
+        with self.cond:
+            while not self.stopped and self.pending:
+                if all(self._out_of_time(item[3]) for item in self.pending):
+                    break
+                for i, item in enumerate(self.pending):
+                    adapter = item[3]
+                    if self._out_of_time(adapter):
+                        continue
+                    lane = adapter.lane()
+                    if lane in self.busy:
+                        continue
+                    if adapter.max_parallel and self.in_flight[adapter.ats] >= adapter.max_parallel:
+                        continue
+                    del self.pending[i]
+                    self.busy.add(lane)
+                    self.in_flight[adapter.ats] += 1
+                    used = lane in self.used
+                    self.used.add(lane)
+                    return item, lane, used
+                # Everything left is on a host that is busy right now. The timeout
+                # re-checks the deadline even if no poll finishes to wake us.
+                self.cond.wait(0.5)
+            return None
+
+    def done(self, lane, adapter):
+        with self.cond:
+            self.busy.discard(lane)
+            self.in_flight[adapter.ats] -= 1
+            self.cond.notify_all()
+
+    def halt(self):
+        with self.cond:
+            self.stopped = True
+            self.cond.notify_all()
 
 
 def _export(cfg, store, clock):

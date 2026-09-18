@@ -13,10 +13,12 @@ A requisition is *closed* when its last_seen is older than the start of the
 company's most recent complete sweep.
 """
 
+import functools
 import json
 import logging
 import os
 import sqlite3
+import threading
 import time
 
 log = logging.getLogger(__name__)
@@ -83,7 +85,13 @@ class Store:
         if path != ":memory:":
             os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
         self.path = path
-        self.db = sqlite3.connect(path, timeout=10)
+        # The runner polls different hosts from worker threads, all sharing this
+        # one connection. Every method below runs under this lock (see the end of
+        # the module), so one company's writes never interleave with another's
+        # inside a transaction, and a commit never lands someone else's half-done
+        # record().
+        self._lock = threading.RLock()
+        self.db = sqlite3.connect(path, timeout=10, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
         _retry_locked(lambda: self.db.execute("PRAGMA journal_mode=WAL"))
         self.db.execute("PRAGMA busy_timeout=10000")
@@ -267,6 +275,19 @@ class Store:
             log.info("%s: backoff cleared", company)
             self._set(company, backoff_kind=None, backoff_level=0, fail_since=None,
                       blocked_until=None, alert_state=ALERT_NONE)
+
+
+def _serialised(fn):
+    @functools.wraps(fn)
+    def locked(self, *args, **kwargs):
+        with self._lock:
+            return fn(self, *args, **kwargs)
+    return locked
+
+
+for _name, _fn in list(vars(Store).items()):
+    if callable(_fn) and not _name.startswith("__"):
+        setattr(Store, _name, _serialised(_fn))
 
 
 def now_ts():

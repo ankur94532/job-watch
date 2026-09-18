@@ -119,9 +119,15 @@ Lines worth reacting to:
 ## Rate limiting, and what happens if a board pushes back
 
 Everything is public and keyless, which is a courtesy, not a contract. The
-poller is deliberately slow and boring: serial, one company and one page at a
-time, ~0.5s between requests and ~2s between companies, both jittered ±30%, with
-an honest `User-Agent` naming the tool and your repo.
+poller is deliberately slow and boring towards any one server: one company and
+one page at a time per host, ~0.5s between requests and ~1.2s between companies,
+both jittered ±30%, with an honest `User-Agent` naming the tool and your repo.
+Different hosts are polled in parallel (`parallel: 8`), because Greenhouse has
+no reason to wait on Workday; every board on a shared API (all Greenhouse boards
+are one host) still queues behind the others, and Workday tenants, which share
+clusters, run at most three at a time. `parallel: 1` makes it fully serial again.
+Multi-page sweeps stop at `run_budget` (50s) and resume next run; single-request
+boards may run up to `overrun` (120s) past it, so all of them are polled every run.
 
 Greenhouse, Lever, Ashby and SmartRecruiters all answer `304 Not Modified` to a
 conditional request, so most polls transfer nothing. Workday sends

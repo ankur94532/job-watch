@@ -49,6 +49,7 @@ class Adapter(ABC):
     ats = ""
     required = ()          # config keys this adapter needs
     paginated = False      # multi-request sweeps are scheduled after single-request boards
+    max_parallel = None    # cap on this ATS's companies polled at once, even on different hosts
 
     def __init__(self, company, cfg, http=None, page_delay=0.5):
         missing = [k for k in self.required if not cfg.get(k)]
@@ -67,6 +68,18 @@ class Adapter(ABC):
         missing from a complete sweep as a closed requisition. Raise rather than
         return a short list. Raise http.NotModified when the board is unchanged.
         """
+
+    def lane(self):
+        """Companies in the same lane are never polled at the same time.
+
+        One lane per host: the pacing between requests is politeness towards a
+        server, so it has to hold per server, but nothing is gained by making
+        Workday wait on Greenhouse. Every multi-tenant API (all Greenhouse boards
+        hit boards-api.greenhouse.io) shares one lane under the ATS name; an
+        adapter configured with its own `host` gets a lane of its own.
+        """
+        host = self.cfg.get("host")
+        return f"{self.ats}:{host}" if host else self.ats
 
     def needs_enrich(self, posting):
         """True if the listing is too thin to filter on and a detail fetch would help."""

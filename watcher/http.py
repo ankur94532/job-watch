@@ -14,6 +14,7 @@ import logging
 import os
 import random
 import socket
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -93,6 +94,7 @@ class HttpClient:
         self.opener = opener or urllib.request.urlopen
         self.online = online
         self.requests = 0
+        self._count_lock = threading.Lock()   # shared by the runner's worker threads
 
     def get_json(self, url, cache=None, headers=None):
         h = dict(headers or {})
@@ -123,7 +125,8 @@ class HttpClient:
         attempt = 0
         while True:
             req = urllib.request.Request(url, data=data, headers=h, method=method)
-            self.requests += 1
+            with self._count_lock:
+                self.requests += 1
             try:
                 with self.opener(req, timeout=self.timeout) as r:
                     return r.read(), r.headers
