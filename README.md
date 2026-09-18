@@ -8,12 +8,21 @@ LinkedIn, no paid APIs.
 Standard library only. It runs on a stock macOS `/usr/bin/python3`.
 
 ```sh
-make test                         # 114 tests, no network
+make test                         # 145 tests, no network
 python3 -m watcher seed           # FIRST: record every open req, alert nothing
 python3 -m watcher run            # fetch, diff, alert on what's new
 ```
 
 Then wire it to launchd — see [DEPLOY.md](DEPLOY.md).
+
+`make test` covers the poller. The phone view is plain DOM with no build step,
+so its checks drive a real browser against a real export and live separately,
+outside the stdlib-only suite:
+
+```sh
+make export
+.venv-dev/bin/python devtools/site_check.py   # dev-only, like `watcher trace`
+```
 
 ## Commands
 
@@ -92,6 +101,7 @@ watcher/
   publish.py             one orphan commit on the `site` branch, force-pushed
   site/                  the page: companies -> company -> paginated jobs, no build step
 deploy/                  launchd plist template + env example
+devtools/                site_check.py: drives the page in a real browser (dev-only)
 tests/                   fixtures recorded from live boards; no network
 ```
 

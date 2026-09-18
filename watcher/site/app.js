@@ -22,6 +22,7 @@ var TICKED_KEY = "jobwatch:ticked";
 var TICKED_CAP = 5000;            // plenty for years of ticking; bounds localStorage
 var OPENED_KEY = "jobwatch:opened";
 var OPENED_CAP = 200;             // only needs to outlive a round trip to an ATS tab
+var VISITED_KEY = "jobwatch:visited";   // company -> the poll it was last opened at
 
 var REFRESH_EVERY = 60000;        // how often to re-check the index while you are reading
 
@@ -36,15 +37,69 @@ var state = {
   ticked: {},         // "company|job_id" -> 1, the jobs you have dealt with
   opened: {},         // "company|job_id" -> when you tapped through to the posting
   firstRun: false,
-  cache: {}           // file -> rows, so going back and forth refetches nothing
+  cache: {},          // file -> rows, so going back and forth refetches nothing
+  visited: {},        // company -> poll timestamp you last opened it at
+  anchors: {},        // company -> what THIS visit treats as already-seen
+  homeScroll: 0,      // where you were in the company list
+  restoreScroll: false,
+  leavingHome: false, // a tap has fired; ignore the browser's own scroll
+  toTop: false
 };
 
 /* What counts as "seen" is a POLL timestamp from the data, not the wall-clock
    moment you opened the page: `first_seen` is the clock of the run that
    discovered the job. Anchoring to Date.now() meant a glance at a stale page
-   buried jobs found before it but published after. */
-function isNew(job) { return state.seenThrough > 0 && (job.first_seen || 0) > state.seenThrough; }
-function companyHasNew(c) { return state.seenThrough > 0 && (c.newest || 0) > state.seenThrough; }
+   buried jobs found before it but published after.
+
+   "New" is per company, not global: a company is new only if it has gained
+   something since YOU LAST OPENED THAT COMPANY. One global timestamp meant
+   reading Adobe cleared the dot on Stripe. `seenThrough` survives as the
+   baseline for companies you have never opened, so a fresh install does not
+   badge all 58 at once. */
+function visitAnchor(company) {
+  var v = state.visited[company];
+  return (typeof v === "number" && isFinite(v)) ? v : state.seenThrough;
+}
+
+/* Opening a company clears its dot straight away, even with every row still
+   unticked — that is what was asked for. But the rows you opened it to read
+   must stay marked for the duration of the visit, so the anchor is snapshotted
+   on entry while the stored value moves on. */
+function renderAnchor(company) {
+  var a = state.anchors[company];
+  return (typeof a === "number") ? a : visitAnchor(company);
+}
+
+function isNew(job) {
+  var a = renderAnchor(job.company);
+  return a > 0 && (job.first_seen || 0) > a;
+}
+function companyHasNew(c) {
+  var a = visitAnchor(c.company);
+  return a > 0 && (c.newest || 0) > a;
+}
+
+function readVisited() {
+  try {
+    var raw = window.localStorage.getItem(VISITED_KEY);
+    var obj = raw ? JSON.parse(raw) : {};
+    return (obj && typeof obj === "object") ? obj : {};
+  } catch (e) { return {}; }
+}
+function writeVisited() {
+  try { window.localStorage.setItem(VISITED_KEY, JSON.stringify(state.visited)); } catch (e) { /* fine */ }
+}
+
+/* Called on entry to a company screen. Records the poll you have now seen it
+   through, which is what makes the dot go away and stay away until the next
+   run finds something. */
+function markVisited(entry) {
+  var ts = entry.newest || 0;
+  if (!(state.visited[entry.company] >= ts)) {
+    state.visited[entry.company] = ts;
+    writeVisited();
+  }
+}
 
 function readSeenThrough() {
   try {
@@ -122,6 +177,37 @@ function writeOpened() {
    having something new, nor count towards "unseen". */
 function countsAsUnseen(job) { return isNew(job) && !isTicked(job); }
 
+/* How many of a company's open roles you have NOT ticked off yet — the number
+   the home screen leads with, since it is the size of the pile still to look at.
+
+   Derived from the tick keys rather than stored alongside them, so the count
+   can never disagree with the ticks themselves. The home screen only has the
+   index (no job ids), so it counts keys by their "company|" prefix. */
+function tickedCountFor(company) {
+  var prefix = company + "|", n = 0;
+  for (var k in state.ticked) {
+    if (Object.prototype.hasOwnProperty.call(state.ticked, k) && k.lastIndexOf(prefix, 0) === 0) n++;
+  }
+  return n;
+}
+function unticked(c) { return Math.max(0, (c.count || 0) - tickedCountFor(c.company)); }
+
+/* A job you ticked and that later closed leaves its key behind for ever, and
+   the home count would drift below the real number of open roles. Whenever a
+   company's rows are in hand, drop ticks for jobs no longer on its board.
+   Guarded on a non-empty fetch: an empty or half-written file must not be
+   read as "everything closed" and wipe the ticks. */
+function pruneTicked(company, rows) {
+  if (!rows || !rows.length) return;
+  var live = {};
+  rows.forEach(function (j) { live[tickKey(j)] = 1; });
+  var prefix = company + "|", changed = false;
+  Object.keys(state.ticked).forEach(function (k) {
+    if (k.lastIndexOf(prefix, 0) === 0 && !live[k]) { delete state.ticked[k]; changed = true; }
+  });
+  if (changed) writeTicked();
+}
+
 function newestPoll() {
   return ((state.index && state.index.companies) || []).reduce(
     function (m, c) { return Math.max(m, c.newest || 0); }, 0);
@@ -187,6 +273,7 @@ function loadCompany(entry) {
   if (state.cache[entry.file]) return Promise.resolve(state.cache[entry.file]);
   return getJSON("data/" + entry.file).then(function (d) {
     state.cache[entry.file] = d.jobs || [];
+    pruneTicked(entry.company, state.cache[entry.file]);
     return state.cache[entry.file];
   });
 }
@@ -224,22 +311,48 @@ function renderHome() {
   var tpl = el("#companyrow");
   var now = Math.floor(Date.now() / 1000);
   var newOnly = el("#newonly").checked;
-  var companies = (state.index.companies || []);
+  /* Anything that has gained a role since you last opened it floats to the top,
+     so the reason to come back is the first thing on screen. Ties, and the rest
+     of the list, stay in most-recently-active order. */
+  var companies = (state.index.companies || []).slice().sort(function (a, b) {
+    var an = companyHasNew(a) ? 1 : 0, bn = companyHasNew(b) ? 1 : 0;
+    if (an !== bn) return bn - an;
+    return (b.newest || 0) - (a.newest || 0);
+  });
   var frag = document.createDocumentFragment();
-  var shown = 0, withNew = 0;
+  var shown = 0, withNew = 0, leftTotal = 0;
 
   companies.forEach(function (c) {
-    if (companyHasNew(c)) withNew++;
+    var isNewCo = companyHasNew(c);
+    var left = unticked(c);
+    if (isNewCo) withNew++;
+    leftTotal += left;
     if (!matchesQuery(c.company)) return;
-    if (newOnly && !companyHasNew(c)) return;
+    if (newOnly && !isNewCo) return;
     shown++;
     var node = tpl.content.cloneNode(true);
     var row = el(".company-row", node);
     row.href = "#/c/" + slug(c.company);
     el(".company-name", node).textContent = c.company;
+    /* Lead with what is left to look at, not the raw total: once you have
+       ticked most of a board, "25 open roles" stops meaning anything. */
+    var done = (c.count || 0) - left;
     el(".company-meta", node).textContent =
-      c.count + (c.count === 1 ? " open role" : " open roles") + " · newest " + ago(now - c.newest);
-    if (companyHasNew(c)) row.classList.add("is-new");
+      (done > 0 ? left + " unticked of " + c.count : c.count + (c.count === 1 ? " open role" : " open roles")) +
+      " · " + ago(now - c.newest);
+    var dot = el(".dot", node);
+    if (dot) {
+      dot.hidden = !isNewCo;
+      if (isNewCo) dot.setAttribute("title", "new since you last opened this company");
+    }
+    if (isNewCo) row.classList.add("is-new");
+    if (left === 0) row.classList.add("is-clear");
+    /* Where you were, captured at the tap — the last moment the number is
+       yours rather than the browser's. */
+    row.addEventListener("click", function () {
+      state.homeScroll = window.pageYOffset || 0;
+      state.leavingHome = true;
+    });
     frag.appendChild(node);
   });
 
@@ -252,11 +365,32 @@ function renderHome() {
   el("#back").hidden = true;
   el("#q").placeholder = "Filter companies…";
   el("#summary").textContent =
-    shown + " of " + companies.length + " companies · " + state.index.count + " open roles" +
+    shown + " of " + companies.length + " companies · " + leftTotal + " unticked" +
     (withNew ? " · " + withNew + " with new" : "");
   var mark = el("#markread");
   mark.hidden = withNew === 0;
   mark.textContent = "Mark all read";
+
+  /* Back from a company lands you where you were in the list, not at the top of
+     58 rows. Only on a navigation into home — re-rendering for a filter keystroke
+     must not yank the page around. */
+  if (state.restoreScroll) {
+    state.restoreScroll = false;
+    var y = state.homeScroll;
+    if (y > 0) scrollSoon(y);
+  }
+  state.leavingHome = false;      // you are back on the list; track scrolling again
+}
+
+/* After paint, so the rows exist and the document is tall enough to scroll to.
+   rAF twice because one frame is layout, the next is when it has a height. */
+function scrollSoon(y) {
+  var go = function () { window.scrollTo(0, y); };
+  if (typeof window.requestAnimationFrame === "function") {
+    window.requestAnimationFrame(function () { window.requestAnimationFrame(go); });
+  } else {
+    setTimeout(go, 0);
+  }
 }
 
 function renderJobs() {
@@ -340,6 +474,8 @@ function renderJobs() {
   var mark = el("#markread");
   mark.hidden = unseen === 0;
   mark.textContent = "Mark " + unseen + " read";
+
+  if (state.toTop) { state.toTop = false; scrollSoon(0); }
 }
 
 function render() {
@@ -348,10 +484,25 @@ function render() {
 }
 
 /* Only ever advanced by an explicit tap: opening the page does not clear
-   anything, so a quick look on the train cannot discard the backlog. */
+   anything, so a quick look on the train cannot discard the backlog.
+
+   On a company screen it clears that company; on home it clears the lot. */
 function markAllRead() {
-  state.seenThrough = Math.max(state.seenThrough, newestPoll());
-  writeSeenThrough(state.seenThrough);
+  if (state.view === "company" && state.company) {
+    var c = state.company;
+    var ts = Math.max(state.visited[c.company] || 0, c.newest || 0);
+    state.visited[c.company] = ts;
+    state.anchors[c.company] = ts;      // drop the NEW marks in front of you too
+    writeVisited();
+  } else {
+    state.seenThrough = Math.max(state.seenThrough, newestPoll());
+    writeSeenThrough(state.seenThrough);
+    (state.index.companies || []).forEach(function (co) {
+      state.visited[co.company] = Math.max(state.visited[co.company] || 0, co.newest || 0);
+    });
+    writeVisited();
+    state.anchors = {};
+  }
   render();
 }
 
@@ -399,6 +550,7 @@ function route(preserve) {
     state.shown = PAGE_SIZE;
     el("#q").value = "";
     el("#showhidden").checked = false;
+    state.anchors = {};             // a fresh visit re-reads what counts as seen
   }
 
   var m = hash.match(/^\/c\/(.+)$/);
@@ -408,7 +560,11 @@ function route(preserve) {
     if (!entry) { window.location.hash = "#/"; return; }   // e.g. its last role closed
     state.view = "company";
     state.company = entry;
-    if (!preserve) el("#newonly").checked = false;
+    /* Snapshot first, then mark: the dot goes out now, but this visit still
+       shows you which rows caused it. */
+    if (!(entry.company in state.anchors)) state.anchors[entry.company] = visitAnchor(entry.company);
+    markVisited(entry);
+    if (!preserve) { el("#newonly").checked = false; state.toTop = true; }
     loadCompany(entry).then(function (rows) { state.jobs = rows; render(); }, failed);
     return;
   }
@@ -416,7 +572,13 @@ function route(preserve) {
   if (hash === "/new") {
     state.view = "new";
     state.company = null;
+    if (!preserve) state.toTop = true;
     el("#newonly").checked = true;
+    /* Snapshot every badged company, but do NOT mark them visited: this is a
+       cross-company skim, and clearing a dot is what opening the company does. */
+    (state.index.companies || []).forEach(function (c) {
+      if (!(c.company in state.anchors)) state.anchors[c.company] = visitAnchor(c.company);
+    });
     /* Sequentially, so a phone on a slow link isn't opening a dozen requests. */
     (state.index.companies || []).filter(companyHasNew).reduce(function (chain, c) {
       return chain.then(function (acc) {
@@ -431,6 +593,7 @@ function route(preserve) {
     return;
   }
 
+  if (state.view !== "home" && !preserve) state.restoreScroll = true;
   state.view = "home";
   state.company = null;
   state.jobs = [];
@@ -441,8 +604,26 @@ function route(preserve) {
 function start() {
   state.ticked = readTicked();
   state.opened = readOpened();
+  state.visited = readVisited();
   state.seenThrough = readSeenThrough();
   state.firstRun = state.seenThrough === 0;
+
+  /* We put you back on the company list ourselves. Left on "auto", the browser
+     also restores a scroll position on hash navigation and the two fight. */
+  try {
+    if (window.history && "scrollRestoration" in window.history) {
+      window.history.scrollRestoration = "manual";
+    }
+  } catch (e) { /* not fatal: worst case the browser also has a guess */ }
+
+  /* Tracks where you are in the list. It deliberately stops listening the moment
+     you tap a company: following a fragment link makes the browser scroll the
+     page toward the top BEFORE hashchange fires, so anything recorded after the
+     tap is the browser's scroll, not yours. That is what made "back" land at an
+     arbitrary offset instead of where you left. */
+  window.addEventListener("scroll", function () {
+    if (state.view === "home" && !state.leavingHome) state.homeScroll = window.pageYOffset || 0;
+  }, false);
 
   el("#q").addEventListener("input", function () { state.shown = PAGE_SIZE; render(); });
   el("#newonly").addEventListener("input", function () { state.shown = PAGE_SIZE; render(); });

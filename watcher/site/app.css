@@ -82,10 +82,17 @@ main { padding: 8px 0 8px; }
 .company-meta { color: var(--muted); font-size: 13px; flex: 1 1 auto; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chev { color: var(--muted); font-size: 20px; line-height: 1; flex: 0 0 auto; }
-.company-row.is-new .company-name::after {
-  content: "NEW"; margin-left: 8px; padding: 1px 6px; border-radius: 999px;
-  background: var(--new-bg); color: var(--new); font-size: 11px; font-weight: 700; vertical-align: 2px;
+/* One green dot per company that has gained something since you last opened it.
+   It replaces the old NEW pill: the dot is the signal, and the row is already
+   sorted to the top, so a second badge saying the same thing is noise. */
+.dot {
+  flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--new); box-shadow: 0 0 0 3px var(--new-bg);
 }
+.dot[hidden] { display: none; }
+/* A company with nothing left to tick recedes, so the pile you still owe
+   attention stands out without needing a second colour. */
+.company-row.is-clear .company-name { font-weight: 500; color: var(--muted); }
 
 .more-wrap { padding: 0 0 28px; text-align: center; }
 .more {

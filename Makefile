@@ -9,13 +9,14 @@ DB        ?= $(HOME)/.local/share/jobswatch/jobs.db
 DOMAIN    := gui/$(shell id -u)
 SITE_BRANCH := site
 
-.PHONY: help test seed run status list install uninstall reinstall logs kick export site
+.PHONY: help test seed run status list install uninstall reinstall logs kick export site sitecheck
 help:
 	@echo "make test       run the test suite (no network)"
 	@echo "make seed       first step: record every board, alert nothing"
 	@echo "make run        one sweep now, in this terminal"
 	@echo "make status     per-company due times, backoff, sweeps in progress"
 	@echo "make export     render the phone view into docs/ (no publish)"
+	@echo "make sitecheck  drive the exported page in a browser (needs .venv-dev)"
 	@echo "make site       export and force-push it to the '$(SITE_BRANCH)' branch"
 	@echo "make install    render the plist and load the launchd agent (seed first)"
 	@echo "make kick       force a run now via launchctl"
@@ -68,3 +69,6 @@ logs:
 	@mkdir -p $(LOGDIR)
 	@touch $(LOGDIR)/jobswatch.log $(LOGDIR)/jobswatch.err.log
 	tail -f $(LOGDIR)/jobswatch.log $(LOGDIR)/jobswatch.err.log
+
+sitecheck: export           ## drive the exported page in a real browser (needs .venv-dev)
+	.venv-dev/bin/python devtools/site_check.py
