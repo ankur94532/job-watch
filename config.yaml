@@ -553,3 +553,16 @@ companies:
     # postings open "At Cloudflare, we are on a mission to help build a better
     # Internet". (cloudflare.com/careers renders its list client-side, so the
     # page source names no ATS.) Job link verified: HTTP 200.
+  servicenow:
+    ats: smartrecruiters
+    token: servicenow                    # 642 postings, 55 in India, on 2026-09-18
+    # Found by slug, then confirmed: SmartRecruiters names the company
+    # "ServiceNow"; the samples are its Hyderabad engineering roles. Job link
+    # verified: 200, and the page carries the posting's title.
+  goldmansachs:
+    ats: gshigher                        # Goldman's own "Higher" platform (adapters/goldman.py)
+    # 962 roles, 153 in India, on 2026-09-18; a full sweep is 10 requests.
+    # The GraphQL API needs no login. robots.txt on higher.gs.com allows only
+    # /roles/ (the listing page is disallowed); the API host has none. Job links
+    # are /roles/<sourceId>, checked in a browser: a 200 alone proves nothing
+    # there, since the page answers 200 for any id.

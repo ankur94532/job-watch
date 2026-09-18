@@ -299,6 +299,21 @@ ATS (Skima) whose API path could not be guessed.
 
 Each would need a browser-spoofed UA or a headless browser, which is out of scope.
 
+## Goldman Sachs Higher
+
+`POST https://api-higher.gs.com/gateway/api/v1/graphql`, operation `GetRoles`,
+no login: `roleSearch(searchQueryInput: {page: {pageSize, pageNumber}, sort,
+filters: [], experiences: [EARLY_CAREER, PROFESSIONAL], searchTerm: ""})`
+returns `totalCount` and roles. `pageSize` 200 works, 500 is refused; the
+adapter uses 100. robots.txt on `higher.gs.com` allows only `/roles/` (the
+listing, `/results`, is disallowed); `api-higher.gs.com` has no robots.txt.
+
+**Job links need a browser to verify.** The page is client-rendered and answers
+200 for any id: `/roles/<externalSource.sourceId>` shows the role, while
+`/roles/<roleId>` ("184745_GS_MID_CAREER") and a made-up id both render "Oops,
+something went wrong". Relevance order, so pages are deduplicated and the
+count is held against `totalCount` (below 95% raises rather than retiring).
+
 ## HTML adapters (Media.net, Skima / Nykaa)
 
 `adapters/html.py`, for careers pages with no job API at all. The failure to

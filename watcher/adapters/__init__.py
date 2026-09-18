@@ -6,6 +6,7 @@ from .embedded import AppleAdapter, GoogleAdapter
 from .eightfold import EightfoldAdapter
 from .comeet import ComeetAdapter
 from .gem import GemAdapter
+from .goldman import GoldmanAdapter
 from .greenhouse import GreenhouseAdapter
 from .html import MediaNetAdapter, SkimaAdapter
 from .jibe import JibeAdapter
@@ -26,7 +27,7 @@ ADAPTERS = {
         WorkdayAdapter, EightfoldAdapter, RipplingAdapter, RadancyAdapter, OracleAdapter,
         JibeAdapter, Spire2GrowAdapter,
         # single-company public JSON boards
-        AmazonAdapter, AtlassianAdapter,
+        AmazonAdapter, AtlassianAdapter, GoldmanAdapter,
         # server-rendered pages whose search state is embedded JSON
         AppleAdapter, GoogleAdapter, QuadeyeAdapter, DEShawAdapter, GemAdapter, ComeetAdapter,
         # careers pages with no job API: parsed from the HTML (see adapters/html.py)
