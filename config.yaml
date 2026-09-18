@@ -197,6 +197,18 @@ companies:
     tenant: browserstack
     shard: wd3
     sites: [External]                    # 30 reqs, 29 in India
+  wellsfargo:
+    ats: workday
+    tenant: wf                           # not "wellsfargo"; found via a live posting URL
+    shard: wd1
+    sites: [WellsFargoJobs]              # 1968 reqs ≈ 99 requests per sweep
+    interval: 7200
+  warnerbros:
+    ats: workday
+    tenant: warnerbros
+    shard: wd5
+    sites: [global]                      # slug from the applyUrl in careers.wbd.com's
+                                         # Phenom widgets API. 326 reqs.
   wex:
     ats: workday
     tenant: wexinc
@@ -322,13 +334,17 @@ companies:
     note: "no public board at all — chargebee.com/careers sends applicants to LinkedIn"
   thoughtspot:
     ats: unsupported
-    note: "thoughtspot.com/careers is a Next.js app; no ATS in the HTML or its bundles"
+    # FOUND by `watcher trace` 2026-09-18: GET https://www.thoughtspot.com/api/getCareersListing
+    note: "own /api/getCareersListing endpoint found; adapter not written yet"
   hasura:
     ats: unsupported
     note: "self-hosted hasura.io/careers (PromptQL)"
   gupshup:
     ats: unsupported
-    note: "self-hosted gupshup.io careers"
+    # FOUND by `watcher trace` 2026-09-18: Next.js data route
+    #   GET https://www.gupshup.ai/_next/data/<buildId>/en/careers.json?slug=careers
+    # buildId rotates on每 deploy, so an adapter must read it from the page first.
+    note: "Next.js data route found (buildId rotates); adapter not written yet"
   krutrim:
     ats: unsupported
     note: "self-hosted olakrutrim.com careers"
@@ -336,8 +352,11 @@ companies:
     ats: unsupported
     note: "self-hosted qdrant.tech/careers"
   vespa:
-    ats: unsupported
-    note: "self-hosted vespa.ai careers"
+    ats: blocked
+    blocked: robots
+    # Board is BambooHR: vespaai.bamboohr.com/jobs/embed2.php?format=json (returns JSON),
+    # but bamboohr.com robots.txt has "Disallow: /jobs/embed2.php". Checked 2026-09-18.
+    note: "BambooHR embed feed exists but robots.txt disallows /jobs/embed2.php"
   scylladb:
     ats: unsupported
     note: "self-hosted scylladb.com/careers"
@@ -371,9 +390,12 @@ companies:
     note: "self-hosted blinkit.com/careers (Eternal), Cloudflare-gated"
   phonepe:
     ats: unsupported
-    # no ATS in the HTML, no Phenom widgets API (the trick that exposed eBay's and
-    # WEX's Workday), and no job URLs in its sitemap
-    note: "self-hosted phonepe.com/careers/job-openings"
+    # FOUND by `watcher trace` 2026-09-18, not yet adapted:
+    #   GET https://www.phonepe.com/apollo/job-postings/latest.json
+    #   200, 130 rows under .results, robots allows (Allow: /), no auth.
+    # Caveat: the feed includes status=NOT_PUBLISHED rows and test rows
+    # ("Test Job IJP"), so an adapter must keep only status=PUBLISHED with an applyUrl.
+    note: "own JSON feed found (apollo/job-postings/latest.json); adapter not written yet"
   medianet:
     ats: unsupported
     note: "self-hosted media.net careers; SmartRecruiters 'medianet' is one 2020 row in Tunisia"
@@ -388,7 +410,11 @@ companies:
     note: "TurboHire board; robots.txt Disallow: / for every agent but Googlebot"
   quadeye:
     ats: unsupported
-    note: "self-hosted quadeye.com careers"
+    # FOUND by `watcher trace` 2026-09-18, not yet adapted:
+    #   GET https://www.quadeye.com/api/zoho-recruit/job-openings
+    #   200, 26 rows under .data, robots has no rule, no auth. Zoho Recruit behind
+    #   their own proxy. Real rows: "Quantitative Researcher", "Linux Engineer - L2/L3".
+    note: "Zoho Recruit via own /api proxy; adapter not written yet"
   deshaw:
     ats: unsupported
     note: "self-hosted deshaw.com / deshawindia.com careers"
