@@ -317,21 +317,14 @@ companies:
     host: apply.careers.microsoft.com
     domain: microsoft.com
     locations: [India]                   # 221 open India positions, 10 rows/page
-    page_delay: 6.0                      # Eightfold rate-limits by volume, not spacing:
-    interval: 3600                       # incremental (below); a full sweep is 23 requests and
-                                         # tripped 429 at 0.5s AND at 6s
-    backoff_min: 3600                    # after a 429, no early retry: wait for the next hourly
-                                         # poll (= the interval). Normal polls are
-                                         # now 2-3 requests (incremental), so a 429 should mostly
-                                         # come from the 12-hourly full sweep. On 2026-09-18 six of
-                                         # seven 30-min retries
-                                         # were throttled again within ~4 requests (the one that
-                                         # waited 34 min finished), and retrying early only spends
-                                         # the quota and invites a block on a shared Eightfold IP.
-                                         # once the hour's quota was spent. Two-hourly, slow,
-                                         # and the persisted backoff absorbs the rest.
-    incremental: true                    # pcsx sort_by=timestamp: newest pages only (2-3 requests),
-    full_sweep: 43200                    # a complete sweep every 12h to retire closed reqs
+    page_delay: 6.0                      # Eightfold rate-limits by volume, not spacing
+    # Microsoft's quota is small: a 23-request full sweep tripped 429 at 0.5s
+    # and at 6s between requests, and 30-min retries kept it drained (six of
+    # seven throttled again on 2026-09-18). So, since that day:
+    incremental: true                    # newest pages only (pcsx sort_by=timestamp): 2-3 requests
+    interval: 3600                       # hourly, now that a poll is that cheap
+    full_sweep: 43200                    # a complete sweep every 12h retires closed reqs
+    backoff_min: 3600                    # after a 429 no early retry: just the next hourly poll
   amazon:
     ats: amazon
     countries: [IND]                     # 2325 open India reqs, 100 rows/page
