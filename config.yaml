@@ -616,3 +616,30 @@ companies:
     token: commerceiq                    # 15 postings, 8 in India (Bengaluru, Chennai), on 2026-09-18
     # Found by slug, then confirmed: the board names itself "CommerceIQ" and its
     # rows are Bengaluru and Mountain View. Job link verified (200, title shown).
+  americanexpress:
+    ats: oracle                          # Oracle Recruiting Cloud behind careers.americanexpress.com
+    host: egug.fa.us2.oraclecloud.com    # the custom domain rejects the API; its pages name this pod
+    site: CX_1
+    locations: [India]                   # 54 India reqs on 2026-09-18, one request
+    # Job link verified in a browser: the pod URL renders the role, and so does
+    # careers.americanexpress.com/en/sites/CX_1/job/<id>.
+  bny:
+    ats: oracle
+    host: eofe.fa.us2.oraclecloud.com
+    site: BNY-Careers
+    locations: [India]                   # 180 India reqs on 2026-09-18, one request
+    # From a live posting URL. Job link verified (200, title shown).
+  visa:
+    ats: workday
+    tenant: visa
+    shard: wd5
+    sites: [Visa]                        # 792 postings, 78 in India, on 2026-09-18 ≈ 40 requests/sweep
+    # From a live posting URL. Job link verified (200, title shown).
+  akamai:
+    ats: blocked
+    blocked: dynamic-challenge
+    # jobs.akamai.com (Oracle CX_1 behind Akamai's own edge) answers "Access
+    # Denied" (Server: AkamaiGHost) to automated clients, even for the plain
+    # careers page, so the Oracle pod behind it cannot be read off the page.
+    # Bot protection is not worked around here.
+    note: "jobs.akamai.com: Akamai edge 'Access Denied' to automated clients"
