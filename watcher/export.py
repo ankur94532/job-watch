@@ -1,10 +1,10 @@
-"""Render the store to static files for the read-only phone view.
+"""Render the store for the read-only phone view and its KV snapshot.
 
-Job data is inert: an index plus one file per company, and a page that reads
-them. The only writer of job data is this laptop pushing a commit. The one
-write path on the site is `functions/api/state.js`, a Cloudflare Pages Function
-that syncs the reader's ticks between devices, behind Cloudflare Access; it
-never sees the store.
+The local export is an index plus one file per company. Publishing combines
+those files into one KV value; a Pages Function returns only the requested
+slice. The only writer of job data is this laptop. A separate Function syncs
+the reader's ticks between devices, behind Cloudflare Access; neither Function
+can reach the store.
 
 Layout:
 
@@ -36,6 +36,8 @@ SITE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "site")
 SITE_FILES = (
     "index.html", "app.css", "app.js",
     "functions/api/state.js",   # cross-device tick sync (Cloudflare Pages Function)
+    "functions/api/jobs.js",    # current job snapshot, read from KV
+    "functions/_lib/access.js", # shared Access JWT verification
     "_routes.json",             # only /api/* runs the function; pages stay static
 )
 INDEX_FILE = "jobs.json"
@@ -166,6 +168,28 @@ def write(cfg, store, out_dir, now=None):
     log.info("exported %d open matching reqs across %d companies to %s",
              len(jobs), len(by_company), out_dir)
     return written, blob
+
+
+def snapshot_blob(out_dir, index_blob):
+    """One KV value containing the index and every company shard.
+
+    The browser still asks for only the index or one company at a time; the
+    Pages Function selects that part before responding. One value makes every
+    successful 15-minute refresh exactly one KV write instead of one write per
+    company (the free plan counts writes per key).
+    """
+    index = json.loads(index_blob)
+    companies = {}
+    data_dir = os.path.join(out_dir, "data")
+    for entry in index.get("companies") or []:
+        name = entry.get("file") or ""
+        # The exporter generated these names itself, but keep this boundary
+        # explicit: config or index data must never turn into arbitrary reads.
+        if name != os.path.basename(name) or not name.endswith(".json"):
+            raise ValueError(f"invalid company shard {name!r}")
+        with open(os.path.join(data_dir, name), "rb") as f:
+            companies[name] = json.load(f)
+    return dumps({"v": 1, "index": index, "companies": companies})
 
 
 def dumps(obj):

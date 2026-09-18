@@ -12,7 +12,8 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { onRequest } from "../watcher/site/functions/api/state.js";
+import { onRequest as stateRequest } from "../watcher/site/functions/api/state.js";
+import { onRequest as jobsRequest } from "../watcher/site/functions/api/jobs.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(here, "..", "docs");
@@ -40,6 +41,11 @@ async function accessToken() {
 }
 
 const store = new Map();
+const index = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "jobs.json")));
+const companies = Object.fromEntries(index.companies.map((c) => [
+  c.file, JSON.parse(fs.readFileSync(path.join(ROOT, "data", c.file))),
+]));
+store.set("site:snapshot", JSON.stringify({ v: 1, index, companies }));
 const env = {
   ACCESS_TEAM: TEAM,
   STATE: {
@@ -60,7 +66,8 @@ http.createServer(async (req, res) => {
     }
     const body = await new Promise((ok) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => ok(b)); });
     const headers = new Headers({ "Cf-Access-Jwt-Assertion": await accessToken() });
-    const r = await onRequest({ env, request: new Request(url, { method: req.method, headers,
+    const handler = url.pathname === "/api/jobs" ? jobsRequest : stateRequest;
+    const r = await handler({ env, request: new Request(url, { method: req.method, headers,
       body: ["GET", "HEAD"].includes(req.method) ? undefined : body }) });
     res.writeHead(r.status, Object.fromEntries(r.headers));
     res.end(await r.text());

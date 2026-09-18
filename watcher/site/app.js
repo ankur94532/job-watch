@@ -1,13 +1,15 @@
-/* Read-only view over data/. No framework, no build step, no network beyond this
-   origin. Two screens, routed on the hash so Back works and a company can be
+/* Read-only view over the current job snapshot. No framework, no build step,
+   and no network beyond this origin. Two screens, routed on the hash so Back works and a company can be
    bookmarked:
 
      #/            companies: new since you last opened them first, then A–Z
      #/c/<slug>    that company's open matching reqs, newest poll first
      #/new         everything unseen, across companies
 
-   The home screen reads only data/jobs.json (a few KB). A company screen fetches
-   only that company's file and renders it a page at a time — a phone should not
+   Online, the snapshot is read from KV through api/jobs; the watcher updates
+   that one KV value without deploying the website again. The home screen asks
+   only for the index. A company screen asks only for that company's rows and renders
+   them a page at a time — a phone should not
    be handed 900 rows to scroll, nor a 270KB download to read twenty.
 
    Opening index.html from disk against a local data/ works exactly like the
@@ -36,10 +38,11 @@ var SCROLL_KEY = "jobwatch:homeScroll"; // sessionStorage: survives this tab rel
 
 var REFRESH_EVERY = 60000;        // how often to re-check the index while you are reading
 var SYNC_URL = "api/state";
+var JOBS_URL = "api/jobs";
 var SYNC_DELAY = 800;             // coalesce a burst of ticks into one request
 
 var state = {
-  index: null,        // data/jobs.json
+  index: null,        // api/jobs online; data/jobs.json from a local file
   pending: null,      // a newer index, fetched but NOT applied until you tap
   view: "home",       // "home" | "company" | "new"
   company: null,      // index entry when view === "company"
@@ -442,12 +445,24 @@ function getJSON(url) {
   });
 }
 
+/* A file:// copy remains self-contained for offline inspection. The deployed
+   copy reads KV through the Pages Function, so every poll is fresh without a
+   Pages deployment. Local HTTP test servers implement the same API shape. */
+function indexURL() {
+  return window.location.protocol === "file:" ? "data/jobs.json" : JOBS_URL;
+}
+function companyURL(entry) {
+  return window.location.protocol === "file:"
+    ? "data/" + entry.file
+    : JOBS_URL + "?file=" + encodeURIComponent(entry.file);
+}
+
 /* A poll can land while you are reading. Replacing the list under your thumb
    would move the row you were about to tap, so a newer index is fetched,
    parked, and announced — you decide when it lands. */
 function checkForUpdates() {
   if (!state.index || (typeof document !== "undefined" && document.hidden === true)) return;
-  getJSON("data/jobs.json").then(function (fresh) {
+  getJSON(indexURL()).then(function (fresh) {
     var mine = state.index.polled_at || state.index.generated_at || 0;
     var theirs = fresh.polled_at || fresh.generated_at || 0;
     if (theirs > mine) {
@@ -478,7 +493,7 @@ function applyUpdate() {
 
 function loadCompany(entry) {
   if (state.cache[entry.file]) return Promise.resolve(state.cache[entry.file]);
-  return getJSON("data/" + entry.file).then(function (d) {
+  return getJSON(companyURL(entry)).then(function (d) {
     state.cache[entry.file] = d.jobs || [];
     pruneTicked(entry.company, state.cache[entry.file]);
     return state.cache[entry.file];
@@ -882,7 +897,7 @@ function start() {
     syncNow().then(function (changed) { if (changed) render(); });
   });
 
-  getJSON("data/jobs.json").then(function (index) {
+  getJSON(indexURL()).then(function (index) {
     state.index = index;
     /* First ever visit: there is no "already seen", and badging every row would
        make the marker meaningless. Mark through the newest poll, count from the next. */

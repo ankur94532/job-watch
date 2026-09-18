@@ -20,6 +20,7 @@ import re
 import socketserver
 import sys
 import threading
+import urllib.parse
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "docs")
 PORT = 8791
@@ -38,6 +39,28 @@ def serve():
     class Quiet(http.server.SimpleHTTPRequestHandler):
         def log_message(self, *a):
             pass
+
+        def do_GET(self):
+            url = urllib.parse.urlsplit(self.path)
+            if url.path == "/api/jobs":
+                query = urllib.parse.parse_qs(url.query)
+                name = (query.get("file") or ["jobs.json"])[0]
+                if name != os.path.basename(name) or not name.endswith(".json"):
+                    self.send_error(404)
+                    return
+                path = os.path.join(ROOT, "data", name)
+                if not os.path.isfile(path):
+                    self.send_error(404)
+                    return
+                with open(path, "rb") as f:
+                    body = f.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
+            super().do_GET()
 
     socketserver.TCPServer.allow_reuse_address = True    # back-to-back runs: TIME_WAIT
     httpd = socketserver.TCPServer(("127.0.0.1", PORT), Quiet)

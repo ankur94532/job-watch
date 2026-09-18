@@ -57,6 +57,7 @@ def export_settings(cfg):
     e.setdefault("branch", "site")
     e.setdefault("remote", "origin")
     e.setdefault("deploy", "git")          # "direct": wrangler upload, no Cloudflare build
+    e.setdefault("data", "static")         # "kv": refresh jobs without a site deployment
     return e
 
 

@@ -334,12 +334,9 @@ def _export(cfg, store, clock):
     if not settings.get("publish"):
         return f"exported to {out}"
     repo = os.path.abspath(settings.get("repo") or os.path.dirname(out) or ".")
-    status = publish_mod.publish_quietly(
-        repo, out, files, blob, os.path.join(os.path.dirname(store.path), "export.sha256"),
-        branch=settings["branch"], remote=settings["remote"],
-        deploy=settings["deploy"], project=settings.get("project"), wrangler=settings.get("wrangler"),
-        message=f"site: update {time.strftime('%Y-%m-%d %H:%M')}",
-    )
+    status = publish_mod.publish_export(
+        repo, out, files, blob, os.path.dirname(store.path), settings,
+        message=f"site: update {time.strftime('%Y-%m-%d %H:%M')}")
     log.info("site: %s", status)
     return status
 

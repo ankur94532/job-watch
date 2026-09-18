@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { test, beforeEach } from "node:test";
 import { onRequest, merge, normalise, resetKeyCache } from "../watcher/site/functions/api/state.js";
+import { onRequest as jobsRequest } from "../watcher/site/functions/api/jobs.js";
 
 const TEAM = "https://team.example.cloudflareaccess.com";
 const { publicKey, privateKey } = await crypto.subtle.generateKey(
@@ -34,6 +35,13 @@ async function call(e, method, body, tok) {
   const r = await onRequest({ env: e, request: new Request("https://x/api/state",
     { method, headers, body: body && JSON.stringify(body) }) });
   return { status: r.status, body: await r.json() };
+}
+
+async function jobs(e, query, tok, method = "GET") {
+  const headers = tok ? { "Cf-Access-Jwt-Assertion": tok } : {};
+  const r = await jobsRequest({ env: e, request: new Request("https://x/api/jobs" + (query || ""),
+    { method, headers }) });
+  return { status: r.status, body: await r.json(), cache: r.headers.get("cache-control") };
 }
 
 beforeEach(resetKeyCache);
@@ -110,4 +118,28 @@ test("a sync with nothing new reads but does not write (free tier: 1,000 writes 
   assert.equal(e.STATE.puts, 1);
   await call(e, "PUT", { ticks: { "acme|3": [1, 3000] } }, t);    // something actually new
   assert.equal(e.STATE.puts, 2);
+});
+
+test("job snapshot serves the index and one requested company", async () => {
+  const e = env(), t = await token();
+  const snapshot = { v: 1, index: { count: 1, companies: [{ company: "acme", file: "acme.json" }] },
+    companies: { "acme.json": { company: "acme", count: 1, jobs: [{ job_id: "1" }] } } };
+  e.STATE.m.set("site:snapshot", JSON.stringify(snapshot));
+  const index = await jobs(e, "", t);
+  assert.equal(index.status, 200);
+  assert.equal(index.body.count, 1);
+  assert.equal(index.cache, "no-store");
+  const company = await jobs(e, "?file=acme.json", t);
+  assert.equal(company.status, 200);
+  assert.deepEqual(company.body.jobs, [{ job_id: "1" }]);
+});
+
+test("job snapshot fails closed and rejects unknown companies", async () => {
+  const e = env(), t = await token();
+  assert.equal((await jobs(e, "", null)).status, 401);
+  assert.equal((await jobs(e, "", t)).status, 503);
+  e.STATE.m.set("site:snapshot", JSON.stringify({ v: 1, index: {}, companies: {} }));
+  assert.equal((await jobs(e, "?file=../secret.json", t)).status, 404);
+  assert.equal((await jobs(e, "?file=missing.json", t)).status, 404);
+  assert.equal((await jobs(e, "", t, "PUT")).status, 405);
 });

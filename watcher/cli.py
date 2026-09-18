@@ -219,10 +219,8 @@ def cmd_export(args):
     print(f"{len(files)} files, {len(blob)} bytes of JSON -> {out}", file=sys.stderr)
     if args.publish:
         repo = os.path.abspath(settings.get("repo") or os.path.dirname(out) or ".")
-        status = publish_mod.publish_quietly(
-            repo, out, files, blob, os.path.join(os.path.dirname(args.db), "export.sha256"),
-            branch=settings["branch"], remote=settings["remote"],
-            deploy=settings["deploy"], project=settings.get("project"), wrangler=settings.get("wrangler"),
+        status = publish_mod.publish_export(
+            repo, out, files, blob, os.path.dirname(args.db), settings,
             message=f"site: update {time.strftime('%Y-%m-%d %H:%M')}")
         print(f"publish: {status}", file=sys.stderr)
     return 0

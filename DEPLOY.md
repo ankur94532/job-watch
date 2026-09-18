@@ -158,14 +158,13 @@ exactly like a company with no openings.
 ## Phone view (Cloudflare Pages)
 
 A page of open matching reqs, browsable from anywhere, with the laptop switched
-off. **The job data is static files** — no server behind it and no refresh
-button that calls anything. A visitor cannot trigger a poll, touch the store or
-reach this machine; the only writer of job data is this laptop uploading the
-finished static files.
+off. The laptop writes one pre-rendered job snapshot to Workers KV after each
+successful run. A visitor cannot trigger a poll, touch the store or reach this
+machine; the Pages Function only reads that snapshot.
 
-The one exception is **tick sync** (below): a single Pages Function,
-`functions/api/state.js`, that stores what you ticked so the phone and the
-laptop agree. It never sees the store, and it sits behind the same Access login.
+The same KV namespace holds **tick sync** (below), under separate keys, so the
+phone and laptop agree about what you ticked. Both API functions sit behind the
+same Access login and verify its signed assertion themselves.
 
 `watcher run` renders it after any successful run:
 
@@ -187,7 +186,7 @@ open docs/index.html           # works straight from disk, against local data
    ```
 
    In Cloudflare, create a custom API token with Account / Cloudflare Pages /
-   Edit and Account / Workers KV Storage / Read. Put `CLOUDFLARE_API_TOKEN` and
+   Edit and Account / Workers KV Storage / Edit. Put `CLOUDFLARE_API_TOKEN` and
    `CLOUDFLARE_ACCOUNT_ID` in the gitignored `deploy/jobswatch.env`, then run
    `make install` so launchd receives them.
 
@@ -215,13 +214,16 @@ open docs/index.html           # works straight from disk, against local data
      out: docs
      publish: true
      deploy: direct
+     data: kv
      project: <project>
      kv_state: <KV namespace ID>
      url: https://<project>.pages.dev/
    ```
 
-Run `make site` once. Each later successful watcher run renders and uploads a
-new production deployment. `docs/` and Wrangler's local cache are gitignored.
+Run `make site` once. Each later successful watcher run updates one
+`site:snapshot` KV value. Pages receives a new production deployment only when
+the HTML, JavaScript, Functions or deployment configuration changes. `docs/`
+and Wrangler's local cache are gitignored.
 
 ### Tick sync (one-time setup)
 
@@ -252,24 +254,25 @@ function behind a fake Access (`devtools/pages_dev.mjs`).
 
 ### What gets published
 
-`data/jobs.json` (a company index) plus one `data/<company>.json` per company,
-and `index.html`, `app.css`, `app.js`. The home screen downloads only the index —
-3.5KB for 45 companies — and opening one company fetches just that file (~11KB),
-rendered 25 rows at a time. The payload holds only
+The local export contains `data/jobs.json` (a company index) plus one
+`data/<company>.json` per company. The KV publisher combines those into one
+snapshot write; `/api/jobs` returns only the index or the one requested company,
+rendered 25 rows at a time. The Pages deployment contains the UI and Functions,
+not the changing job data. The payload holds only
 open, currently-matching requisitions and only these fields: company, title,
 location, url, req_id, first_seen, last_seen, ats — plus `generated_at` and the
 count of companies watched. Never the config, the Telegram token, backoff state,
-error text, or raw ATS payloads. Today that is 884 rows across 45 files, 376KB in total, of which a phone
-downloads 3.5KB to open the app.
+error text, or raw ATS payloads.
 
-Pushes are skipped when the payload is byte-identical to the last one, which is
-most runs. A push failure is logged and the run continues — waking with no wifi
-is normal.
+One snapshot key means about 96 writes a day at a 15-minute schedule, under the
+free KV allowance of 1,000 writes/day. An unchanged site-code deployment is
+skipped. A publish failure is logged and the poll still remains recorded —
+waking with no wifi is normal.
 
 ### The page
 
 Mobile-first, no framework, no third-party requests at all: no CDN, no web
-fonts, no analytics. While the page is open it re-checks the 3.5KB index once a
+fonts, no analytics. While the page is open it re-checks the small index once a
 minute (and whenever you return to the tab). A poll that lands mid-read is
 **parked, not applied**: a "↻ 3 new roles — tap to load" pill appears and the
 list under your thumb does not move until you tap it. Tapping keeps your filter
@@ -281,7 +284,7 @@ company's list and stays gone across reloads, with a "Show ticked" toggle to get
 it back — and a **copy-req-id button per row**, since retyping a requisition ID into a referral
 request from a phone is the actual friction. Rows first seen since your last
 visit are badged NEW (`localStorage`, wrapped in try/catch, renders fine when
-empty or blocked, and synced across devices as above). `generated_at` shows as "updated 3h ago", and past 24h the
+empty or blocked, and synced across devices as above). `polled_at` shows as "checked 3m ago", and past 24h the
 page says so in a banner — a stale dashboard that looks live is worse than none,
 and a shut laptop is the normal reason.
 

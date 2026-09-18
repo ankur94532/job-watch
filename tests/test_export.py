@@ -94,7 +94,8 @@ class Collect(unittest.TestCase):
             # (tick sync, behind Access). Anything new here has to be added on purpose.
             self.assertEqual(sorted(os.path.relpath(f, d) for f in files),
                              ["_routes.json", "app.css", "app.js", "data/acme.json", "data/globex.json",
-                              "data/jobs.json", "functions/api/state.js", "index.html"])
+                              "data/jobs.json", "functions/_lib/access.js", "functions/api/jobs.js",
+                              "functions/api/state.js", "index.html"])
             page = open(os.path.join(d, "index.html")).read()
             self.assertIn('name="robots" content="noindex, nofollow"', page)
             self.assertNotIn("http://", page.replace('http://www.w3.org', ''))   # no third-party
@@ -131,6 +132,15 @@ class Collect(unittest.TestCase):
             only_acme = [r for r in self.rows() if r["company"] == "acme"]
             export.write(CFG, FakeStore(only_acme), d, now=1000)
             self.assertEqual(sorted(os.listdir(os.path.join(d, "data"))), ["acme.json", "jobs.json"])
+
+    def test_snapshot_is_one_value_with_index_and_company_shards(self):
+        with tempfile.TemporaryDirectory() as d:
+            _, blob = export.write(CFG, FakeStore(self.rows()), d, now=1000)
+            snapshot = json.loads(export.snapshot_blob(d, blob))
+            self.assertEqual(snapshot["v"], 1)
+            self.assertEqual(snapshot["index"], json.loads(blob))
+            self.assertEqual(sorted(snapshot["companies"]), ["acme.json", "globex.json"])
+            self.assertEqual(snapshot["companies"]["acme.json"]["jobs"][0]["job_id"], "1")
 
 
 class Publish(unittest.TestCase):
@@ -302,3 +312,48 @@ class DirectUpload(unittest.TestCase):
         self.assertIn('name = "job-watch-live"', toml)
         self.assertIn('binding = "STATE"', toml)
         self.assertIn('id = "abc"', toml)
+
+
+class KVSnapshot(unittest.TestCase):
+    class Response:
+        def __init__(self, body=b'{"success":true}'):
+            self.body = body
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+        def read(self):
+            return self.body
+
+    def test_one_put_writes_the_whole_snapshot(self):
+        seen = {}
+        def open_(req, timeout):
+            seen.update(url=req.full_url, body=req.data, auth=req.get_header("Authorization"), timeout=timeout)
+            return self.Response()
+        blob = b'{"v":1,"index":{},"companies":{}}\n'
+        size = publish.publish_snapshot(blob, "acct", "namespace", token="secret", opener=open_)
+        self.assertEqual(size, len(blob))
+        self.assertIn("/accounts/acct/storage/kv/namespaces/namespace/values/site%3Asnapshot", seen["url"])
+        self.assertEqual(seen["body"], blob)
+        self.assertEqual(seen["auth"], "Bearer secret")
+
+    def test_kv_data_is_excluded_from_code_deployments(self):
+        settings = {"data": "kv", "branch": "main", "remote": "origin", "deploy": "direct",
+                    "project": "p", "kv_state": "ns"}
+        with tempfile.TemporaryDirectory() as d:
+            data = os.path.join(d, "data")
+            os.makedirs(data)
+            index = os.path.join(data, "jobs.json")
+            company = os.path.join(data, "acme.json")
+            page = os.path.join(d, "index.html")
+            open(index, "w").write('{"companies":[{"file":"acme.json"}]}')
+            open(company, "w").write('{"jobs":[]}')
+            open(page, "w").write("page")
+            blob = open(index, "rb").read()
+            with mock.patch.object(publish, "publish_snapshot_quietly", return_value="snapshot updated (1 KiB)"), \
+                 mock.patch.object(publish, "publish_quietly", return_value="unchanged") as site:
+                status = publish.publish_export(d, d, [index, company, page], blob, d, settings)
+            self.assertIn("snapshot updated", status)
+            args = site.call_args.args
+            self.assertEqual(args[2], [page])
+            self.assertEqual(args[3], b"")
