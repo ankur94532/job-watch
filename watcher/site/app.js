@@ -234,15 +234,21 @@ function countsAsUnseen(job) { return isNew(job) && !isTicked(job); }
 
    Derived from the tick keys rather than stored alongside them, so the count
    can never disagree with the ticks themselves. The home screen only has the
-   index (no job ids), so it counts keys by their "company|" prefix. */
-function tickedCountFor(company) {
-  var prefix = company + "|", n = 0;
+   index, which lists each company's open job ids for exactly this. */
+function tickedCountFor(c) {
+  /* Only ticks on jobs that are open NOW. A tick outlives its job: counted by
+     "company|" prefix alone, ticks on closed jobs were subtracted too, and a
+     company with one job left read "0 unticked of 29" until you opened it. */
+  if (c.ids) {
+    return c.ids.filter(function (id) { return state.ticked[c.company + "|" + id] === 1; }).length;
+  }
+  var prefix = c.company + "|", n = 0;         // an index exported before ids were added
   for (var k in state.ticked) {
     if (Object.prototype.hasOwnProperty.call(state.ticked, k) && k.lastIndexOf(prefix, 0) === 0) n++;
   }
   return n;
 }
-function unticked(c) { return Math.max(0, (c.count || 0) - tickedCountFor(c.company)); }
+function unticked(c) { return Math.max(0, (c.count || 0) - tickedCountFor(c)); }
 
 /* A job you ticked and that later closed leaves its key behind for ever, and
    the home count would drift below the real number of open roles. Whenever a

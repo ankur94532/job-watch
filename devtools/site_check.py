@@ -225,6 +225,16 @@ def main():
         p.wait_for_selector(".company-row")
         check("the unticked count survives a reload", row_meta(p, first) == meta)
 
+        # A tick on a job that has since CLOSED must not count: the home screen
+        # used to subtract every stored tick and read "0 unticked of 29".
+        p.evaluate("""(nm) => { const t = JSON.parse(localStorage.getItem('jobwatch:tickLog') || '{}');
+            t[nm + '|long-closed-1'] = [1, Date.now()]; t[nm + '|long-closed-2'] = [1, Date.now()];
+            localStorage.setItem('jobwatch:tickLog', JSON.stringify(t)); }""", first)
+        p.reload(wait_until="networkidle")
+        p.wait_for_selector(".company-row")
+        check("ticks on closed jobs do not reduce the unticked count", row_meta(p, first) == meta,
+              "%r vs %r" % (row_meta(p, first), meta))
+
         b.close()
 
     print()

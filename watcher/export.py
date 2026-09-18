@@ -101,6 +101,11 @@ def index_payload(jobs, watched, now, polled_at=None, site_url=None):
             # and badges on, without fetching a single company file.
             "newest": max(r["first_seen"] or 0 for r in rows),
             "file": shard_name(company),
+            # The open job ids, so the home screen can count what is still
+            # unticked exactly. Without them it subtracted every stored tick,
+            # including ticks on jobs that had since closed, and a company with
+            # one job left could read "0 unticked of 29" until it was opened.
+            "ids": [r["job_id"] for r in rows],
         })
     companies.sort(key=lambda c: (-c["newest"], c["company"]))
     body = {
