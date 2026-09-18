@@ -310,3 +310,36 @@ See `config.yaml` for the live config; each entry carries the date it was
 verified. Companies resolving to an ATS with no adapter (iCIMS, Eightfold,
 Avature/Radancy, SuccessFactors, Rippling's own ATS, self-hosted boards) are
 recorded as `ats: unsupported` with a note and skipped at runtime.
+
+## Verifying the job URL, not just the feed
+
+A feed can be perfectly correct while every link it produces is dead. Quadeye
+shipped that way: the rows were right, and `url` was built from the wrong
+identifier, so all 26 links 404'd.
+
+Rules that came out of it:
+
+1. **Prefer a URL the payload gives you.** `absolute_url`, `hostedUrl`,
+   `jobUrl`, `url_comeet_hosted_page` — if the publisher hands you a permalink,
+   use it. Most adapters here do, and none of those broke.
+2. **If you must build one, build it from the identifier the route uses.** That
+   is not always the requisition number a human sees. Quadeye's route keys on
+   the Zoho record `id` (`199893000000440465`), not `Job_Opening_ID`
+   (`ZR_18_JOB`), and the two look equally plausible in the payload.
+3. **Never synthesise a URL shape you have not opened.** Guessing a permalink is
+   the same failure as guessing a board slug, which `detect` already refuses.
+4. **On an SPA, the status code lies.** quadeye.com returns HTTP 200 for every
+   path and draws "PAGE NOT FOUND" client-side. `curl -o /dev/null -w '%{http_code}'`
+   says 200 for a link that is completely dead. Render the page and look for the
+   title before believing it.
+5. **A 404 on a closed req is normal.** Amazon and DocuSign both 404 postings
+   that have left the feed. That is correct behaviour, not a bug — the export
+   only publishes currently-open reqs, so those links never reach the phone.
+   Check a job that is *currently in the feed* before concluding anything.
+
+Audited 2026-09-18: one live URL per adapter, all 19 types. Every 404 traced to
+a closed requisition except Quadeye's, which was the real bug.
+
+Note that a fix here cannot reach the database on its own: boards that answer
+**304 re-derive nothing**, so the corrected code never runs against the stored
+rows. Follow an adapter change with `watcher seed --company <name> --refetch`.
