@@ -8,12 +8,12 @@ from .comeet import ComeetAdapter
 from .gem import GemAdapter
 from .goldman import GoldmanAdapter
 from .greenhouse import GreenhouseAdapter
-from .html import MediaNetAdapter, SkimaAdapter
+from .html import KulaAdapter, MediaNetAdapter, SkimaAdapter
 from .jibe import JibeAdapter
 from .lever import LeverAdapter
 from .oracle import OracleAdapter
 from .ownfeed import DEShawAdapter, QuadeyeAdapter
-from .radancy import RadancyAdapter
+from .radancy import RadancyAdapter, SitemapAdapter
 from .rippling import RipplingAdapter
 from .smartrecruiters import SmartRecruitersAdapter
 from .spire2grow import Spire2GrowAdapter
@@ -31,7 +31,9 @@ ADAPTERS = {
         # server-rendered pages whose search state is embedded JSON
         AppleAdapter, GoogleAdapter, QuadeyeAdapter, DEShawAdapter, GemAdapter, ComeetAdapter,
         # careers pages with no job API: parsed from the HTML (see adapters/html.py)
-        MediaNetAdapter, SkimaAdapter,
+        MediaNetAdapter, SkimaAdapter, KulaAdapter,
+        # careers sites read from the job sitemap they publish for crawlers
+        SitemapAdapter,
     )
 }
 

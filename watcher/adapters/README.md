@@ -314,6 +314,21 @@ listing, `/results`, is disallowed); `api-higher.gs.com` has no robots.txt.
 something went wrong". Relevance order, so pages are deduplicated and the
 count is held against `totalCount` (below 95% raises rather than retiring).
 
+## Kula (Slice) and job sitemaps (Wise)
+
+* **Kula** (`careers.kula.ai/<account>`): the careers page fetches
+  `/api/internal/ats_job_posts`, but Kula's robots.txt says `Disallow: /api/`.
+  The listing page is allowed and server-renders every job, so `KulaAdapter`
+  (in `html.py`, with the HTML-adapter safeguards) reads that. Its CSS classes
+  are generated hashes, so cards are read structurally; `declared` is the count
+  of distinct job links, an independent selector. Job URLs have no trailing
+  slash: `/slice/50594/` answers 308.
+* **Sitemaps**: `SitemapAdapter` is the Radancy reader with the URL shape from
+  config (`job_url`, named groups `slug`, `city`, `req`). Wise publishes
+  `vacanciessitemap.xml` (named in its robots.txt, which disallows the paged
+  `/jobs?...` listing); `/job/<title>-in-<city>-jid-<id>` splits on the LAST
+  `-in-`, so "specialist-in-payments-...-in-sao-paulo" keeps its title.
+
 ## HTML adapters (Media.net, Skima / Nykaa)
 
 `adapters/html.py`, for careers pages with no job API at all. The failure to

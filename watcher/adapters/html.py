@@ -160,3 +160,48 @@ class SkimaAdapter(Adapter):
                 location=location, remote=workplace.lower() == "remote",
                 posted_at="", url=self.base() + uuid, req_id="",
             ))
+
+
+class KulaAdapter(Adapter):
+    """Kula careers pages (careers.kula.ai/<account>): Slice.
+
+    The page's own data comes from careers.kula.ai/api/..., which robots.txt
+    disallows (`Disallow: /api/`). The listing page itself is allowed and is
+    server-rendered with every job, so it is read instead. Its CSS class names
+    are generated hashes that change on any rebuild, so nothing keys on them:
+    each "chakra-card" is read structurally -- the job link's id, then its
+    <p> texts in order: title, location, "Full Time • On-Site".
+
+    `declared` here is the number of distinct job links on the page, found by a
+    second, independent selector: if the card reader and the link reader stop
+    agreeing, one of them broke.
+    """
+
+    ats = "kula"
+    required = ("account",)
+    html = True
+
+    def base(self):
+        return f"https://careers.kula.ai/{self.cfg['account']}"
+
+    def fetch(self, ctx=None):
+        page = self.http.get_text(self.base() + "?jobs=true")
+        if "chakra-" not in page:
+            raise AdapterError(f"{self.company}: layout changed — no Kula (Chakra UI) markup on {self.base()}")
+        link = re.compile(r'href="/' + re.escape(self.cfg["account"]) + r'/(\d+)/?[?"]')
+        declared = len(set(link.findall(page)))
+        out, seen = [], set()
+        for card in page.split('<div class="chakra-card')[1:]:
+            ids = link.findall(card)
+            texts = [text(t) for t in re.findall(r'<p class="chakra-text[^"]*">(.*?)</p>', card, re.S)]
+            if not ids or not texts or ids[0] in seen:
+                continue
+            seen.add(ids[0])
+            location = texts[1] if len(texts) > 1 else ""
+            kind = texts[2] if len(texts) > 2 else ""
+            out.append(Posting(
+                company=self.company, ats=self.ats, job_id=ids[0], title=texts[0], location=location,
+                remote="remote" in (location + " " + kind).lower(), posted_at="",
+                url=f"{self.base()}/{ids[0]}", req_id=ids[0],     # no trailing slash: that one 308s
+            ))
+        return FetchResult(out, declared=declared)

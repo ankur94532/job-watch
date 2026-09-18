@@ -116,5 +116,55 @@ class Skima(unittest.TestCase):
         self.assertIn(("GET", "https://mccafe.skima.ai/?page=2", None), a.http.calls)
 
 
+
+class Kula(unittest.TestCase):
+    """careers.kula.ai/slice, saved 2026-09-18 and cut to its first three cards."""
+
+    URL = "https://careers.kula.ai/slice?jobs=true"
+
+    def fetch(self, html):
+        a = build_adapter("slice", {"ats": "kula", "account": "slice"}, http=FakeHttp({self.URL: html}), page_delay=0)
+        return a.fetch()
+
+    def test_cards_are_read_by_structure(self):
+        res = self.fetch(page("kula_slice.html"))
+        self.assertEqual((len(res.postings), res.declared), (3, 3))
+        first = res.postings[0]
+        self.assertEqual(first.title, "SDE 2 - Backend")
+        self.assertEqual(first.location, "Bengaluru, Karnataka, India")
+        self.assertEqual(first.url, "https://careers.kula.ai/slice/50594")    # a trailing slash 308s
+
+    def test_a_card_reader_that_breaks_disagrees_with_the_link_count(self):
+        html = page("kula_slice.html").replace('<p class="chakra-text', '<p class="kula-text')
+        res = self.fetch(html)
+        self.assertEqual(res.postings, [])
+        self.assertEqual(res.declared, 3)                                     # the links are still there
+
+    def test_no_kula_markup_at_all_is_a_layout_change(self):
+        with self.assertRaisesRegex(AdapterError, "layout changed"):
+            self.fetch("<html><body>maintenance</body></html>")
+
+
+class Sitemap(unittest.TestCase):
+    SM = "https://wise.jobs/vacanciessitemap.xml"
+    CFG = {"ats": "sitemap", "sitemap": SM,
+           "job_url": r"/job/(?P<slug>.+)-in-(?P<city>[a-z0-9-]+)-jid-(?P<req>\d+)/?$"}
+
+    def test_wise_job_urls_carry_title_and_city(self):
+        with open("tests/fixtures/wise_vacanciessitemap.xml", "rb") as f:
+            body = f.read()
+
+        class Http:
+            def request(self, method, url, headers=None):
+                assert url == Sitemap.SM
+                return body, {}
+        res = build_adapter("wise", self.CFG, http=Http()).fetch()
+        rows = {p.job_id: (p.title, p.location) for p in res.postings}
+        self.assertEqual(rows["4122"], ("Senior Software Engineer Backend", "Hyderabad"))
+        # A title containing "in": the LAST "-in-" splits title from city.
+        self.assertEqual(rows["4180"], ("Specialist In Payments Operations", "Sao Paulo"))
+        self.assertEqual(len(rows), 3)                                        # /about-us is not a job
+
+
 if __name__ == "__main__":
     unittest.main()

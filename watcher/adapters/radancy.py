@@ -53,9 +53,10 @@ class RadancyAdapter(Adapter):
             raise AdapterError(f"{self.company}: sitemap is not valid XML: {e}") from e
 
         out, seen = [], set()
+        pattern = self.job_url()
         for entry in root.iter(f"{SITEMAP_NS}url"):
             loc = entry.findtext(f"{SITEMAP_NS}loc") or ""
-            m = JOB_URL.search(loc)
+            m = pattern.search(loc)
             if not m or m.group("req") in seen:
                 continue
             seen.add(m.group("req"))
@@ -70,14 +71,36 @@ class RadancyAdapter(Adapter):
                     remote="remote" in m.group("city").lower(),
                     posted_at=lastmod,
                     url=loc,
-                    raw={"loc": loc, "lastmod": lastmod, "city": m.group("city"),
-                         "slug": m.group("slug"), "client": m.group("client")},
+                    raw={"loc": loc, "lastmod": lastmod, **m.groupdict()},
                     req_id=m.group("req"),
                 )
             )
         if not out:
             raise AdapterError(f"{self.company}: no job URLs in {url} — has the URL shape changed?")
         return FetchResult(out)
+
+
+    def job_url(self):
+        return JOB_URL
+
+
+class SitemapAdapter(RadancyAdapter):
+    """Any careers site whose sitemap lists job URLs that carry the title and city.
+
+    Same reading as Radancy, with the URL shape from config (`job_url`, a regex
+    with named groups slug, city and req). Wise: wise.jobs publishes
+    vacanciessitemap.xml, listed in its robots.txt, while its paged /jobs?...
+    listing is disallowed:
+
+        https://wise.jobs/job/senior-software-engineer-backend-in-hyderabad-jid-4122
+                              ^slug (greedy: the LAST "-in-" splits)  ^city   ^req
+    """
+
+    ats = "sitemap"
+    required = ("sitemap", "job_url")
+
+    def job_url(self):
+        return re.compile(self.cfg["job_url"])
 
 
 def unslug(slug):

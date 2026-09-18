@@ -643,3 +643,32 @@ companies:
     # careers page, so the Oracle pod behind it cannot be read off the page.
     # Bot protection is not worked around here.
     note: "jobs.akamai.com: Akamai edge 'Access Denied' to automated clients"
+  slice:
+    ats: kula                            # the Indian fintech (slice.bank.in), HTML adapter
+    account: slice
+    interval: 3600
+    # slice.bank.in/careers loads its list from careers.kula.ai/api/..., which
+    # Kula's robots.txt disallows. The listing page careers.kula.ai/slice is
+    # allowed and server-renders every job, so that is read (37 on 2026-09-18,
+    # 36 in India). NOT Greenhouse 'slice': that board is the US pizza-ordering
+    # company (Pristina, Skopje, New Jersey).
+  wise:
+    ats: sitemap                         # read from the vacancies sitemap Wise publishes for crawlers
+    sitemap: https://wise.jobs/vacanciessitemap.xml
+    job_url: /job/(?P<slug>.+)-in-(?P<city>[a-z0-9-]+)-jid-(?P<req>\d+)/?$
+    interval: 3600
+    # 419 jobs on 2026-09-18, 35 in Indian cities. wise.jobs disallows its paged
+    # /jobs?... listing in robots.txt and names this sitemap there. Titles and
+    # city come from the URL slug. NOT Greenhouse 'wise' ("Wise Worksite Field
+    # Sales", another company).
+  instabase:
+    ats: blocked
+    blocked: no-board
+    # 2026-09-18: instabase.com/careers/jobs links two Greenhouse jobs, and both
+    # are "Page not found"; Greenhouse says "the job board you were viewing is
+    # no longer active", and its API 404s. The careers page is stale.
+    note: "Greenhouse board inactive; careers page links dead jobs"
+    recheck:
+      - https://www.instabase.com/careers/jobs
+      - https://boards-api.greenhouse.io/v1/boards/instabase/jobs
+      - https://api.ashbyhq.com/posting-api/job-board/instabase
