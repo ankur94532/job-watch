@@ -21,12 +21,15 @@ defaults:
   # `run_budget` is the seconds multi-page sweeps (Workday, Amazon...) may use
   # per run; they pause on time and resume next run. Single-request boards may
   # run `overrun` seconds past it, so every due one is polled every run: the ~22
-  # Greenhouse boards share one host, hence one lane, and need ~65s. A run is
-  # typically ~70s and never more than budget + overrun (~170s), well inside
-  # the 15-minute interval. `parallel: 1` restores strictly serial polling.
+  # Greenhouse boards share one host, hence one lane, and need ~65s.
+  # 120s, not 50: at 50 the ~2,000-row Workday boards (walmart, nvidia,
+  # wellsfargo) got 60-300 rows a run and could not finish a sweep inside
+  # CURSOR_MAX_AGE (3h), so each restarted from zero and closed reqs were never
+  # retired. A run is typically ~2 min and never more than budget + overrun
+  # (~4 min), well inside the 15-minute interval. `parallel: 1` = serial.
   company_delay: 1.2
   page_delay: 0.5
-  run_budget: 50
+  run_budget: 120
   overrun: 120
   parallel: 8
 

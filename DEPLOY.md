@@ -112,7 +112,7 @@ Lines worth reacting to:
 | --- | --- |
 | `offline — skipping run` | woke before wifi associated. Expected, nothing lost, exit 0 |
 | `BACKED-OFF acme until …` | 403/429/5xx; that company is not being polled until then |
-| `partial … sweep resumes next run` | big Workday board hit the 50s budget; it continues where it stopped |
+| `partial … sweep resumes next run` | big Workday board hit the run budget; it continues where it stopped |
 | `deferred` | ran out of time this run, first in line next run |
 | `FAILED` | real error — bad config or a changed API |
 
@@ -126,7 +126,7 @@ Different hosts are polled in parallel (`parallel: 8`), because Greenhouse has
 no reason to wait on Workday; every board on a shared API (all Greenhouse boards
 are one host) still queues behind the others, and Workday tenants, which share
 clusters, run at most three at a time. `parallel: 1` makes it fully serial again.
-Multi-page sweeps stop at `run_budget` (50s) and resume next run; single-request
+Multi-page sweeps stop at `run_budget` (120s) and resume next run; single-request
 boards may run up to `overrun` (120s) past it, so all of them are polled every run.
 
 Greenhouse, Lever, Ashby and SmartRecruiters all answer `304 Not Modified` to a
