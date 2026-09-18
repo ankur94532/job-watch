@@ -611,3 +611,8 @@ companies:
     interval: 7200
     # Careers site shows Eightfold (also Radancy/SuccessFactors traces). Job
     # link verified (200, title shown).
+  commerceiq:
+    ats: greenhouse
+    token: commerceiq                    # 15 postings, 8 in India (Bengaluru, Chennai), on 2026-09-18
+    # Found by slug, then confirmed: the board names itself "CommerceIQ" and its
+    # rows are Bengaluru and Mountain View. Job link verified (200, title shown).
