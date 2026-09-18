@@ -75,6 +75,10 @@ companies:
   mongodb:
     ats: greenhouse
     token: mongodb                       # 411 postings, 76 in India
+  zscaler:
+    ats: greenhouse
+    token: zscaler                       # 366 postings; board self-reports "Zscaler",
+                                         # Mumbai/Bangalore rows present
   yugabyte:
     ats: greenhouse
     token: yugabyte                      # 14 postings, 6 in India
@@ -260,6 +264,13 @@ companies:
     ats: jibe
     host: careers.docusign.com           # iCIMS underneath, Jibe front end: 77 India of 245
     locations: [India]
+  eightfoldai:
+    ats: eightfold
+    host: app.eightfold.ai
+    domain: volkscience.com              # their own tenant is the pre-rebrand name,
+    locations: [India]                   # not eightfold.ai — found with `watcher trace`
+    page_delay: 6.0
+    interval: 7200
   microsoft:
     ats: eightfold
     host: apply.careers.microsoft.com
