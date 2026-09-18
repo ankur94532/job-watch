@@ -323,7 +323,8 @@ companies:
     # seven throttled again on 2026-09-18). So, since that day:
     incremental: true                    # newest pages only (pcsx sort_by=timestamp): 2-3 requests
     interval: 3600                       # hourly, now that a poll is that cheap
-    full_sweep: 43200                    # a complete sweep every 12h retires closed reqs
+    full_sweep: 86400                    # a complete sweep once a day retires closed reqs (a
+                                         # closed Microsoft job may linger up to a day)
     backoff_min: 3600                    # after a 429 no early retry: just the next hourly poll
   amazon:
     ats: amazon
