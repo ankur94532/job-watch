@@ -309,21 +309,28 @@ companies:
     domain: volkscience.com              # their own tenant is the pre-rebrand name,
     locations: [India]                   # not eightfold.ai — found with `watcher trace`
     page_delay: 6.0
-    interval: 7200
+    interval: 3600
+    incremental: true                    # pcsx sort_by=timestamp: newest pages only (2-3 requests),
+    full_sweep: 43200                    # a complete sweep every 12h to retire closed reqs
   microsoft:
     ats: eightfold
     host: apply.careers.microsoft.com
     domain: microsoft.com
     locations: [India]                   # 221 open India positions, 10 rows/page
     page_delay: 6.0                      # Eightfold rate-limits by volume, not spacing:
-    interval: 7200                       # 23 requests/sweep tripped 429 at 0.5s AND at 6s
-    backoff_min: 7200                    # after a 429, no early retry: wait for the next regular
-                                         # 2-hour slot. On 2026-09-18 six of seven 30-min retries
+    interval: 3600                       # incremental (below); a full sweep is 23 requests and
+                                         # tripped 429 at 0.5s AND at 6s
+    backoff_min: 7200                    # after a 429, pause 2h, no early retry. Normal polls are
+                                         # now 2-3 requests (incremental), so a 429 should mostly
+                                         # come from the 12-hourly full sweep. On 2026-09-18 six of
+                                         # seven 30-min retries
                                          # were throttled again within ~4 requests (the one that
                                          # waited 34 min finished), and retrying early only spends
                                          # the quota and invites a block on a shared Eightfold IP.
                                          # once the hour's quota was spent. Two-hourly, slow,
                                          # and the persisted backoff absorbs the rest.
+    incremental: true                    # pcsx sort_by=timestamp: newest pages only (2-3 requests),
+    full_sweep: 43200                    # a complete sweep every 12h to retire closed reqs
   amazon:
     ats: amazon
     countries: [IND]                     # 2325 open India reqs, 100 rows/page
@@ -577,7 +584,7 @@ companies:
     domain: morganstanley.com
     locations: [India]                   # 102 India positions on 2026-09-18 ≈ 11 requests/sweep
     page_delay: 2.0                      # Eightfold rate-limits by volume (see microsoft)
-    interval: 7200
+    interval: 3600
     # Not on the usual ATSes; careers site is Eightfold. Job link verified:
     # /careers/job/<id> answers 200 and carries the posting's title.
   jiostar:                               # JioHotstar
@@ -587,6 +594,8 @@ companies:
     sites: [JioStar]                     # 260 postings, 208 in India, on 2026-09-18
     # Linked from jiostar.com (careers.hotstar.com redirects there). Lever has
     # empty 'hotstar' and 'jiostar' boards: not theirs in use. Job link verified.
+    incremental: true                    # pcsx sort_by=timestamp: newest pages only (2-3 requests),
+    full_sweep: 43200                    # a complete sweep every 12h to retire closed reqs
   devrev:
     ats: greenhouse
     token: devrev                        # 48 postings, 22 in India, on 2026-09-18
@@ -604,8 +613,10 @@ companies:
     domain: qualcomm.com
     locations: [India]                   # 580 India positions on 2026-09-18 ≈ 58 requests/sweep
     page_delay: 2.0                      # Eightfold rate-limits by volume (see microsoft)
-    interval: 7200
+    interval: 3600
     # Careers site is Eightfold. Job link verified (200, title shown).
+    incremental: true                    # pcsx sort_by=timestamp: newest pages only (2-3 requests),
+    full_sweep: 43200                    # a complete sweep every 12h to retire closed reqs
   netapp:
     ats: eightfold
     api: apply                           # pcsx answers 403 on this host

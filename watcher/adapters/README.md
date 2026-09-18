@@ -122,6 +122,17 @@ Confirmed against `salesforce.wd12` (1,465 reqs) and `rbs.wd3` (89):
 
 ## Eightfold (Microsoft)
 
+**Newest first, 2026-09-18:** pcsx accepts `sort_by=timestamp` (not `sortBy`, not
+`sort_by=postedTs`, both silently ignored) and echoes `sortBy: "timestamp"`; checked on
+morganstanley: ordered through offset 90 and identical across reads. The apply/v2
+flavour (Netflix, NetApp) accepts the parameter and returns rows unordered. So
+pcsx boards can set `incremental: true`: a poll reads the newest pages until two
+are all known (2-3 requests; Microsoft's full sweep is 23 and its quota runs out a
+few requests in), re-checks the order on every page, and a complete sweep runs
+every `full_sweep`. All Eightfold boards also share `max_parallel = 1`: two tenants
+throttled within a minute of each other when polled in parallel.
+
+
 `GET https://{host}/api/pcsx/search?domain={domain}&query=&location={location}&start=N&num=10`
 
 Multi-tenant, but the host is per company (`apply.careers.microsoft.com`) and the

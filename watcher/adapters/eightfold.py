@@ -37,6 +37,9 @@ log = logging.getLogger(__name__)
 
 PAGE = 10             # server-side cap
 MAX_PAGES = 200
+FULL_SWEEP = 12 * 3600      # incremental boards: a complete sweep at least this often
+INCREMENTAL_MAX_PAGES = 5   # more new than this and a sweep is the better use of the quota
+KNOWN_PAGES_TO_STOP = 2     # consecutive all-known pages before an incremental poll stops
 
 
 class EightfoldAdapter(Adapter):
@@ -59,6 +62,15 @@ class EightfoldAdapter(Adapter):
             raise AdapterError(f"{self.company}: eightfold api must be 'pcsx' or 'apply', got {api!r}")
         return api
 
+    @property
+    def incremental(self):
+        # Newest-first needs `sort_by=timestamp`, which only pcsx honours: the
+        # apply/v2 flavour (Netflix, NetApp) accepts it and returns rows unordered.
+        return bool(self.cfg.get("incremental")) and self.flavor() == "pcsx"
+
+    def full_sweep(self):
+        return int(self.cfg.get("full_sweep") or FULL_SWEEP)
+
     def url(self, location, start):
         from urllib.parse import quote
 
@@ -66,12 +78,76 @@ class EightfoldAdapter(Adapter):
         if self.flavor() == "apply":
             return (f"https://{host}/api/apply/v2/jobs?domain={domain}"
                     f"&location={quote(location)}&start={start}&num={PAGE}")
+        # Incremental boards are swept in timestamp order too: the same order
+        # every time is kinder to a paused-and-resumed sweep than relevance.
+        order = "&sort_by=timestamp" if self.incremental else ""
         return (f"https://{host}/api/pcsx/search?domain={domain}"
                 f"&query={quote(self.cfg.get('query') or '')}&location={quote(location)}"
-                f"&start={start}&num={PAGE}")
+                f"&start={start}&num={PAGE}{order}")
+
+    def fetch_incremental(self, ctx):
+        """The newest pages only; None means "sweep instead".
+
+        pcsx with `sort_by=timestamp` is newest first (checked 2026-09-18 on
+        morganstanley: ordered through offset 90, identical across reads, and
+        the server echoes sortBy "timestamp"). Re-checked on every page:
+        postedTs must never go UP, or the shortcut is abandoned. Stops after
+        KNOWN_PAGES_TO_STOP pages in a row with nothing new. It cannot see
+        closures, so the result is incremental and retires nothing; a complete
+        sweep still runs every `full_sweep` seconds.
+
+        Written for Microsoft, whose quota runs out a few requests into a
+        23-request sweep: a normal poll here is 2-3 requests.
+        """
+        out, seen = [], set()
+        for location in self.locations():
+            known_run, prev, done = 0, None, False
+            for n in range(INCREMENTAL_MAX_PAGES):
+                if n:
+                    self.pause()
+                try:
+                    body = self.http.get_json(self.url(location, n * PAGE)) or {}
+                except HttpStatusError as e:
+                    if e.code in (403, 429) and out:
+                        return self.partial_on_throttle(e, out, None)
+                    raise
+                data = body.get("data") or {}
+                if data.get("sortBy") not in (None, "timestamp"):
+                    log.warning("%s: asked for sort_by=timestamp, got %r; sweeping instead",
+                                self.company, data.get("sortBy"))
+                    return None
+                rows = data.get("positions") or []
+                fresh = False
+                for raw in rows:
+                    ts = raw.get("postedTs")
+                    if ts is not None:
+                        if prev is not None and ts > prev:
+                            log.warning("%s: not newest-first at offset %d; sweeping instead",
+                                        self.company, n * PAGE)
+                            return None
+                        prev = ts
+                    p = self._posting(raw)
+                    if p.job_id in seen:
+                        continue
+                    seen.add(p.job_id)
+                    out.append(p)
+                    fresh |= p.job_id not in ctx.known
+                known_run = 0 if fresh else known_run + 1
+                if known_run >= KNOWN_PAGES_TO_STOP or len(rows) < PAGE:
+                    done = True
+                    break
+            if not done:
+                log.info("%s: %d pages of new postings; sweeping instead", self.company, INCREMENTAL_MAX_PAGES)
+                return None
+        return FetchResult(out, complete=False, incremental=True)
 
     def fetch(self, ctx=None):
         ctx = ctx or FetchContext()
+        if (self.incremental and not ctx.cursor and ctx.known and ctx.last_complete
+                and ctx.now is not None and ctx.now - ctx.last_complete < self.full_sweep()):
+            quick = self.fetch_incremental(ctx)
+            if quick is not None:
+                return quick
         cur = ctx.cursor or {}
         locations = self.locations()
         first_loc = min(cur.get("loc", 0), len(locations) - 1)
