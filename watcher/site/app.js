@@ -2,7 +2,7 @@
    origin. Two screens, routed on the hash so Back works and a company can be
    bookmarked:
 
-     #/            companies, most recently active first
+     #/            companies: new since you last opened them first, then A–Z
      #/c/<slug>    that company's open matching reqs, newest poll first
      #/new         everything unseen, across companies
 
@@ -23,6 +23,7 @@ var TICKED_CAP = 5000;            // plenty for years of ticking; bounds localSt
 var OPENED_KEY = "jobwatch:opened";
 var OPENED_CAP = 200;             // only needs to outlive a round trip to an ATS tab
 var VISITED_KEY = "jobwatch:visited";   // company -> the poll it was last opened at
+var SCROLL_KEY = "jobwatch:homeScroll"; // sessionStorage: survives this tab reloading
 
 var REFRESH_EVERY = 60000;        // how often to re-check the index while you are reading
 
@@ -311,13 +312,21 @@ function renderHome() {
   var tpl = el("#companyrow");
   var now = Math.floor(Date.now() / 1000);
   var newOnly = el("#newonly").checked;
-  /* Anything that has gained a role since you last opened it floats to the top,
-     so the reason to come back is the first thing on screen. Ties, and the rest
-     of the list, stay in most-recently-active order. */
+  /* Only companies with something new since you last opened them sit at the
+     top, newest first. Everything else is A–Z.
+
+     The rest used to stay in most-recently-active order, and that defeated the
+     point: the company you just opened is by definition the most recently
+     active, so it dropped out of the new group straight into the row beneath
+     it and looked as if it had never left the top. A–Z also means the list no
+     longer reshuffles every poll, so a scroll position keeps meaning the same
+     rows. */
   var companies = (state.index.companies || []).slice().sort(function (a, b) {
     var an = companyHasNew(a) ? 1 : 0, bn = companyHasNew(b) ? 1 : 0;
     if (an !== bn) return bn - an;
-    return (b.newest || 0) - (a.newest || 0);
+    if (an) return (b.newest || 0) - (a.newest || 0);
+    var x = String(a.company).toLowerCase(), y = String(b.company).toLowerCase();
+    return x < y ? -1 : x > y ? 1 : 0;
   });
   var frag = document.createDocumentFragment();
   var shown = 0, withNew = 0, leftTotal = 0;
@@ -352,6 +361,7 @@ function renderHome() {
     row.addEventListener("click", function () {
       state.homeScroll = window.pageYOffset || 0;
       state.leavingHome = true;
+      writeHomeScroll(state.homeScroll);
     });
     frag.appendChild(node);
   });
@@ -380,6 +390,21 @@ function renderHome() {
     if (y > 0) scrollSoon(y);
   }
   state.leavingHome = false;      // you are back on the list; track scrolling again
+}
+
+/* The position also goes to sessionStorage, because memory alone does not
+   survive the tab reloading while you are away: Chrome's Memory Saver discards
+   background tabs, and tapping a posting opens exactly such an away-tab. The
+   reloaded company screen then sent you back to the top of the list.
+   sessionStorage is per tab, so two open tabs keep their own places. */
+function readHomeScroll() {
+  try {
+    var n = parseInt(window.sessionStorage.getItem(SCROLL_KEY) || "0", 10);
+    return isFinite(n) && n > 0 ? n : 0;
+  } catch (e) { return 0; }
+}
+function writeHomeScroll(y) {
+  try { window.sessionStorage.setItem(SCROLL_KEY, String(Math.round(y))); } catch (e) { /* fine */ }
 }
 
 /* After paint, so the rows exist and the document is tall enough to scroll to.
@@ -607,6 +632,7 @@ function start() {
   state.visited = readVisited();
   state.seenThrough = readSeenThrough();
   state.firstRun = state.seenThrough === 0;
+  state.homeScroll = readHomeScroll();
 
   /* We put you back on the company list ourselves. Left on "auto", the browser
      also restores a scroll position on hash navigation and the two fight. */

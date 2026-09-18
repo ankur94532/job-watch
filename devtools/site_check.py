@@ -39,6 +39,7 @@ def serve():
         def log_message(self, *a):
             pass
 
+    socketserver.TCPServer.allow_reuse_address = True    # back-to-back runs: TIME_WAIT
     httpd = socketserver.TCPServer(("127.0.0.1", PORT), Quiet)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     return httpd
@@ -130,6 +131,63 @@ def main():
         p.wait_for_selector(".company-row")
         check("a newer poll brings the dot back", dot_hidden(p, name) is False)
 
+        # ---- a realistic list: only a few companies have something new ------
+        # Mark everything read at one poll, then make three companies newer than
+        # it. With every company dotted (above), "leaves the top" cannot show.
+        p.evaluate("""() => { localStorage.clear();
+            localStorage.setItem('jobwatch:seenThrough', '1'); }""")
+        p.reload(wait_until="networkidle")
+        p.wait_for_selector(".company-row")
+        names = p.eval_on_selector_all(".company-row .company-name", "els => els.map(e => e.textContent)")
+        fresh3 = names[:3]
+        p.evaluate("""(fresh) => {
+            const v = {};
+            [...document.querySelectorAll('.company-row .company-name')].forEach(e => v[e.textContent] = 9e9);
+            fresh.forEach(nm => v[nm] = 1);           // seen long ago: these three are new
+            localStorage.setItem('jobwatch:visited', JSON.stringify(v)); }""", fresh3)
+        p.reload(wait_until="networkidle")
+        p.wait_for_selector(".company-row")
+        order = p.eval_on_selector_all(".company-row .company-name", "els => els.map(e => e.textContent)")
+        flags = p.eval_on_selector_all(".company-row", "els => els.map(e => !e.querySelector('.dot').hidden)")
+        check("exactly the new companies carry a dot", sum(flags) == 3, "%d dotted" % sum(flags))
+        check("the dotted companies are the top rows", flags[:3] == [True] * 3 and not any(flags[3:]))
+        rest = order[3:]
+        check("everything below the dotted group is A-Z",
+              rest == sorted(rest, key=str.lower), "first few: %s" % rest[:4])
+
+        top = order[0]
+        p.evaluate("(nm) => [...document.querySelectorAll('.company-row')]"
+                   ".find(e => e.querySelector('.company-name').textContent === nm).click()", top)
+        p.wait_for_timeout(1000)
+        p.go_back()
+        p.wait_for_timeout(1000)
+        order = p.eval_on_selector_all(".company-row .company-name", "els => els.map(e => e.textContent)")
+        flags = p.eval_on_selector_all(".company-row", "els => els.map(e => !e.querySelector('.dot').hidden)")
+        # Not merely "below the dotted group": the old order put it directly
+        # beneath it, which on screen is still the top.
+        want = 2 + sorted(order[2:], key=str.lower).index(top)
+        check("an opened company leaves the top for its A-Z place",
+              sum(flags) == 2 and order.index(top) == want,
+              "%r at row %d, A-Z row %d" % (top, order.index(top), want))
+        check("it goes back to its A-Z place", order[2:] == sorted(order[2:], key=str.lower))
+
+        # ---- the place in the list survives the tab being reloaded ---------
+        p.evaluate("window.scrollTo(0, 900)")
+        p.wait_for_timeout(600)
+        before = p.evaluate("window.pageYOffset")
+        idx = p.evaluate("""() => [...document.querySelectorAll('.company-row')].findIndex(e => {
+            const r = e.getBoundingClientRect();
+            return r.top > 80 && r.bottom < window.innerHeight - 80; })""")
+        p.evaluate("(i) => document.querySelectorAll('.company-row')[i].click()", idx)
+        p.wait_for_timeout(1000)
+        p.reload(wait_until="networkidle")        # as Memory Saver does to a background tab
+        p.wait_for_selector(".job")
+        p.click("#back")
+        p.wait_for_timeout(1200)
+        after = p.evaluate("window.pageYOffset")
+        check("back after the tab reloaded still lands where you were", abs(after - before) <= 60,
+              "was %s, now %s" % (before, after))
+
         # ---- unticked counts ------------------------------------------------
         p.evaluate("localStorage.clear()")
         p.reload(wait_until="networkidle")
@@ -140,10 +198,16 @@ def main():
             .find(e => e.querySelector('.company-name').textContent === nm).click()""", first)
         p.wait_for_timeout(1200)
         p.wait_for_selector(".job .tick")
-        total = p.locator(".job").count()
+        # Count the whole filtered list, not the rendered page: on a board with
+        # more than a page of rows the next one slides in and the page stays full.
+        of = lambda: int(re.search(r"of (\d+)", p.inner_text("#summary")).group(1))
+        total = of()
+        first_title = p.locator(".job .title").first.inner_text()
         p.locator(".job .tick").first.click()
         p.wait_for_timeout(500)
-        check("ticking hides the job", p.locator(".job").count() == total - 1)
+        check("ticking hides the job", of() == total - 1 and
+              p.locator(".job .title").first.inner_text() != first_title,
+              "%d -> %d" % (total, of()))
         p.go_back()
         p.wait_for_timeout(1200)
         meta = row_meta(p, first)
