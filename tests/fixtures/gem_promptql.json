@@ -1,0 +1,143 @@
+[
+ {
+  "data": {
+   "oatsExternalJobPostings": {
+    "jobPostings": [
+     {
+      "id": "T2F0c0pvYlBvc3Q6MjcwMDYxMg==",
+      "extId": "am9icG9zdDqFcCqALL3yOrMp6tFzI6t8",
+      "title": "Forward Deployed Analyst, Bangalore",
+      "locations": [
+       {
+        "id": "30622",
+        "name": "Bengaluru - Office",
+        "city": "Bengaluru",
+        "isoCountry": "IND",
+        "isRemote": false,
+        "extId": "bG9jOilk4M_xyFJNk1KsufNhiQQ",
+        "__typename": "PublicOatsLocation"
+       },
+       {
+        "id": "31361",
+        "name": "Remote - India",
+        "city": "Bengaluru",
+        "isoCountry": "IND",
+        "isRemote": true,
+        "extId": "bG9jOkwiuasEezaDpQLsaoxFcJ8",
+        "__typename": "PublicOatsLocation"
+       }
+      ],
+      "job": {
+       "id": "T2F0c0pvYjoxODkyNjgx",
+       "department": {
+        "id": "28256",
+        "name": "Forward Deployed Engineering",
+        "extId": "ZGVwdDptf-pNErz9dbuuQ4KuhjDP",
+        "__typename": "PublicOatsDepartment"
+       },
+       "locationType": "REMOTE",
+       "employmentType": "FULL_TIME",
+       "__typename": "PublicOatsJob"
+      },
+      "__typename": "PublicOatsJobPost"
+     },
+     {
+      "id": "T2F0c0pvYlBvc3Q6NDgyMjcz",
+      "extId": "am9icG9zdDqu29YsOTFpcE1k9t_ulIDY",
+      "title": "AI Staff Software Engineer",
+      "locations": [
+       {
+        "id": "30621",
+        "name": "San Francisco",
+        "city": "San Francisco",
+        "isoCountry": "USA",
+        "isRemote": false,
+        "extId": "bG9jOqhJSPIDAsqYOoZ7ZbZSOcU",
+        "__typename": "PublicOatsLocation"
+       },
+       {
+        "id": "30623",
+        "name": "Remote - United States",
+        "city": "Remote - United States",
+        "isoCountry": "USA",
+        "isRemote": true,
+        "extId": "bG9jOmai-MdoVLzVzs4BT_lvPqw",
+        "__typename": "PublicOatsLocation"
+       }
+      ],
+      "job": {
+       "id": "T2F0c0pvYjozMDAwNDU=",
+       "department": {
+        "id": "28254",
+        "name": "Engineering",
+        "extId": "ZGVwdDofMyc2-YiNAG73W6qzusOx",
+        "__typename": "PublicOatsDepartment"
+       },
+       "locationType": "HYBRID",
+       "employmentType": "FULL_TIME",
+       "__typename": "PublicOatsJob"
+      },
+      "__typename": "PublicOatsJobPost"
+     },
+     {
+      "id": "T2F0c0pvYlBvc3Q6ODA3NDky",
+      "extId": "am9icG9zdDoSyQegiepY2OpFb9QhQ6VV",
+      "title": "Join our Talent Community! ",
+      "locations": [
+       {
+        "id": "30621",
+        "name": "San Francisco",
+        "city": "San Francisco",
+        "isoCountry": "USA",
+        "isRemote": false,
+        "extId": "bG9jOqhJSPIDAsqYOoZ7ZbZSOcU",
+        "__typename": "PublicOatsLocation"
+       },
+       {
+        "id": "30622",
+        "name": "Bengaluru - Office",
+        "city": "Bengaluru",
+        "isoCountry": "IND",
+        "isRemote": false,
+        "extId": "bG9jOilk4M_xyFJNk1KsufNhiQQ",
+        "__typename": "PublicOatsLocation"
+       },
+       {
+        "id": "30623",
+        "name": "Remote - United States",
+        "city": "Remote - United States",
+        "isoCountry": "USA",
+        "isRemote": true,
+        "extId": "bG9jOmai-MdoVLzVzs4BT_lvPqw",
+        "__typename": "PublicOatsLocation"
+       },
+       {
+        "id": "31361",
+        "name": "Remote - India",
+        "city": "Bengaluru",
+        "isoCountry": "IND",
+        "isRemote": true,
+        "extId": "bG9jOkwiuasEezaDpQLsaoxFcJ8",
+        "__typename": "PublicOatsLocation"
+       }
+      ],
+      "job": {
+       "id": "T2F0c0pvYjo0NzQxNDQ=",
+       "department": {
+        "id": "28252",
+        "name": "People",
+        "extId": "ZGVwdDplZ7i_HtBLaJUtbQltMozm",
+        "__typename": "PublicOatsDepartment"
+       },
+       "locationType": "REMOTE",
+       "employmentType": "FULL_TIME",
+       "__typename": "PublicOatsJob"
+      },
+      "__typename": "PublicOatsJobPost"
+     }
+    ],
+    "__typename": "ExternalJobPostingsResponse"
+   }
+  }
+ }
+]

@@ -358,3 +358,82 @@ class Oracle(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Gem(unittest.TestCase):
+    """jobs.gem.com — one unauthenticated GraphQL POST, no token of any kind.
+
+    Fixture: the live `promptql` board 2026-09-18, trimmed to 3 of 6 rows.
+    """
+
+    CFG = {"ats": "gem", "board": "promptql"}
+    API = "https://jobs.gem.com/api/public/graphql/batch"
+
+    def board(self):
+        return FakeHttp({self.API: fixture("gem_promptql.json")})
+
+    def test_posts_the_board_id_and_reads_the_batched_response(self):
+        http = self.board()
+        res = build_adapter("hasura", self.CFG, http=http, page_delay=0).fetch()
+        self.assertEqual(len(res.postings), 3)
+        method, url, payload = http.calls[0]
+        self.assertEqual((method, url), ("POST", self.API))
+        self.assertEqual(payload[0]["variables"], {"boardId": "promptql"})   # batch = a list
+
+    def test_links_to_the_permalink_not_the_board(self):
+        res = build_adapter("hasura", self.CFG, http=self.board(), page_delay=0).fetch()
+        p = next(x for x in res.postings if "Bangalore" in x.title)
+        self.assertEqual(p.title, "Forward Deployed Analyst, Bangalore")
+        self.assertIn("Bengaluru", p.location)
+        # extId is the permalink segment; the opaque `id` is only good for dedup
+        self.assertEqual(p.url, f"https://jobs.gem.com/promptql/{p.req_id}")
+        self.assertNotEqual(p.job_id, p.req_id)
+
+    def test_raises_when_the_batch_shape_changes(self):
+        http = FakeHttp({self.API: {"data": {}}})            # an object, not a batch list
+        with self.assertRaises(AdapterError):
+            build_adapter("hasura", self.CFG, http=http, page_delay=0).fetch()
+
+    def test_raises_when_the_job_postings_field_disappears(self):
+        http = FakeHttp({self.API: [{"data": {"oatsExternalJobPostings": {}}}]})
+        with self.assertRaises(AdapterError):
+            build_adapter("hasura", self.CFG, http=http, page_delay=0).fetch()
+
+
+class Comeet(unittest.TestCase):
+    """comeet.co/careers-api — the uid and token both come from the careers page.
+
+    Fixture: ScyllaDB's live board 2026-09-18, trimmed to 3 of 8 rows, keeping
+    the pair that is one role posted in two countries.
+    """
+
+    CFG = {"ats": "comeet", "company_uid": "E4.006", "token": "TESTTOKEN"}
+    URL = "https://www.comeet.co/careers-api/2.0/company/E4.006/positions?token=TESTTOKEN"
+
+    def test_reads_a_bare_list_and_keeps_the_publishers_permalink(self):
+        http = FakeHttp({self.URL: fixture("comeet_scylladb.json")})
+        res = build_adapter("scylladb", self.CFG, http=http, page_delay=0).fetch()
+        self.assertEqual(len(res.postings), 3)
+        p = res.postings[0]
+        self.assertEqual(p.req_id, "FC.078")
+        self.assertTrue(p.url.startswith("https://www.comeet.com/jobs/scylladb/E4.006/"))
+        self.assertRegex(p.posted_at, r"^\d{4}-\d{2}-\d{2}$")
+
+    def test_one_role_in_two_countries_stays_two_requisitions(self):
+        http = FakeHttp({self.URL: fixture("comeet_scylladb.json")})
+        res = build_adapter("scylladb", self.CFG, http=http, page_delay=0).fetch()
+        same = [p for p in res.postings if p.job_id.startswith("FC.078")]
+        self.assertEqual({p.job_id for p in same}, {"FC.078", "FC.078-75.10C"})
+        self.assertEqual(len({p.location for p in same}), 2)   # distinct places to apply
+
+    def test_304_propagates_rather_than_reading_as_an_empty_board(self):
+        # The board sends ETags. A 304 must never look like "every job closed",
+        # so it is left for the runner to catch, like every other adapter.
+        http = FakeHttp({self.URL: NotModified()})
+        with self.assertRaises(NotModified):
+            build_adapter("scylladb", self.CFG, http=http, page_delay=0).fetch()
+
+    def test_raises_when_the_token_stops_returning_a_list(self):
+        http = FakeHttp({self.URL: {"error": "invalid token"}})
+        with self.assertRaises(AdapterError):
+            build_adapter("scylladb", self.CFG, http=http, page_delay=0).fetch()

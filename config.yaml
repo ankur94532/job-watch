@@ -356,14 +356,21 @@ companies:
     ats: rippling                        # their own /api/getCareersListing gave it away:
     token: thoughtspot                   # every job url is ats.rippling.com/thoughtspot/...
   hasura:
-    ats: unsupported
-    note: "self-hosted hasura.io/careers (PromptQL)"
+    ats: gem                             # board is jobs.gem.com/promptql after the rebrand
+    board: promptql
   gupshup:
-    ats: unsupported
-    # FOUND by `watcher trace` 2026-09-18: Next.js data route
-    #   GET https://www.gupshup.ai/_next/data/<buildId>/en/careers.json?slug=careers
-    # buildId rotates on每 deploy, so an adapter must read it from the page first.
-    note: "Next.js data route found (buildId rotates); adapter not written yet"
+    ats: blocked
+    blocked: no-board
+    # Checked 2026-09-18. gupshup.io/careers is a talent-community page: its
+    # Next.js payload (_next/data/<buildId>/en/careers.json) holds marketing
+    # cards and a Salesforce contact form, and no openings list. An earlier note
+    # here called that route a job feed -- it is not; the array that looked like
+    # jobs was pageProps.agentconfigList, their product catalogue.
+    # gupshup.freshteam.com/jobs is an UNCLAIMED Freshteam subdomain ("You can
+    # claim it now"), not their board. gupshup.darwinbox.in is a real tenant, but
+    # every path under /ms/candidate/careers returns the same 898-byte preview
+    # stub with no listing and no XHR, so the public portal is switched off.
+    note: "no public list of openings anywhere; careers page invites a message, not an application"
   krutrim:
     ats: blocked
     blocked: server-rendered
@@ -379,8 +386,9 @@ companies:
     # but bamboohr.com robots.txt has "Disallow: /jobs/embed2.php". Checked 2026-09-18.
     note: "BambooHR embed feed exists but robots.txt disallows /jobs/embed2.php"
   scylladb:
-    ats: unsupported
-    note: "self-hosted scylladb.com/careers"
+    ats: comeet                          # uid+token are published in their careers-page markup
+    company_uid: "E4.006"
+    token: "4E6187E1D64224A0013984E60187E"
   flipkart:
     ats: blocked
     blocked: robots

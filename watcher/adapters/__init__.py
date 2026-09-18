@@ -4,6 +4,8 @@ from .atlassian import AtlassianAdapter
 from .base import Adapter, AdapterError, FetchContext, FetchResult, Posting
 from .embedded import AppleAdapter, GoogleAdapter
 from .eightfold import EightfoldAdapter
+from .comeet import ComeetAdapter
+from .gem import GemAdapter
 from .greenhouse import GreenhouseAdapter
 from .jibe import JibeAdapter
 from .lever import LeverAdapter
@@ -25,7 +27,7 @@ ADAPTERS = {
         # single-company public JSON boards
         AmazonAdapter, AtlassianAdapter,
         # server-rendered pages whose search state is embedded JSON
-        AppleAdapter, GoogleAdapter, QuadeyeAdapter, DEShawAdapter,
+        AppleAdapter, GoogleAdapter, QuadeyeAdapter, DEShawAdapter, GemAdapter, ComeetAdapter,
     )
 }
 
