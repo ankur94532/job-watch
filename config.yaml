@@ -288,6 +288,30 @@ companies:
     tenant: fractal
     shard: wd1
     sites: [Careers]                     # 144 reqs, 24 in India
+  deutschebank:
+    ats: workday
+    tenant: db
+    shard: wd3
+    sites: [DBWebsite]                   # 1178 reqs; live job URL on Deutsche Bank's official board
+    incremental: true                    # sampled newest-first through offset 1000 on 2026-09-19
+    interval: 3600                       # normal polls read only the newest 2-3 pages
+    full_sweep: 86400                    # daily full sweep retires closed requisitions
+  mastercard:
+    ats: workday
+    tenant: mastercard
+    shard: wd1
+    sites: [CorporateCareers]            # 1070 reqs; linked from careers.mastercard.com
+    incremental: true                    # sampled newest-first through offset 1000 on 2026-09-19
+    interval: 3600
+    full_sweep: 86400
+  barclays:
+    ats: workday
+    tenant: barclays
+    shard: wd3
+    sites: [External_Career_Site_Barclays] # 886 reqs; linked from search.jobs.barclays
+    incremental: true                    # sampled newest-first through offset 600 on 2026-09-19
+    interval: 3600
+    full_sweep: 86400
 
   # ---- Less uniform boards, still public keyless JSON ------------------------
   # Eightfold is multi-tenant (host + domain per company); the other two are
