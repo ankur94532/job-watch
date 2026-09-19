@@ -154,7 +154,7 @@ companies:
 
   sarvam:
     ats: ashby
-    token: sarvam                        # 63 postings, all India
+    token: sarvam                        # 61 postings, all India, on 2026-09-19
   perplexity:
     ats: ashby
     token: perplexity                    # 117 postings
@@ -814,16 +814,67 @@ companies:
     incremental: true
     full_sweep: 86400
 
+  # ---- Added from the 2026-09-19 company-board follow-up -------------------
+
+  expedia:
+    ats: workday
+    tenant: expedia
+    shard: wd108
+    sites: [search]                       # 181 postings when verified
+  highradius:
+    ats: greenhouse
+    token: highradius                    # 84 postings when verified
+  redhat:
+    ats: workday
+    tenant: redhat
+    shard: wd5
+    sites: [Jobs]                         # 147 postings when verified
+  zs:
+    ats: jibe
+    host: jobs.zs.com
+    locations: [India]                   # 48 India postings on 2026-09-19
+    interval: 3600
+
+  payu:
+    ats: sitemap
+    sitemap: https://careers.payu.in/sitemap.xml
+    job_url: /job/(?P<city>[^/-]+)-(?P<slug>.+)/(?P<req>\d+)/?$
+    interval: 3600
+    # 136 postings on 2026-09-19; one sitemap request.
+  fujitsu:
+    ats: sitemap
+    sitemap: https://www.jobs.global.fujitsu.com/sitemap.xml
+    job_url: /job/(?P<city>[^/-]+)-(?P<slug>.+)/(?P<req>\d+)/?$
+    interval: 3600
+    # 664 postings on 2026-09-19; one sitemap request.
+  standardchartered:
+    ats: sitemap
+    sitemap: https://jobs.standardchartered.com/sitemap.xml
+    job_url: /job/(?P<city>[^/-]+)-(?P<slug>.+)/(?P<req>\d+)/?$
+    interval: 3600
+    # 1,142 postings on 2026-09-19; one sitemap request.
+
+  questglobal:
+    ats: phenom
+    host: careers.quest-global.com
+    locations: [India]                   # 1,001 India jobs / 17 requests on 2026-09-19
+    interval: 3600
+  globallogic:
+    ats: globallogic                     # 127 India jobs / 13 requests on 2026-09-19
+    interval: 3600
+
   siemens:
     ats: unsupported
-    note: "official board uses Avature; this watcher has no Avature adapter"
+    note: "Avature board; its public sitemap contains only static/favicon entries, not jobs"
     recheck:
       - https://jobs.siemens.com/en_US/externaljobs/SearchJobs/
+      - https://jobs.siemens.com/sitemap.xml
   caterpillar:
     ats: blocked
     blocked: dynamic-challenge
-    note: "official careers board blocks this automated client with HTTP 403"
+    note: "sitemap job URLs omit location and job pages return HTTP 403, so India filtering is unsafe"
     recheck:
+      - https://careers.caterpillar.com/sitemap.xml
       - https://careers.caterpillar.com/en/jobs/
   citadelsecurities:
     ats: blocked
@@ -833,26 +884,23 @@ companies:
       - https://www.citadelsecurities.com/careers/
   hsbc:
     ats: unsupported
-    note: "official board uses Avature; this watcher has no Avature adapter"
+    note: "Avature board; its public sitemap contains only static/favicon entries, not jobs"
     recheck:
       - https://mycareer.hsbc.com/en_GB/external/SearchJobs/
+      - https://mycareer.hsbc.com/sitemap.xml
   greyorange:
     ats: unsupported
-    note: "official board uses Zwayam; this watcher has no Zwayam adapter"
+    note: "official board uses Zwayam; no safe public job feed or supported adapter identified"
     recheck:
       - https://careers.greyorange.com/greyorange/
-  standardchartered:
+  bain:
     ats: unsupported
-    note: "official board uses SAP SuccessFactors; this watcher has no SuccessFactors adapter"
+    note: "official board uses Avature; no safe supported API or job-bearing sitemap identified"
     recheck:
-      - https://jobs.standardchartered.com/search/
-  questglobal:
+      - https://www.bain.com/careers/find-a-role/
+  mckinsey:
     ats: unsupported
-    note: "official board uses Phenom; this watcher has no Phenom adapter"
+    note: "official careers search repeatedly times out with zero bytes over HTTP/2 and HTTP/1.1; no reliable public feed identified"
     recheck:
-      - https://careers.quest-global.com/global/en
-  globallogic:
-    ats: unsupported
-    note: "official jobs are server-rendered WordPress pages; no supported machine-readable feed"
-    recheck:
-      - https://www.globallogic.com/career-search-page/
+      - https://www.mckinsey.com/careers/search-jobs
+      - https://www.mckinsey.com/sitemap.xml

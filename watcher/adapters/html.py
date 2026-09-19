@@ -205,3 +205,63 @@ class KulaAdapter(Adapter):
                 url=f"{self.base()}/{ids[0]}", req_id=ids[0],     # no trailing slash: that one 308s
             ))
         return FetchResult(out, declared=declared)
+
+
+class GlobalLogicAdapter(Adapter):
+    """GlobalLogic's public WordPress listing, filtered server-side to India."""
+
+    ats = "globallogic"
+    paginated = True
+    html = True
+    BASE = "https://www.globallogic.com/career-search-page/"
+    MAX_PAGES = 30
+    COUNT = re.compile(r"(\d+)\s+Open positions", re.I)
+    CARD = re.compile(r'<a href="([^"]+)" class="job_box">(.*?)</a>', re.S)
+    TITLE = re.compile(r"<h4>(.*?)</h4>", re.S)
+    LOCATION = re.compile(r'<span class="job_location">(.*?)</span>', re.S)
+    TAG = re.compile(r'<span class="job_tag">(.*?)</span>', re.S)
+
+    def url(self, page):
+        path = "" if page == 1 else f"page/{page}/"
+        return f"{self.BASE}{path}?location=india"
+
+    def fetch(self, ctx=None):
+        out, seen, declared = [], set(), None
+        for page_number in range(1, self.MAX_PAGES + 1):
+            if page_number > 1:
+                self.pause()
+            body = self.http.get_text(self.url(page_number))
+            if page_number == 1:
+                match = self.COUNT.search(text(body))
+                if not match or "career_filter_result" not in body:
+                    raise AdapterError(f"{self.company}: layout changed — no open-position count or results")
+                declared = int(match.group(1))
+
+            cards = self.CARD.findall(body)
+            for url, card in cards:
+                title_match = self.TITLE.search(card)
+                req_match = re.search(r"IRC\d+", (title_match.group(1) if title_match else "") + url, re.I)
+                if not title_match or not req_match:
+                    continue
+                job_id = url.rstrip("/").rsplit("/", 1)[-1]
+                if job_id in seen:
+                    continue
+                seen.add(job_id)
+                locations = [text(value) for value in self.LOCATION.findall(card)]
+                tags = [text(value) for value in self.TAG.findall(card)]
+                location = " | ".join(dict.fromkeys(locations))
+                title_value = text(title_match.group(1))
+                req_id = req_match.group(0).upper()
+                out.append(Posting(
+                    company=self.company, ats=self.ats, job_id=job_id, title=title_value,
+                    location=location, remote="remote" in " ".join(tags).lower(), posted_at="",
+                    url=url, raw={"locations": locations, "tags": tags}, req_id=req_id,
+                ))
+
+            if declared is not None and len(out) >= declared:
+                break
+            if not cards:
+                break
+        if declared is None or len(out) != declared:
+            raise AdapterError(f"{self.company}: parsed {len(out)} rows but the page declares {declared}")
+        return FetchResult(out, declared=declared)

@@ -356,6 +356,62 @@ class Oracle(unittest.TestCase):
         self.assertIn("location=India", http.calls[0][1])
 
 
+class Phenom(unittest.TestCase):
+    API = "https://careers.example.com/widgets"
+    CFG = {"ats": "phenom", "host": "careers.example.com", "locations": ["India"]}
+
+    @staticmethod
+    def job(n):
+        return {"jobId": f"P-{n}", "reqId": f"P-{n}", "title": f"Software Engineer {n}",
+                "location": "Bengaluru, Karnataka, India",
+                "postedDate": "2026-09-19T08:30:00.000+0000"}
+
+    def test_public_widget_pages_and_applies_country_facet(self):
+        def response(method, url, payload, cache):
+            self.assertEqual(payload["selected_fields"], {"country": ["India"]})
+            self.assertEqual(payload["size"], 100)
+            start = payload["from"]
+            rows = [self.job(i) for i in range(start, min(start + 100, 101))]
+            return {"refineSearch": {"status": 200, "totalHits": 101, "data": {"jobs": rows}}}
+
+        http = FakeHttp({self.API: response})
+        res = build_adapter("questglobal", self.CFG, http=http, page_delay=0).fetch()
+
+        self.assertEqual(len(res.postings), 101)
+        self.assertEqual([call[2]["from"] for call in http.calls], [0, 100])
+        first = res.postings[0]
+        self.assertEqual(first.req_id, "P-0")
+        self.assertEqual(first.location, "Bengaluru, Karnataka, India")
+        self.assertEqual(first.url, "https://careers.example.com/global/en/job/P-0/Software-Engineer-0")
+
+    def test_missing_jobs_list_is_an_error(self):
+        http = FakeHttp({self.API: {"refineSearch": {"status": 200, "totalHits": 2}}})
+        with self.assertRaisesRegex(AdapterError, "no refineSearch jobs list"):
+            build_adapter("questglobal", self.CFG, http=http, page_delay=0).fetch()
+
+    def test_over_1000_unions_full_window_with_category_facet(self):
+        def response(method, url, payload, cache):
+            category = payload["selected_fields"].get("category")
+            start = payload["from"]
+            if category:
+                self.assertEqual(category, ["Energy"])
+                rows = [self.job(1000), *[self.job(i) for i in range(99)]]
+                return {"refineSearch": {"status": 200, "totalHits": 501,
+                                         "data": {"jobs": rows}}}
+            rows = [self.job(i) for i in range(start, min(start + 100, 1000))]
+            aggregations = ([{"field": "category", "value": {"Energy": 501, "Other": 500}}]
+                            if start == 0 else [])
+            return {"refineSearch": {"status": 200, "totalHits": 1001,
+                                     "data": {"jobs": rows, "aggregations": aggregations}}}
+
+        http = FakeHttp({self.API: response})
+        res = build_adapter("questglobal", self.CFG, http=http, page_delay=0).fetch()
+
+        self.assertEqual(len(res.postings), 1001)
+        self.assertEqual(len(http.calls), 11)  # ten unpartitioned pages, then one category page
+        self.assertNotIn(1000, [call[2]["from"] for call in http.calls])
+
+
 if __name__ == "__main__":
     unittest.main()
 

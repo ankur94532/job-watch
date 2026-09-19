@@ -8,11 +8,12 @@ from .comeet import ComeetAdapter
 from .gem import GemAdapter
 from .goldman import GoldmanAdapter
 from .greenhouse import GreenhouseAdapter
-from .html import KulaAdapter, MediaNetAdapter, SkimaAdapter
+from .html import GlobalLogicAdapter, KulaAdapter, MediaNetAdapter, SkimaAdapter
 from .jibe import JibeAdapter
 from .lever import LeverAdapter
 from .oracle import OracleAdapter
 from .ownfeed import DEShawAdapter, QuadeyeAdapter
+from .phenom import PhenomAdapter
 from .radancy import RadancyAdapter, SitemapAdapter
 from .rippling import RipplingAdapter
 from .smartrecruiters import SmartRecruitersAdapter
@@ -25,13 +26,13 @@ ADAPTERS = {
         # multi-tenant ATS platforms
         GreenhouseAdapter, LeverAdapter, AshbyAdapter, SmartRecruitersAdapter,
         WorkdayAdapter, EightfoldAdapter, RipplingAdapter, RadancyAdapter, OracleAdapter,
-        JibeAdapter, Spire2GrowAdapter,
+        JibeAdapter, Spire2GrowAdapter, PhenomAdapter,
         # single-company public JSON boards
         AmazonAdapter, AtlassianAdapter, GoldmanAdapter,
         # server-rendered pages whose search state is embedded JSON
         AppleAdapter, GoogleAdapter, QuadeyeAdapter, DEShawAdapter, GemAdapter, ComeetAdapter,
         # careers pages with no job API: parsed from the HTML (see adapters/html.py)
-        MediaNetAdapter, SkimaAdapter, KulaAdapter,
+        MediaNetAdapter, SkimaAdapter, KulaAdapter, GlobalLogicAdapter,
         # careers sites read from the job sitemap they publish for crawlers
         SitemapAdapter,
     )

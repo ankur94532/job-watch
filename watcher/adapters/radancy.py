@@ -31,10 +31,10 @@ site without checking.
 
 import re
 import xml.etree.ElementTree as ET
+from urllib.parse import unquote
 
 from .base import Adapter, AdapterError, FetchContext, FetchResult, Posting
 
-SITEMAP_NS = "{http://www.sitemaps.org/schemas/sitemap/0.9}"
 # /job/<city>/<title-slug>/<client id>/<requisition id>
 JOB_URL = re.compile(r"/job/(?P<city>[^/]+)/(?P<slug>[^/]+)/(?P<client>\d+)/(?P<req>\d+)/?$")
 
@@ -54,13 +54,16 @@ class RadancyAdapter(Adapter):
 
         out, seen = [], set()
         pattern = self.job_url()
-        for entry in root.iter(f"{SITEMAP_NS}url"):
-            loc = entry.findtext(f"{SITEMAP_NS}loc") or ""
+        for entry in root.iter():
+            if local_name(entry.tag) != "url":
+                continue
+            fields = {local_name(child.tag): child.text or "" for child in entry}
+            loc = fields.get("loc", "")
             m = pattern.search(loc)
             if not m or m.group("req") in seen:
                 continue
             seen.add(m.group("req"))
-            lastmod = (entry.findtext(f"{SITEMAP_NS}lastmod") or "")[:10]
+            lastmod = fields.get("lastmod", "")[:10]
             out.append(
                 Posting(
                     company=self.company,
@@ -105,4 +108,9 @@ class SitemapAdapter(RadancyAdapter):
 
 def unslug(slug):
     """"staff-software-engineer" -> "Staff Software Engineer" (the slug is all we get)."""
-    return " ".join(w.capitalize() for w in (slug or "").replace("_", "-").split("-") if w)
+    return " ".join(w.capitalize() for w in re.split(r"[-_\s]+", unquote(slug or "")) if w)
+
+
+def local_name(tag):
+    """ElementTree tag without either a default or prefixed XML namespace."""
+    return tag.rsplit("}", 1)[-1]

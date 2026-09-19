@@ -145,6 +145,51 @@ class Kula(unittest.TestCase):
             self.fetch("<html><body>maintenance</body></html>")
 
 
+class GlobalLogic(unittest.TestCase):
+    def page(self, count, rows):
+        cards = "".join(
+            f'''<a href="https://www.globallogic.com/careers/{slug}/" class="job_box">
+                  <div><span class="job_location">{location}</span>
+                  <span class="job_tag">{workplace}</span></div><h4>{title}</h4></a>'''
+            for slug, title, location, workplace in rows
+        )
+        return (f'<div class="career_open_roles_tag">{count} Open positions</div>'
+                f'<div class="career_filter_result">{cards}</div>')
+
+    def test_india_filter_is_paged_and_checked_against_declared_count(self):
+        first = "https://www.globallogic.com/career-search-page/?location=india"
+        second = "https://www.globallogic.com/career-search-page/page/2/?location=india"
+        http = FakeHttp({
+            first: self.page(3, [
+                ("software-engineer-irc100", "Software Engineer IRC100", "Bangalore", "Hybrid"),
+                ("platform-engineer-irc101", "Platform Engineer IRC101", "Hyderabad", "Remote"),
+            ]),
+            second: self.page(3, [
+                ("backend-engineer-irc102", "Backend Engineer IRC102", "Pune", "On-site"),
+            ]),
+        })
+
+        res = build_adapter("globallogic", {"ats": "globallogic"}, http=http, page_delay=0).fetch()
+
+        self.assertEqual((len(res.postings), res.declared), (3, 3))
+        self.assertEqual([p.req_id for p in res.postings], ["IRC100", "IRC101", "IRC102"])
+        self.assertEqual(res.postings[0].location, "Bangalore")
+        self.assertTrue(res.postings[1].remote)
+        self.assertEqual([call[1] for call in http.calls], [first, second])
+
+    def test_short_parse_is_an_error(self):
+        first = "https://www.globallogic.com/career-search-page/?location=india"
+        second = "https://www.globallogic.com/career-search-page/page/2/?location=india"
+        http = FakeHttp({
+            first: self.page(3, [
+                ("software-engineer-irc100", "Software Engineer IRC100", "Bangalore", "Hybrid"),
+            ]),
+            second: self.page(3, []),
+        })
+        with self.assertRaisesRegex(AdapterError, "parsed 1 rows but the page declares 3"):
+            build_adapter("globallogic", {"ats": "globallogic"}, http=http, page_delay=0).fetch()
+
+
 class Sitemap(unittest.TestCase):
     SM = "https://wise.jobs/vacanciessitemap.xml"
     CFG = {"ats": "sitemap", "sitemap": SM,
@@ -164,6 +209,31 @@ class Sitemap(unittest.TestCase):
         # A title containing "in": the LAST "-in-" splits title from city.
         self.assertEqual(rows["4180"], ("Specialist In Payments Operations", "Sao Paulo"))
         self.assertEqual(len(rows), 3)                                        # /about-us is not a job
+
+    def test_google_namespace_and_percent_encoded_slugs(self):
+        sitemap = b'''<?xml version="1.0" encoding="UTF-8"?>
+          <urlset xmlns="http://www.google.com/schemas/sitemap/0.84">
+            <url>
+              <loc>https://careers.example/job/Bengaluru-Senior-Software%20Engineer-C%2B%2B/12345/</loc>
+              <lastmod>2026-09-19T08:30:00Z</lastmod>
+            </url>
+          </urlset>'''
+        cfg = {
+            "ats": "sitemap",
+            "sitemap": "https://careers.example/sitemap.xml",
+            "job_url": r"/job/(?P<city>[^/-]+)-(?P<slug>.+)/(?P<req>\d+)/?$",
+        }
+        class Http:
+            def request(self, method, url, headers=None):
+                self.requests = 1
+                return sitemap, {}
+
+        posting = build_adapter("example", cfg, http=Http()).fetch().postings[0]
+
+        self.assertEqual(posting.job_id, "12345")
+        self.assertEqual(posting.title, "Senior Software Engineer C++")
+        self.assertEqual(posting.location, "Bengaluru")
+        self.assertEqual(posting.posted_at, "2026-09-19")
 
 
 if __name__ == "__main__":
