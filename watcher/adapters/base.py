@@ -66,6 +66,7 @@ class Adapter(ABC):
     required = ()          # config keys this adapter needs
     paginated = False      # multi-request sweeps are scheduled after single-request boards
     max_parallel = None    # cap on this ATS's companies polled at once, even on different hosts
+    max_per_run = None     # cap on this ATS's companies started in one scheduled process
     # Parses a web page rather than a JSON API. A page whose markup changes
     # does not crash; it quietly yields zero rows, which reads exactly like a
     # quiet week. The runner treats zero rows from these as a warning state.

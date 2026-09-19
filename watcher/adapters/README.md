@@ -129,8 +129,11 @@ flavour (Netflix, NetApp) accepts the parameter and returns rows unordered. So
 pcsx boards can set `incremental: true`: a poll reads the newest pages until two
 are all known (2-3 requests; Microsoft's full sweep is 23 and its quota runs out a
 few requests in), re-checks the order on every page, and a complete sweep runs
-every `full_sweep`. All Eightfold boards also share `max_parallel = 1`: two tenants
-throttled within a minute of each other when polled in parallel.
+every `full_sweep`. All Eightfold boards also share `max_parallel = 1` and
+`max_per_run = 1`: two tenants throttled within a minute of each other when
+polled together, and merely running them sequentially still spent the same
+shared allowance. The 15-minute launcher therefore rotates one Eightfold tenant
+per process using the normal oldest-first scheduler.
 
 
 `GET https://{host}/api/pcsx/search?domain={domain}&query=&location={location}&start=N&num=10`
@@ -153,9 +156,10 @@ with `id`, `displayJobId` (the requisition number a referral needs), `name`,
   returned 429 at request 10; repeating it at 2s and then 6s gaps still hit 429
   after 4-5 requests, while single requests kept working. The limit behaves like
   a per-IP quota over a window of tens of minutes, so no polite delay avoids it
-  once the quota is spent — Microsoft is configured two-hourly with 6s gaps, and
-  the persisted backoff handles the rest. Expect occasional `BACKED-OFF microsoft`
-  lines in the log; the sweep resumes from its cursor afterwards.
+  once the quota is spent. Microsoft is hourly with 6s gaps, but has a hard
+  three-page budget per run (including any incremental attempt before a sweep),
+  a one-hour 429 backoff, and a 24-hour cursor lifetime. Expect occasional
+  `BACKED-OFF microsoft` lines in the log; the sweep resumes from its cursor.
 * **Partial sweeps are the normal case here.** Because the quota bites well
   before a 23-request sweep finishes, the adapter returns the rows it did get
   along with a cursor instead of raising, and the runner records them, keeps the

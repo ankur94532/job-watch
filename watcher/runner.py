@@ -163,7 +163,8 @@ def run(cfg, store, sink=None, seed=False, only=None, http=None, budget=RUN_BUDG
         if st["blocked_until"] and st["blocked_until"] > now:
             res.backed_off.append((name, st["blocked_until"], st["last_error"] or ""))
             continue
-        if st["cursor"] and st["sweep_started"] and now - st["sweep_started"] > CURSOR_MAX_AGE:
+        cursor_max_age = int(ccfg.get("cursor_max_age") or CURSOR_MAX_AGE)
+        if st["cursor"] and st["sweep_started"] and now - st["sweep_started"] > cursor_max_age:
             log.info("%s: unfinished sweep is stale, restarting it", name)
             store.drop_cursor(name)
             st = store.state(name)
@@ -204,7 +205,8 @@ def run(cfg, store, sink=None, seed=False, only=None, http=None, budget=RUN_BUDG
     deadline = None if seed else monotonic() + budget
     overrun = float(defaults.get("overrun", OVERRUN))
     hard_deadline = None if seed else deadline + overrun
-    queue = _Dispatcher(plan, deadline, hard_deadline, monotonic)
+    queue = _Dispatcher(plan, deadline, hard_deadline, monotonic,
+                        enforce_run_caps=not seed)
 
     def worker():
         while True:
@@ -258,7 +260,8 @@ class _Dispatcher:
     boards carry on to `hard_deadline` (see OVERRUN).
     """
 
-    def __init__(self, plan, deadline, hard_deadline, monotonic):
+    def __init__(self, plan, deadline, hard_deadline, monotonic,
+                 enforce_run_caps=True):
         self.pending = list(plan)
         self.deadline = deadline
         self.hard_deadline = hard_deadline
@@ -266,6 +269,8 @@ class _Dispatcher:
         self.busy = set()                 # lanes with a poll in flight
         self.used = set()                 # lanes polled already this run
         self.in_flight = Counter()        # ats -> polls in flight, for max_parallel
+        self.started = Counter()          # ats -> polls started, for max_per_run
+        self.enforce_run_caps = enforce_run_caps
         self.stopped = False
         self.cond = threading.Condition()
 
@@ -279,6 +284,10 @@ class _Dispatcher:
         dl = self.deadline_for(adapter)
         return dl is not None and dl - self.monotonic() < MIN_COMPANY_BUDGET
 
+    def _run_cap_reached(self, adapter):
+        return (self.enforce_run_caps and adapter.max_per_run
+                and self.started[adapter.ats] >= adapter.max_per_run)
+
     def take(self):
         """The next company to poll, or None when the run is over for this worker."""
         with self.cond:
@@ -289,6 +298,8 @@ class _Dispatcher:
                     adapter = item[3]
                     if self._out_of_time(adapter):
                         continue
+                    if self._run_cap_reached(adapter):
+                        continue
                     lane = adapter.lane()
                     if lane in self.busy:
                         continue
@@ -297,11 +308,18 @@ class _Dispatcher:
                     del self.pending[i]
                     self.busy.add(lane)
                     self.in_flight[adapter.ats] += 1
+                    self.started[adapter.ats] += 1
                     used = lane in self.used
                     self.used.add(lane)
                     return item, lane, used
-                # Everything left is on a host that is busy right now. The timeout
-                # re-checks the deadline even if no poll finishes to wake us.
+                # If every runnable item has reached its per-run ATS cap, leave
+                # it pending for the next launchd cycle. Otherwise everything
+                # left is merely waiting on a busy lane / max_parallel slot.
+                if not any(not self._out_of_time(item[3])
+                           and not self._run_cap_reached(item[3])
+                           for item in self.pending):
+                    break
+                # The timeout re-checks the deadline even if no poll finishes.
                 self.cond.wait(0.5)
             return None
 

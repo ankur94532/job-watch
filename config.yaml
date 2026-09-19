@@ -326,6 +326,8 @@ companies:
     interval: 3600                       # hourly, now that a poll is that cheap
     full_sweep: 86400                    # a complete sweep once a day retires closed reqs (a
                                          # closed Microsoft job may linger up to a day)
+    max_pages_per_run: 3                 # hard cap across incremental + sweep fallback requests
+    cursor_max_age: 86400                # keep daily sweep progress instead of restarting after 3h
     backoff_min: 3600                    # after a 429 no early retry: just the next hourly poll
   amazon:
     ats: amazon

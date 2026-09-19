@@ -367,6 +367,25 @@ class Scheduling(Base):
         self.assertEqual(len(res.ok), 5)
         self.assertEqual(len(res.deferred), 5)
 
+    def test_a_company_can_extend_the_lifetime_of_its_unfinished_cursor(self):
+        self.company("long", [job("1")], ats="fakeworkday", cursor_max_age=86400)
+        old = self.clock() - 4 * 3600                 # stale under the global three-hour default
+        cursor = {"offset": 20}
+        self.store.sweep_progress("long", old, old, cursor)
+        seen = []
+        orig = FakeBoard.fetch
+
+        def capture(self_, ctx=None):
+            seen.append(ctx.cursor)
+            return orig(self_, ctx)
+
+        FakeBoard.fetch = capture
+        try:
+            self.run_once()
+        finally:
+            FakeBoard.fetch = orig
+        self.assertEqual(seen, [cursor])
+
 
 class Parallel(Base):
     """Hosts are polled at the same time; one host never sees two polls at once.
@@ -388,6 +407,7 @@ class Parallel(Base):
     def tearDown(self):
         FakeBoard.fetch = self.orig
         FakePaged.max_parallel = None
+        FakePaged.max_per_run = None
         super().tearDown()
 
     def track(self, key_of, hold=0.02):
@@ -449,6 +469,31 @@ class Parallel(Base):
         res = self.run_once()
         self.assertEqual(len(res.ok), 5)
         self.assertEqual(self.peak, {"fakeworkday": 2})
+
+    def test_max_per_run_staggers_an_ats_across_scheduled_runs(self):
+        FakePaged.max_per_run = 1
+        for i in range(3):
+            self.company("ef%d" % i, [job(str(i))], ats="fakeworkday",
+                         host="tenant%d.example" % i)
+
+        first = self.run_once(advance=3600)
+        first_company = FakeBoard.CALLS[0]
+        self.assertEqual(len(first.ok), 1)
+        self.assertEqual(len(first.deferred), 2)
+
+        second = self.run_once(advance=3600)
+        self.assertEqual(len(second.ok), 1)
+        self.assertNotEqual(FakeBoard.CALLS[0], first_company)
+        self.assertEqual(len(second.deferred), 2)
+
+    def test_seed_bypasses_per_run_staggering(self):
+        FakePaged.max_per_run = 1
+        for i in range(3):
+            self.company("ef%d" % i, [job(str(i))], ats="fakeworkday",
+                         host="tenant%d.example" % i)
+        res = self.run_once(seed=True)
+        self.assertEqual(len(res.ok), 3)
+        self.assertEqual(res.deferred, [])
 
     def test_priority_order_still_holds_on_a_shared_host(self):
         for name, ago in (("fresh", 1000), ("stalest", 90000), ("stale", 5000)):

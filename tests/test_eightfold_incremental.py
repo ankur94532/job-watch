@@ -73,6 +73,31 @@ class Incremental(unittest.TestCase):
         self.assertFalse(a.incremental)
         self.assertNotIn("sort_by", a.url("India", 0))
 
+    def test_full_sweep_stops_at_the_configured_page_budget_and_resumes(self):
+        http = board(40)
+        a = adapter(http, incremental=False, max_pages_per_run=3)
+
+        first = a.fetch(FetchContext())
+        self.assertFalse(first.complete)
+        self.assertEqual(len(http.calls), 3)
+        self.assertEqual(first.cursor["start"], 30)
+
+        second = a.fetch(FetchContext(cursor=first.cursor))
+        self.assertTrue(second.complete)
+        self.assertEqual(parse_qs(urlparse(http.calls[3][1]).query)["start"], ["30"])
+
+    def test_incremental_requests_count_against_the_same_page_budget(self):
+        stamps = [NOW - i * 3600 for i in range(40)]
+        stamps[15] = NOW + 99                       # second incremental page proves bad ordering
+        http = board(40, stamps)
+
+        res = adapter(http, max_pages_per_run=3).fetch(ctx(range(1000, 1040)))
+
+        self.assertFalse(res.complete)
+        self.assertFalse(res.incremental)
+        self.assertEqual(len(http.calls), 3)        # two incremental + one sweep page
+        self.assertEqual(res.cursor["start"], 10)
+
 
 if __name__ == "__main__":
     unittest.main()

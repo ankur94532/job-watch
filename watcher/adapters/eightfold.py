@@ -51,6 +51,10 @@ class EightfoldAdapter(Adapter):
     # 2026-09-18 Microsoft and Qualcomm were throttled (429) within a minute of
     # each other: the quota behaves as shared across tenants from one client.
     max_parallel = 1
+    # Serialising them was not enough: several tenants still spent the shared
+    # allowance sequentially in one process. launchd runs every 15 minutes, so
+    # start one tenant per process and let oldest-first scheduling rotate them.
+    max_per_run = 1
 
     def locations(self):
         locs = self.cfg.get("locations") or [""]
@@ -71,6 +75,18 @@ class EightfoldAdapter(Adapter):
     def full_sweep(self):
         return int(self.cfg.get("full_sweep") or FULL_SWEEP)
 
+    def max_pages_per_run(self):
+        value = self.cfg.get("max_pages_per_run")
+        if value in (None, ""):
+            return None
+        try:
+            value = int(value)
+        except (TypeError, ValueError):
+            raise AdapterError(f"{self.company}: max_pages_per_run must be a positive integer")
+        if value <= 0:
+            raise AdapterError(f"{self.company}: max_pages_per_run must be a positive integer")
+        return value
+
     def url(self, location, start):
         from urllib.parse import quote
 
@@ -85,8 +101,8 @@ class EightfoldAdapter(Adapter):
                 f"&query={quote(self.cfg.get('query') or '')}&location={quote(location)}"
                 f"&start={start}&num={PAGE}{order}")
 
-    def fetch_incremental(self, ctx):
-        """The newest pages only; None means "sweep instead".
+    def fetch_incremental(self, ctx, requests=0):
+        """The newest pages only; `(None, requests)` means "sweep instead".
 
         pcsx with `sort_by=timestamp` is newest first (checked 2026-09-18 on
         morganstanley: ordered through offset 90, identical across reads, and
@@ -100,22 +116,26 @@ class EightfoldAdapter(Adapter):
         23-request sweep: a normal poll here is 2-3 requests.
         """
         out, seen = [], set()
+        max_pages = self.max_pages_per_run()
         for location in self.locations():
             known_run, prev, done = 0, None, False
             for n in range(INCREMENTAL_MAX_PAGES):
+                if max_pages is not None and requests >= max_pages:
+                    return FetchResult(out, complete=False, incremental=True), requests
                 if n:
                     self.pause()
                 try:
+                    requests += 1
                     body = self.http.get_json(self.url(location, n * PAGE)) or {}
                 except HttpStatusError as e:
                     if e.code in (403, 429) and out:
-                        return self.partial_on_throttle(e, out, None)
+                        return self.partial_on_throttle(e, out, None), requests
                     raise
                 data = body.get("data") or {}
                 if data.get("sortBy") not in (None, "timestamp"):
                     log.warning("%s: asked for sort_by=timestamp, got %r; sweeping instead",
                                 self.company, data.get("sortBy"))
-                    return None
+                    return None, requests
                 rows = data.get("positions") or []
                 fresh = False
                 for raw in rows:
@@ -124,7 +144,7 @@ class EightfoldAdapter(Adapter):
                         if prev is not None and ts > prev:
                             log.warning("%s: not newest-first at offset %d; sweeping instead",
                                         self.company, n * PAGE)
-                            return None
+                            return None, requests
                         prev = ts
                     p = self._posting(raw)
                     if p.job_id in seen:
@@ -138,33 +158,39 @@ class EightfoldAdapter(Adapter):
                     break
             if not done:
                 log.info("%s: %d pages of new postings; sweeping instead", self.company, INCREMENTAL_MAX_PAGES)
-                return None
-        return FetchResult(out, complete=False, incremental=True)
+                return None, requests
+        return FetchResult(out, complete=False, incremental=True), requests
 
     def fetch(self, ctx=None):
         ctx = ctx or FetchContext()
+        requests = 0
         if (self.incremental and not ctx.cursor and ctx.known and ctx.last_complete
                 and ctx.now is not None and ctx.now - ctx.last_complete < self.full_sweep()):
-            quick = self.fetch_incremental(ctx)
+            quick, requests = self.fetch_incremental(ctx, requests)
             if quick is not None:
                 return quick
         cur = ctx.cursor or {}
         locations = self.locations()
         first_loc = min(cur.get("loc", 0), len(locations) - 1)
         ids = set(cur.get("ids", []))
-        out, requests = [], 0
+        out = []
+        max_pages = self.max_pages_per_run()
 
         for i in range(first_loc, len(locations)):
             location = locations[i]
             start = cur["start"] if (i == first_loc and cur.get("start")) else 0
             pages = 0
             while True:
+                if max_pages is not None and requests >= max_pages:
+                    return FetchResult(out, complete=False,
+                                       cursor={"loc": i, "start": start, "ids": sorted(ids)})
                 if requests and ctx.deadline is not None and time.monotonic() >= ctx.deadline:
                     return FetchResult(out, complete=False,
                                        cursor={"loc": i, "start": start, "ids": sorted(ids)})
                 if requests:
                     self.pause()
                 try:
+                    requests += 1
                     body = self.http.get_json(self.url(location, start)) or {}
                 except HttpStatusError as e:
                     # ~6-7 requests per window is all this board allows; keep what we have.
@@ -174,7 +200,6 @@ class EightfoldAdapter(Adapter):
                     raise
                 # pcsx nests everything under "data"; apply/v2 returns it at the top level.
                 data = body if self.flavor() == "apply" else (body.get("data") or {})
-                requests += 1
                 pages += 1
                 rows = data.get("positions") or []
                 count = data.get("count")
