@@ -716,3 +716,143 @@ companies:
     site: CX
     locations: [India]                   # 107 India reqs on 2026-09-18 (101 Bengaluru), one request
     # Job link verified in a browser (the role renders).
+
+  # ---- Added from the 2026-09-19 expansion ----------------------------------
+
+  66degrees:
+    ats: greenhouse
+    token: 66degrees                     # 27 postings; board linked from 66degrees.com/careers
+  gitlab:
+    ats: greenhouse
+    token: gitlab                        # 216 postings; official GitLab board
+  harvey:
+    ats: ashby
+    token: harvey                        # 299 postings; board identifies Harvey (legal AI)
+  point72:
+    ats: greenhouse
+    token: point72                       # 233 postings; linked from Point72 careers
+  okta:
+    ats: greenhouse
+    token: okta                          # 326 postings; board identifies Okta
+
+  blueyonder:
+    ats: workday
+    tenant: jda
+    shard: wd5
+    sites: [JDA_Careers]                 # 151 postings; live URL from Blue Yonder's official board
+    incremental: true                    # sampled newest-first through offset 100 on 2026-09-19
+    interval: 3600
+    full_sweep: 86400
+  capitalone:
+    ats: workday
+    tenant: capitalone
+    shard: wd12
+    sites: [Capital_One]                 # 1789 postings; official Capital One careers board
+    incremental: true                    # sampled newest-first through offset 1600 on 2026-09-19
+    interval: 3600
+    full_sweep: 86400
+  bankofamerica:
+    ats: workday
+    tenant: ghr
+    shard: wd1
+    sites: [lateral-ba_continuum]        # 121 India postings; Bank of America Continuum board
+    incremental: true                    # sampled newest-first through offset 100 on 2026-09-19
+    interval: 3600
+    full_sweep: 86400
+  gevernova:
+    ats: workday
+    tenant: gevernova
+    shard: wd5
+    sites: [Vernova_ExternalSite]        # 2169 postings; official GE Vernova board
+    interval: 7200                       # board is not reliably newest-first; full sweep every 2h
+  target:
+    ats: workday
+    tenant: target
+    shard: wd5
+    sites: [targetcareers]               # 2000 postings (Workday reporting cap)
+    incremental: true                    # sampled newest-first through offset 1600 on 2026-09-19
+    interval: 3600
+    full_sweep: 86400
+  boeing:
+    ats: workday
+    tenant: boeing
+    shard: wd1
+    sites: [EXTERNAL_CAREERS]            # 731 postings; official Boeing board
+    incremental: true                    # sampled newest-first through offset 600 on 2026-09-19
+    interval: 3600
+    full_sweep: 86400
+  commonwealthbank:
+    ats: workday
+    tenant: cba
+    shard: wd3
+    sites: [CommBank_Careers]            # 189 postings; official CommBank board
+    incremental: true                    # sampled newest-first through offset 100 on 2026-09-19
+    interval: 3600
+    full_sweep: 86400
+
+  honeywell:
+    ats: oracle
+    host: ibqbjb.fa.ocs.oraclecloud.com  # pod exposed by careers.honeywell.com
+    site: CX_1
+    locations: [India]                   # 328 India postings on 2026-09-19
+  lamresearch:
+    ats: eightfold
+    host: lamresearch.eightfold.ai       # linked from opportunities.lamresearch.com
+    domain: lamresearch.com
+    locations: [India]                   # 113 India postings on 2026-09-19
+    page_delay: 6.0
+    interval: 3600
+    incremental: true
+    full_sweep: 86400
+  ukg:
+    ats: eightfold
+    host: apply.ukg.com                  # official UKG Eightfold board; pcsx flavour
+    domain: ukg.com
+    locations: [India]                   # 71 India postings on 2026-09-19
+    page_delay: 6.0
+    interval: 3600
+    incremental: true
+    full_sweep: 86400
+
+  siemens:
+    ats: unsupported
+    note: "official board uses Avature; this watcher has no Avature adapter"
+    recheck:
+      - https://jobs.siemens.com/en_US/externaljobs/SearchJobs/
+  caterpillar:
+    ats: blocked
+    blocked: dynamic-challenge
+    note: "official careers board blocks this automated client with HTTP 403"
+    recheck:
+      - https://careers.caterpillar.com/en/jobs/
+  citadelsecurities:
+    ats: blocked
+    blocked: dynamic-challenge
+    note: "official Citadel Securities careers site is behind a Cloudflare challenge"
+    recheck:
+      - https://www.citadelsecurities.com/careers/
+  hsbc:
+    ats: unsupported
+    note: "official board uses Avature; this watcher has no Avature adapter"
+    recheck:
+      - https://mycareer.hsbc.com/en_GB/external/SearchJobs/
+  greyorange:
+    ats: unsupported
+    note: "official board uses Zwayam; this watcher has no Zwayam adapter"
+    recheck:
+      - https://careers.greyorange.com/greyorange/
+  standardchartered:
+    ats: unsupported
+    note: "official board uses SAP SuccessFactors; this watcher has no SuccessFactors adapter"
+    recheck:
+      - https://jobs.standardchartered.com/search/
+  questglobal:
+    ats: unsupported
+    note: "official board uses Phenom; this watcher has no Phenom adapter"
+    recheck:
+      - https://careers.quest-global.com/global/en
+  globallogic:
+    ats: unsupported
+    note: "official jobs are server-rendered WordPress pages; no supported machine-readable feed"
+    recheck:
+      - https://www.globallogic.com/career-search-page/
