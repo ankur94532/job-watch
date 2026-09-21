@@ -1,7 +1,7 @@
 # Job Watcher config.
 #
-# Every entry below was verified with a live fetch on 2026-09-16; the comment on
-# each records what came back. Evidence and endpoint quirks: watcher/adapters/README.md
+# Active entries below were verified with a live fetch when added or recovered,
+# most recently on 2026-09-20. Evidence and endpoint quirks: watcher/adapters/README.md
 #
 # Per-company `title:` / `location:` lists REPLACE the defaults for that company.
 # `page_delay:` (seconds) overrides the gap between requests within one company.
@@ -283,6 +283,266 @@ companies:
     tenant: paypal
     shard: wd1
     sites: [jobs]                        # 385 reqs; careers.pypl.com itself is Cloudflare-gated
+  nasdaq:
+    ats: workday
+    enabled: true                        # silent production baseline 2026-09-20 20:59, zero alerts
+    tenant: nasdaq
+    shard: wd1
+    sites: [Global_External_Site]
+    applied_facets:
+      Location_Country: [c4f78be1a8f14da0ab49ce1162348a5e]
+    interval: 3600
+    # Nasdaq's official careers page links this Workday tenant. Its published
+    # country facet identified the India id above: 30 declared, 30 returned and
+    # 30 unique across two pages on 2026-09-20. Global board count was 183.
+  maersk:
+    ats: maersk
+    enabled: true                        # silent production baseline 2026-09-20 21:14, zero alerts
+    country: India
+    consumer_key: ean6qqcQIuGza1IZ1Rg9dgfjZhlGE7Dw
+    interval: 3600
+    max_pages_per_run: 30
+    # Maersk's official vacancies UI publishes this read-only Consumer-Key and
+    # calls api.maersk.com/careers/vacancies. `offset` is a PAGE number and the
+    # API fixes pages at ten rows: 251 declared/returned/unique India jobs over
+    # 26 pages on 2026-09-20. Every row self-identifies Brand=Maersk,
+    # Platform=Workday and Country=India, across the Maersk_Careers and
+    # APMT_Careers sites; ten rows omit City but still carry the authoritative
+    # country. Count drift, overlap or a short page fails closed.
+  cisco:
+    ats: cisco
+    enabled: true                        # silent production baseline 2026-09-20 21:22, zero alerts
+    interval: 3600
+    # Cisco's official Phenom careers UI publishes cisco.wd5/Cisco_Careers
+    # apply URLs and a 300-job India facet, but its relevance pagination
+    # reshuffles between calls. This adapter instead derives all live Workday
+    # location facets ending `, India` (plus legacy `IND-*`) at sweep start,
+    # persists that exact facet set across resumes, and requires exact Workday
+    # coverage. 302 declared/returned/unique India postings on 2026-09-20.
+  ibm:
+    ats: ibm
+    enabled: true                        # silent production baseline: 730 jobs on 2026-09-20
+    interval: 3600
+    # IBM's own ibm.com careers widget calls www-api.ibm.com search scope
+    # careers2. Its exact India filter returns the whole current inventory in
+    # one response: 730 declared/returned/unique numeric job IDs on 2026-09-20.
+    # Requesting only country/location/workstyle/date metadata reduces the
+    # response from 9.5 MB to about 661 KB without losing watcher fields.
+  mathworks:
+    ats: mathworks
+    enabled: true                        # silent production baseline 2026-09-20 21:44, zero alerts
+    country: IN
+    interval: 3600
+    # MathWorks' official careers page publishes a full-board XML feed. Its
+    # 193 entries collapse to 183 unique requisitions because ten are exact
+    # duplicates; 29 India entries collapse to 27 unique jobs, exactly matching
+    # the official India search's independent 27-result count on 2026-09-20.
+  dpworld:
+    ats: oracle
+    enabled: true                        # silent production baseline 2026-09-20 21:47, zero alerts
+    host: ehpv.fa.em2.oraclecloud.com
+    site: CX_1
+    locations: [India]
+    interval: 3600
+    # DP World's official careers page links this exact Oracle candidate site.
+    # The country-filtered API declared/returned 118 unique India jobs in one
+    # request on 2026-09-20; every row explicitly carries an India location,
+    # and a public detail identifies the employer as DP World.
+  arm:
+    ats: arm
+    enabled: true                        # silent production baseline 2026-09-20 21:54, zero alerts
+    host: careers.arm.com
+    organization: Arm
+    interval: 3600
+    # The official TalentBrew country page declared/returned 105 unique India
+    # jobs over seven 15-row pages on 2026-09-20 (98 Bengaluru, 7 Noida by
+    # facet). Its sitemap had only 104 India-city URLs: the missing row was a
+    # real Cambridge/Sophia Antipolis/Bengaluru multi-location role, so the
+    # country-filtered counted pages are used instead of city-slug inference.
+  blackrock:
+    ats: workday
+    enabled: true                        # silent production baseline 2026-09-20, zero alerts
+    tenant: blackrock
+    shard: wd1
+    sites: [BlackRock_Professional]
+    applied_facets:
+      locations: [131d7f8fcf9f0108d331d757f750f5cd,
+                  131d7f8fcf9f01c37cbb7257f7507dcd,
+                  131d7f8fcf9f014033ba3257f75037cd,
+                  131d7f8fcf9f01fdd4e16e99f750a5d2]
+    location_hint: India
+    require_exact_count: true
+    interval: 3600
+    # BlackRock's official careers site links this Workday board. Its published
+    # location facet exposes every current India location: Bengaluru, Gurugram,
+    # Mumbai and XBG-Regional Bangalore. The combined filter declared and
+    # returned 62 unique jobs on 2026-09-20; one is a valid two-location role.
+  enchargeai:
+    ats: greenhouse
+    enabled: true                        # silent production baseline 2026-09-20, zero alerts
+    token: enchargeai36
+    # EnCharge AI's first-party careers page links this Greenhouse board. The
+    # public API returned 26 unique open postings on 2026-09-20, including its
+    # current Bangalore and India-remote roles.
+  amd:
+    ats: jibe
+    enabled: true                        # silent production baseline 2026-09-20, zero alerts
+    host: careers.amd.com
+    locations: [India]
+    interval: 3600
+    page_delay: 5                        # careers.amd.com publishes crawl-delay: 5
+    # AMD's official careers page is its Jibe/iCIMS front end. The public Jibe
+    # API's exact India filter declared and returned 200 unique jobs over two
+    # pages on 2026-09-20, all at IN-prefixed locations.
+  roku:
+    ats: greenhouse
+    enabled: true                        # silent production baseline 2026-09-20, zero alerts
+    token: roku
+    # Roku's first-party job pages expose their Greenhouse job ids (`gh_jid`).
+    # The separate Greenhouse public API is robots-allowed and returned 254
+    # unique global postings on 2026-09-20; India filtering remains local.
+  crowdstrike:
+    ats: workday
+    enabled: true                        # silent production baseline 2026-09-20, zero alerts
+    tenant: crowdstrike
+    shard: wd5
+    sites: [crowdstrikecareers]
+    applied_facets:
+      locationCountry: [c4f78be1a8f14da0ab49ce1162348a5e]
+    location_hint: India
+    require_exact_count: true
+    interval: 3600
+    # CrowdStrike's first-party careers page links this board. Workday's India
+    # country facet declared/returned 43 unique jobs on 2026-09-20.
+  lseg:
+    ats: workday
+    enabled: true                        # silent production baseline 2026-09-20, zero alerts
+    tenant: lseg
+    shard: wd3
+    sites: [Careers]
+    applied_facets:
+      locationCountry: [c4f78be1a8f14da0ab49ce1162348a5e]
+    location_hint: India
+    require_exact_count: true
+    interval: 3600
+    # LSEG's first-party careers page links this board. Its India country facet
+    # declared/returned 203 unique jobs on 2026-09-20. The hint retains the
+    # authoritative country on compact rows that say only "2 Locations".
+  nike:
+    ats: workday
+    enabled: true                        # silent production baseline 2026-09-20, zero alerts
+    tenant: nike
+    shard: wd1
+    sites: [nke]
+    applied_facets:
+      locations: [53aa8f3ea4191001f60e07d9bcdd0000,
+                  53aa8f3ea4191001fb502bde349d0000]
+    location_hint: India
+    require_exact_count: true
+    interval: 3600
+    # Nike's first-party search links this Workday tenant. The live location
+    # facet exposes Karnataka, India and NIKE INDIA HQ; together they declared
+    # and returned 65 unique jobs on 2026-09-20.
+  adidas:
+    ats: successfactors_html
+    enabled: true                        # silent production baseline 2026-09-20, zero alerts
+    host: jobs.adidas-group.com
+    organization: adidas
+    path: /search/?q=&locationsearch=India
+    interval: 3600
+    page_delay: 1.2
+    # adidas' official SuccessFactors subdomain provides a counted India search:
+    # 19 declared rows, 19 cards and 19 unique ids on 2026-09-20. Search pages
+    # and detail links are allowed by the host's robots policy.
+  idfcfirst:
+    ats: phenom
+    enabled: true                        # silent production baseline 2026-09-20, zero alerts
+    host: careers.idfcfirst.bank.in
+    locations: [India]
+    url_prefix: in/en
+    interval: 3600
+    page_delay: 1.2
+    # "IDFC" is treated as the current IDFC FIRST Bank employer. Its official
+    # Phenom site's country facet declared 1,219 India jobs on 2026-09-20. Its
+    # direct pagination shifts and duplicated 13 ids, so the adapter uses the
+    # board's exact, single-valued job-category partitions above 1,000 rows.
+  cadence:
+    ats: workday
+    enabled: true                        # silent production baseline 2026-09-20, zero alerts
+    tenant: cadence
+    shard: wd1
+    sites: [External_Careers]
+    applied_facets:
+      Location_Country: [c4f78be1a8f14da0ab49ce1162348a5e]
+    location_hint: India
+    require_exact_count: true
+    interval: 3600
+    # Cadence's public Workday board exposes an exact India country facet:
+    # 192 declared/returned/unique jobs on 2026-09-20.
+  netradyne:
+    ats: greenhouse
+    enabled: true                        # silent production baseline 2026-09-20, zero alerts
+    token: netradyne
+    # Netradyne's first-party careers page links its Greenhouse board. The
+    # public API returned 26 unique global postings on 2026-09-20.
+  nttdata:
+    ats: phenom
+    enabled: true                        # silent production baseline 2026-09-20, zero alerts
+    host: careers.nttdata.com
+    locations: [India]
+    url_prefix: global/en
+    partition_fields: [category, department]
+    max_window: 900
+    interval: 3600
+    page_delay: 1.2
+    # NTT DATA's official global Phenom site declared 1,027 India jobs on
+    # 2026-09-20. Its unpartitioned order shifts; force partitioning below the
+    # service's nominal 1,000-row window because at 988 rows on 2026-09-21 the
+    # raw pages returned only 922 unique IDs. The two configured, published
+    # facets form an exact disjoint partition: 1,000 categorized plus 27 with
+    # department=Unspecified at baseline; current 961 + 27 = 988. Their sum must
+    # equal the declared total and every current bucket is below 900.
+  five9:
+    ats: greenhouse
+    enabled: true                        # silent production baseline 2026-09-20, zero alerts
+    token: five9
+    # Five9's first-party jobs page links this Greenhouse board. The public API
+    # returned 117 unique global postings on 2026-09-20, including India roles;
+    # configured title and India-location filtering remains local.
+  coindcx:
+    ats: blocked
+    blocked: access-denied
+    note: "official careers inventory and robots endpoint both return HTTP 403 to the honest watcher client"
+    recheck:
+      - https://careers.coindcx.com/opportunities
+      - https://careers.coindcx.com/robots.txt
+  joveo:
+    ats: blocked
+    blocked: data-shape
+    # 2026-09-20 23:25: the TLS blocker is RESOLVED — the scheduler now runs
+    # Homebrew python3 (OpenSSL 3) and careers.joveo.com answers 200. robots is
+    # an explicit "Allow: /". job-sitemap-0.xml lists 10 job URLs.
+    # The NEW obstacle is the board's shape, not access: it is a widget-based
+    # Next.js CMS. The home page is 20 MB (unusable for polling); a detail page
+    # is 89 KB but pageProps exposes only widget/site/client IDs, there is no
+    # JobPosting JSON-LD, and no clean location field — only the <title> tag
+    # carries the job title. Location is required for the India filter, so a
+    # reliable adapter would mean parsing widget trees for 10 jobs. Judged
+    # disproportionate and fragile; joveo-instahyre watches it instead.
+    note: "board readable since the OpenSSL switch, but widget CMS exposes no clean title/location schema"
+    recheck:
+      - https://careers.joveo.com/
+      - https://careers.joveo.com/job-sitemap-0.xml
+  cgi:
+    ats: blocked
+    blocked: dynamic-challenge
+    # Reconfirmed 2026-09-20 23:20 against a user-supplied jobdetails URL:
+    # it returns HTTP **200**, but the BODY is "Radware Captcha Page". Status
+    # code alone is misleading here — always read the body for this host.
+    note: "CGI India's officially linked Njoyn inventory is behind a Radware CAPTCHA (serves 200 + challenge body)"
+    recheck:
+      - https://www.cgi.com/india/en/india/careers
+      - https://cgi.njoyn.com/corp/xweb/xweb.asp?CLID=21001&CountryID=IN&lang=1&page=joblisting
   fractal:
     ats: workday
     tenant: fractal
@@ -324,6 +584,7 @@ companies:
     host: explore.jobs.netflix.net       # pcsx answers "not enabled for this user"
     domain: netflix.com
     locations: [India]                   # 9 India positions of 478 worldwide
+    max_pages_per_run: 4                 # see the Eightfold volume note under microsoft
   docusign:
     ats: jibe
     host: careers.docusign.com           # iCIMS underneath, Jibe front end: 77 India of 245
@@ -335,24 +596,47 @@ companies:
     locations: [India]                   # not eightfold.ai — found with `watcher trace`
     page_delay: 6.0
     interval: 3600
+    max_pages_per_run: 6                 # 21 India jobs = 3 pages; see note under microsoft
     incremental: true                    # pcsx sort_by=timestamp: newest pages only (2-3 requests),
     full_sweep: 43200                    # a complete sweep every 12h to retire closed reqs
   microsoft:
     ats: eightfold
     host: apply.careers.microsoft.com
     domain: microsoft.com
-    locations: [India]                   # 221 open India positions, 10 rows/page
-    page_delay: 6.0                      # Eightfold rate-limits by volume, not spacing
-    # Microsoft's quota is small: a 23-request full sweep tripped 429 at 0.5s
-    # and at 6s between requests, and 30-min retries kept it drained (six of
-    # seven throttled again on 2026-09-18). So, since that day:
-    incremental: true                    # newest pages only (pcsx sort_by=timestamp): 2-3 requests
-    interval: 3600                       # hourly, now that a poll is that cheap
-    full_sweep: 86400                    # a complete sweep once a day retires closed reqs (a
-                                         # closed Microsoft job may linger up to a day)
-    max_pages_per_run: 3                 # hard cap across incremental + sweep fallback requests
-    cursor_max_age: 86400                # keep daily sweep progress instead of restarting after 3h
-    backoff_min: 3600                    # after a 429 no early retry: just the next hourly poll
+    locations: [India]                   # latest complete inventory: 239, 10 rows/page
+    page_delay: 6.0
+    # 2026-09-19 log audit: timestamp ordering failed repeatedly on this tenant.
+    # Avoid failed incremental probes followed by duplicate full-sweep requests.
+    # Keep the requested sort stable, but never stop early on known IDs.
+    incremental: false
+    sort_by: timestamp
+    # ---- Eightfold volume note (2026-09-20), referenced by the other tenants ----
+    # Eightfold throttles by VOLUME from our IP, not by spacing: a 23-request
+    # sweep tripped 429 at both 0.5s and 6.0s pacing. Microsoft was the only
+    # tenant with a page cap (3), while seven of nine were uncapped, so it was
+    # both the most starved and — because 23 pages at 3/run is ~8h of clean runs
+    # — the least able to finish: eightfold.py restarts a sweep from zero
+    # whenever the declared count changes or a page overlaps known IDs, which an
+    # 8h window on a live board cannot avoid. Result: 429s on the 3rd request of
+    # some runs, no complete sweep in 39h, and count drifting 239 -> 226.
+    # A 429 is the CHEAP failure (it keeps its cursor, costs one backoff); a
+    # drift restart is the expensive one. So: cap every tenant to stop 44-request
+    # bursts, then let Microsoft page harder over a shorter wall-clock window.
+    interval: 14400                      # start a full sweep every 4h, not hourly: the sweep is
+                                         # the only way this tenant sees anything (incremental is
+                                         # off), but 6 sweeps/day beats 24 that never complete
+    resume_interval: 1800                # ...while one is in progress, resume every 30 min so the
+                                         # sweep spans ~1.5h instead of ~8h. Backoff still gates
+                                         # this, so a 429 costs backoff_min regardless
+    resume_priority: true               # once due, use next Eightfold slot; other ATS order unchanged
+    max_pages_per_run: 8                 # 23 pages -> 3 runs. Deliberately not 12+: the observed
+                                         # quota was 2-3 requests/run, so this is a trial that
+                                         # depends on the other tenants' caps freeing volume
+    cursor_max_age: 86400
+    backoff_min: 3600                    # no-progress 429s now grow 1h, 2h, 4h, ...
+    # VERIFY: does a sweep now COMPLETE? `watcher status` should show microsoft
+    # with no cursor and a last_complete inside the last ~6h. If it still starves,
+    # the next lever is fewer rows to page (an Eightfold `query`), not more pages.
   amazon:
     ats: amazon
     countries: [IND]                     # 2325 open India reqs, 100 rows/page
@@ -366,6 +650,15 @@ companies:
     host: jobs.intuit.com                # sitemap feed: 512 jobs, 34 in Bengaluru.
     interval: 3600                       # 330KB, no ETag — see adapters/README.md for
                                          # what the sitemap route costs in fidelity
+  synopsys:
+    ats: radancy
+    enabled: true                        # silent production baseline 2026-09-20 20:53, zero alerts
+    host: careers.synopsys.com
+    interval: 3600
+    # Official TalentBrew careers host and robots-allowed XML sitemap. On
+    # 2026-09-20: 500 unique job URLs; the 155 Bengaluru/Bhubaneswar/Delhi/
+    # Hyderabad/Noida/Pune URLs exactly matched the official India search count.
+    # Titles and cities are URL-derived; lastmod is last-changed, not first-posted.
 
   oracle:
     ats: oracle                          # Oracle runs its own Recruiting Cloud
@@ -374,6 +667,19 @@ companies:
     locations: [India]                   # 41 India reqs of 2165; a 400-row scan agrees.
                                          # City-level filters are IGNORED by this tenant —
                                          # location: [Bengaluru] silently returns all 2165.
+    count_tolerance: 1
+    # This tenant over-declares TotalJobsCount by exactly one. Diagnosed
+    # 2026-09-20 under RunLock with notifications and export disabled: the API
+    # declares 47, returns 46 unique rows at offset 0, then an empty page at
+    # offset 46. No-sort, bare-expand and the returned India location-facet
+    # query all produce the same 46 ids and the same declared 47, so this is
+    # upstream inconsistency, not a parser dropping a row. Every one of the 14
+    # failures that day had a shortfall of exactly 1, across two different
+    # totals (47 and 44), which is why the allowance is 1 and not a fraction.
+    # Without it the sweep never completed, so closed reqs were never retired:
+    # 10.2h starving by 20:38 while the other seven Oracle boards were fine.
+    # If the warning ever reports a shortfall of more than 1, do NOT raise this
+    # number — re-run the diagnosis first.
   jpmorganchase:
     ats: oracle                          # Oracle Recruiting Cloud candidate API
     host: jpmc.fa.oraclecloud.com
@@ -393,42 +699,64 @@ companies:
     location_id: India                   # page 1 only, date-sorted: robots.txt
     interval: 3600                       # disallows ?page= for every user-agent
 
-  # ---- Not watched: no adapter for their ATS --------------------------------
-  # Each was checked live on 2026-09-16. Fix one by finding a real board URL and
-  # running `watcher detect <url> --write`.
+  # ---- Recovered boards and explicitly unresolved sources ------------------
+  # See AUTOMATION_AUDIT.md for the 2026-09-19 revalidation of the 17-company batch.
 
   linkedin:
-    ats: blocked
-    blocked: no-board
-    # Re-checked 2026-09-18. careers.linkedin.com/jobs, the URL traced earlier,
-    # now 404s; careers.linkedin.com/ is a 200 marketing site whose every job
-    # link points at linkedin.com/jobs/search?f_C=1337... LinkedIn's own job
-    # search IS their board, and the build spec rules LinkedIn out. So this is
-    # excluded by the spec, not merely hard to read.
-    note: "no board of their own; job links go to linkedin.com/jobs/search, which the spec excludes"
+    ats: smartrecruiters_html
+    token: LinkedIn3
+    organization: LinkedIn
+    country: India
+    location: [india]
+    interval: 3600
+    page_delay: 1.2
+    max_requests_per_run: 12
+    cursor_max_age: 10800
+    # 2026-09-20: public SmartRecruiters HTML, not the LinkedIn Jobs platform.
+    # All global location groups establish India coverage: Bengaluru 51,
+    # Gurgaon 2, Mumbai 4. Complete silent production baseline: 57 jobs,
+    # 22 title/location matches, no cursor/error/backlog alerts.
+    # The separate api.smartrecruiters.com robots disallows crawling, so this
+    # uses only allowed career-page HTML and its published Show more routes.
   meta:
-    ats: blocked
-    blocked: dynamic-challenge
-    # GraphQL needs a rotating doc_id plus a session token; traced 2026-09-18 and the
-    # listing made no replayable JSON request.
-    note: "GraphQL behind rotating doc_id + session token"
+    ats: meta
+    country: India
+    interval: 3600
+    page_delay: 1.0
+    location: [india, bangalore, bengaluru, hyderabad, chennai, pune, mumbai,
+               gurugram, gurgaon, noida, delhi]
+    # Fresh anonymous page context + Meta's public location/search operations.
+    # The five current India office filters return 24 unique jobs. Global search
+    # plus its featured row exactly matched all 990 sitemap IDs during validation;
+    # four global locationless jobs were absent from Meta's India-filtered result.
+    # Persisted query IDs can change; stale IDs fail closed on response shape.
   uber:
-    ats: blocked
-    blocked: dynamic-challenge
-    # 406 to any honest client; in a browser the listing makes no JSON request we can
-    # replay. SmartRecruiters "uber" is one 2021 "Test UAT" row.
-    note: "406 to non-browser clients; no replayable JSON"
+    ats: oracle
+    host: iaziqy.fa.ocs.oraclecloud.com
+    site: CX_1
+    locations: [India]
+    interval: 3600
+    # 2026-09-20: branded Uber Oracle candidate site, public API, and details
+    # verified. All 531 global IDs exactly match the official jobs.uber sitemap;
+    # the India query exactly matches all 20 global rows with an India location.
+    # Silent complete production baseline: 20 IDs, no cursor/error/notification.
   nutanix:
-    ats: blocked
-    blocked: dynamic-challenge
-    # Correction: robots.txt ALLOWS us (/en/jobs/ is disallowed only for SemrushBot
-    # and PageFreezer). The blocker is a Cloudflare interstitial: 403 to any client
-    # without a solved challenge. Needs a live browser per fetch, so not worth it.
-    note: "Cloudflare challenge on careers.nutanix.com; robots.txt permits us"
+    ats: jobvite
+    token: nutanix
+    region: India
+    interval: 3600
+    # Official Jobvite alternative to the challenged careers.nutanix.com.
+    # Region facet verified; multi-location rows resolved from detail pages.
   chargebee:
-    ats: blocked
-    blocked: no-board
-    note: "no board of their own; chargebee.com/careers sends applicants to LinkedIn"
+    ats: successfactors_html
+    host: jobs.chargebee.com
+    organization: Chargebee Technologies Private Limited
+    interval: 3600
+    location: [india, bangalore, bengaluru, hyderabad, chennai, pune, mumbai,
+               gurugram, gurgaon, noida, delhi]
+    # Official jobs subdomain: complete search says one job, matching sitemap.
+    # Its detail confirms Remote US. Main careers also directs to LinkedIn;
+    # this watches this public board, not LinkedIn-only advertisements.
   thoughtspot:
     ats: rippling                        # their own /api/getCareersListing gave it away:
     token: thoughtspot                   # every job url is ats.rippling.com/thoughtspot/...
@@ -437,51 +765,46 @@ companies:
     board: promptql
   gupshup:
     ats: blocked
-    blocked: no-board
-    # Checked 2026-09-18. gupshup.io/careers is a talent-community page: its
-    # Next.js payload (_next/data/<buildId>/en/careers.json) holds marketing
-    # cards and a Salesforce contact form, and no openings list. An earlier note
-    # here called that route a job feed -- it is not; the array that looked like
-    # jobs was pageProps.agentconfigList, their product catalogue.
-    # gupshup.freshteam.com/jobs is an UNCLAIMED Freshteam subdomain ("You can
-    # claim it now"), not their board. gupshup.darwinbox.in is a real tenant, but
-    # every path under /ms/candidate/careers returns the same 898-byte preview
-    # stub with no listing and no XHR, so the public portal is switched off.
-    note: "no public list of openings anywhere; careers page invites a message, not an application"
-    recheck:                             # `watcher recheck`, monthly: has a list appeared?
-      - https://www.gupshup.io/careers
+    blocked: unvalidated-empty
+    # 2026-09-19 recheck: the official page's opportunities CTAs use WhatsApp.
+    # Both Darwinbox candidate apps now load, and their current bundles identify
+    # company config, all-jobs and filter routes, but every inventory/config API
+    # returns a Cloudflare 403. This is a technical block, not a robots rule.
+    # 2026-09-20 follow-up: config and POST job/alljobs are now readable.
+    # Identified Gupshup, recruitment_enabled=false; explicit job_counts=0/data=[].
+    # GET alljobs is not the listing method (422); no positive-job parser validated.
+    note: "Darwinbox public POST now readable but explicitly empty; recruitment disabled; monitor for reopening"
+    recheck:
+      - https://www.gupshup.ai/careers
       - https://gupshup.darwinbox.in/ms/candidate/careers
   krutrim:
     ats: blocked
     blocked: no-board
-    # Re-checked 2026-09-18: www.olakrutrim.com/careers returns the same
-    # 7408-byte "Krutrim Cloud" 404 body as a nonsense path, the apex redirects
-    # to the homepage, and the homepage's only links are /ola-maps, /pricing,
-    # /support and /terms. No careers page exists to poll.
-    note: "careers page removed; /careers 404s (same body as any bad path)"
+    # Re-checked 2026-09-19: the old www.olakrutrim.com careers path still 404s.
+    # The official AI Labs site now has an Open Positions button, but its own
+    # bundle shows that the button leads only to Krutrim's LinkedIn jobs page.
+    note: "official AI Labs careers CTA leads only to LinkedIn; no permitted enumerable first-party/ATS inventory"
     recheck:
+      - https://ai-labs.olakrutrim.com/
       - https://www.olakrutrim.com/careers
       - https://api.ashbyhq.com/posting-api/job-board/krutrim
       - https://api.lever.co/v0/postings/krutrim?mode=json
   qdrant:
-    ats: blocked
-    blocked: no-board
-    # Re-checked 2026-09-18: the careers page is GONE, not server-rendered.
-    # /careers, /jobs and a nonsense path all return the identical 25508-byte
-    # "404 Page not found - Qdrant" template, and the homepage links to no
-    # careers page at all. An earlier note called this server-rendered; that was
-    # true when traced, and the page has since been removed.
-    note: "careers page removed; qdrant.tech/careers 404s (same body as any bad path)"
-    recheck:
-      - https://qdrant.tech/careers/
-      - https://api.ashbyhq.com/posting-api/job-board/qdrant
-      - https://boards-api.greenhouse.io/v1/boards/qdrant/jobs
+    ats: ashby
+    token: qdrant.tech
+    interval: 3600
+    location: [india, bangalore, bengaluru, hyderabad, chennai, pune, mumbai,
+               gurugram, gurgaon, noida, delhi]
+    # Official About Us -> qdrant.to/jobs -> this board. Five jobs validated;
+    # secondary Remote India retained; Europe-only remote excluded. Zero title matches.
   vespa:
-    ats: blocked
-    blocked: robots
-    # Board is BambooHR: vespaai.bamboohr.com/jobs/embed2.php?format=json (returns JSON),
-    # but bamboohr.com robots.txt has "Disallow: /jobs/embed2.php". Checked 2026-09-18.
-    note: "BambooHR embed feed exists but robots.txt disallows /jobs/embed2.php"
+    ats: bamboohr
+    host: vespaai.bamboohr.com
+    interval: 3600
+    location: [india, bangalore, bengaluru, hyderabad, chennai, pune, mumbai,
+               gurugram, gurgaon, noida, delhi]
+    # Allowed /careers/list has nine jobs. No India eligibility at validation.
+    # /jobs/embed2.php remains disallowed and is never fetched.
   scylladb:
     ats: comeet                          # uid+token are published in their careers-page markup
     company_uid: "E4.006"
@@ -490,11 +813,16 @@ companies:
     ats: blocked
     blocked: robots
     # Board found: flipkart.turbohire.co/careerpage/4d757ba0-3d57-448a-b82c-238ed87ac90f
-    # Checked 2026-09-18. flipkart.turbohire.co/robots.txt, group "User-agent: *":
+    # Re-checked 2026-09-19. flipkart.turbohire.co/robots.txt, group "User-agent: *":
     #   Disallow: /
     # Googlebot is allowed /careerpage/; anthropic-ai and Claude-Web are named and denied.
-    # Reachable, deliberately not polled. No email job-alert form on the board to use instead.
-    note: "TurboHire board; robots.txt Disallow: / for every agent but Googlebot"
+    # A permitted first-party /jobslist says 69 openings but is only a static
+    # ten-card mock: truncated text, no stable IDs/links, and a Show More alert.
+    # The official nav still points to TurboHire. Reachable, deliberately not polled.
+    note: "real TurboHire board is robots-disallowed; first-party jobslist is an incomplete static placeholder"
+    recheck:
+      - https://www.flipkartcareers.com/
+      - https://www.flipkartcareers.com/jobslist
   myntra:
     ats: spire2grow                       # found with `watcher trace`: the page names no ATS
     workspace_id: MYNTRA-93as3            # the only credential the API wants
@@ -510,37 +838,45 @@ companies:
   zepto:
     ats: blocked
     blocked: dynamic-challenge
-    # Re-filed 2026-09-18: not server-rendered after all. /careers and
-    # /careers/jobs answer HTTP 202 with an empty body and
-    # `x-amzn-waf-action: challenge` (AWS WAF bot challenge) to any client that
-    # is not a full browser. Bot protection is not worked around here.
-    note: "AWS WAF challenge (202, x-amzn-waf-action: challenge) on every careers path"
+    # 2026-09-19: official careers links zepto.talentrecruit.com/career-page.
+    # The main page returns an AWS WAF 202 challenge; the alternative and its
+    # robots URL consistently return a plain AWS ELB 403 (the earlier TLS error
+    # did not recur). Neither challenge is bypassed.
+    note: "careers page WAF challenge; officially linked TalentRecruit board consistently returns 403"
+    recheck:
+      - https://www.zepto.com/s/careers
+      - https://zepto.talentrecruit.com/career-page
   bookmyshow:
-    ats: blocked
-    blocked: dynamic-challenge
-    note: "careers host 403s plain clients; no JSON job request seen in a browser"
+    ats: trakstar
+    host: bookmyshow.hire.trakstar.com
+    organization: BookMyShow
+    interval: 3600
+    location: [india, bangalore, bengaluru, hyderabad, chennai, pune, mumbai,
+               gurugram, gurgaon, noida, delhi]
+    # Trakstar/Recruiterbox board identifies BookMyShow/Big Tree Entertainment.
+    # All 13 IDs agree with the board's linked RSS; complete HTML count verified.
+    # Main in.bookmyshow.com careers still 403s; this permitted host works.
   zomato:
     ats: blocked
     blocked: no-board
     # Re-filed 2026-09-18: eternal.com/careers (Zomato, Blinkit, District,
     # Hyperpure) publishes NO openings in any form. The page's only data is its
-    # careers component, which holds culture copy -- "find someone in our team
-    # who can vouch for you" -- and mailto:hr@eternal.com, and it fetches
-    # nothing. SmartRecruiters "Zomato1" is a real but dead board (2016).
+    # careers component explicitly accepts applications only through employee
+    # referrals and makes no job API request. SmartRecruiters "Zomato1" is a
+    # real but abandoned board whose three rows date from 2015-2016.
     note: "Eternal hires by referral and email; no list of openings is published"
+    recheck:
+      - https://www.eternal.com/careers
   blinkit:
     ats: blocked
-    blocked: dynamic-challenge
-    # CLOSED 2026-09-18 after a second look. The earlier "no job data even in a
-    # browser" was checking the wrong page: Blinkit's openings live on a separate
-    # subdomain, jobs.blinkit.com. That host blocks automated clients at
-    # Cloudflare ("sorry, you have been blocked", 403), including a headless
-    # Chromium, so a person sees postings and this watcher cannot. No other
-    # route exists: Lever, Greenhouse, Ashby, SmartRecruiters (blinkit, grofers),
-    # Keka and Workable have no board, and Darwinbox serves the same shell for
-    # any subdomain. eternal.com/careers lists nothing (see zomato). Bot
-    # protection is not worked around here, so this stays closed.
-    note: "board is jobs.blinkit.com, which blocks automated clients (Cloudflare) — closed"
+    blocked: unvalidated-empty
+    # 2026-09-20: direct honest GET now returns 200, explicitly 0 of 0.
+    # Published JS filters existing .row-job-listing DOM nodes; none are present.
+    # No non-empty job schema has been validated; do not infer no hiring elsewhere.
+    note: "official listing now readable but empty; positive-job parser not yet validated"
+    recheck:
+      - https://jobs.blinkit.com/
+      - https://blinkit.com/careers/jobs
   phonepe:
     ats: smartrecruiters
     token: PHONEPELIMITED                # the legal-entity spelling; "phonepe" and
@@ -554,14 +890,11 @@ companies:
     # from each job's own page, for new rows only. SmartRecruiters "medianet" is
     # a different company (one 2020 row in Tunisia).
   navi:
-    ats: blocked
-    blocked: robots
-    # WARNING: the Ashby board 'navi' is a San Francisco startup, NOT Navi
-    # Technologies of Bangalore. Its rows are SF founding-engineer roles. Do not wire it up.
-    # Board found: navi.turbohire.co/dashboardv2?orgId=3e818601-0baa-429c-b6f8-4b21903ae0e6
-    # Checked 2026-09-18, same TurboHire robots.txt: "User-agent: * / Disallow: /".
-    # WARNING: Ashby board 'navi' is a San Francisco startup, not Navi Technologies.
-    note: "TurboHire board; robots.txt Disallow: / for every agent but Googlebot"
+    ats: navi
+    interval: 3600
+    # Verified 2026-09-19: navi.com/api/careers/jobs, linked by their own JS,
+    # returns all 41 jobs. Browser-side pagination only. No TurboHire scraping.
+    # The Ashby board 'navi' is a different company: do not use it.
   quadeye:
     ats: quadeye                         # own /api/zoho-recruit proxy in front of Zoho Recruit
   deshaw:
@@ -605,8 +938,9 @@ companies:
     host: morganstanley.eightfold.ai
     domain: morganstanley.com
     locations: [India]                   # 102 India positions on 2026-09-18 ≈ 11 requests/sweep
-    page_delay: 2.0                      # Eightfold rate-limits by volume (see microsoft)
+    page_delay: 2.0                      # conservative pacing; see Eightfold adapter notes
     interval: 3600
+    max_pages_per_run: 14                # 11 pages fits one run; see note under microsoft
     # Not on the usual ATSes; careers site is Eightfold. Job link verified:
     # /careers/job/<id> answers 200 and carries the posting's title.
   jiostar:                               # JioHotstar
@@ -634,8 +968,17 @@ companies:
     host: careers.qualcomm.com
     domain: qualcomm.com
     locations: [India]                   # 580 India positions on 2026-09-18 ≈ 58 requests/sweep
-    page_delay: 2.0                      # Eightfold rate-limits by volume (see microsoft)
+    page_delay: 2.0                      # conservative pacing; see Eightfold adapter notes
     interval: 3600
+    # Shared Eightfold rotation exceeded the default three-hour cursor lifetime
+    # on 2026-09-20, discarding a validated 440-row partial sweep before resume.
+    # Keep resumable work; count/overlap validation still rejects changed pages.
+    cursor_max_age: 86400
+    # Was uncapped, so the 120s run_budget was the only bound: it fetched 440 rows
+    # (44 requests) in ONE run, twice on 2026-09-20 — about 15x Microsoft's whole
+    # hourly budget on shared Eightfold infrastructure. 58 pages now take three
+    # runs instead of two, and it has no resume_interval so it resumes each run.
+    max_pages_per_run: 20                # see the volume note under microsoft
     # Careers site is Eightfold. Job link verified (200, title shown).
     incremental: true                    # pcsx sort_by=timestamp: newest pages only (2-3 requests),
     full_sweep: 43200                    # a complete sweep every 12h to retire closed reqs
@@ -647,6 +990,7 @@ companies:
     locations: [India]                   # 77 India positions on 2026-09-18 ≈ 8 requests/sweep
     page_delay: 2.0
     interval: 7200
+    max_pages_per_run: 10                # 8 pages fits one run; see note under microsoft
     # Careers site shows Eightfold (also Radancy/SuccessFactors traces). Job
     # link verified (200, title shown).
   commerceiq:
@@ -674,13 +1018,13 @@ companies:
     sites: [Visa]                        # 792 postings, 78 in India, on 2026-09-18 ≈ 40 requests/sweep
     # From a live posting URL. Job link verified (200, title shown).
   akamai:
-    ats: blocked
-    blocked: dynamic-challenge
-    # jobs.akamai.com (Oracle CX_1 behind Akamai's own edge) answers "Access
-    # Denied" (Server: AkamaiGHost) to automated clients, even for the plain
-    # careers page, so the Oracle pod behind it cannot be read off the page.
-    # Bot protection is not worked around here.
-    note: "jobs.akamai.com: Akamai edge 'Access Denied' to automated clients"
+    ats: oracle
+    host: fa-extu-saasfaprod1.fa.ocs.oraclecloud.com
+    site: CX_1
+    locations: [India]
+    interval: 3600
+    # Oracle page identifies Akamai and links its official careers/privacy pages.
+    # Verified 2026-09-19: 19 India jobs, one API request.
   slice:
     ats: kula                            # the Indian fintech (slice.bank.in), HTML adapter
     account: slice
@@ -702,10 +1046,11 @@ companies:
   instabase:
     ats: blocked
     blocked: no-board
-    # 2026-09-18: instabase.com/careers/jobs links two Greenhouse jobs, and both
-    # are "Page not found"; Greenhouse says "the job board you were viewing is
-    # no longer active", and its API 404s. The careers page is stale.
-    note: "Greenhouse board inactive; careers page links dead jobs"
+    # Rechecked 2026-09-19: the page's own JS still hard-codes Greenhouse
+    # `instabase`, whose board/API return 404. Two Webflow CMS pages expose
+    # three unique IDs, but all detail links 404 and cards contain placeholder
+    # copy. The sitemap contains no individual job inventory.
+    note: "Greenhouse board inactive; stale Webflow cards link three dead jobs"
     recheck:
       - https://www.instabase.com/careers/jobs
       - https://boards-api.greenhouse.io/v1/boards/instabase/jobs
@@ -802,6 +1147,7 @@ companies:
     locations: [India]                   # 113 India postings on 2026-09-19
     page_delay: 6.0
     interval: 3600
+    max_pages_per_run: 14                # 12 pages fits one run; see note under microsoft
     incremental: true
     full_sweep: 86400
   ukg:
@@ -811,6 +1157,7 @@ companies:
     locations: [India]                   # 71 India postings on 2026-09-19
     page_delay: 6.0
     interval: 3600
+    max_pages_per_run: 10                # 8 pages fits one run; see note under microsoft
     incremental: true
     full_sweep: 86400
 
@@ -859,48 +1206,280 @@ companies:
     host: careers.quest-global.com
     locations: [India]                   # 1,001 India jobs / 17 requests on 2026-09-19
     interval: 3600
+    max_window: 900
+    # This board sits exactly ON Phenom's 1,000-row Elasticsearch window, so
+    # with the default it never partitioned: `total > max_window` was false at
+    # total == 1000, and paging the full window dropped rows near the edge.
+    # That produced an intermittent failure — 962/968/971/975/991/994 unique
+    # "but expected 1000" through 2026-09-20 — which looked random but was not:
+    # at 1001 it partitioned and passed, at exactly 1000 it did not.
+    # Lowering the window forces the category-facet partitions instead. A live
+    # 1,001-row run on 2026-09-21 then showed that even the 501-row Energy
+    # partition can reshuffle at page boundaries (501 rows, only 476 unique).
+    # The adapter now replays a deficient facet at most twice and still requires
+    # its full declared unique count. A follow-up live run completed 1001/1001.
+    # Do NOT raise this back to 1000. If the facet sums ever stop matching the
+    # declared total the adapter fails closed, which is the intended behaviour.
   globallogic:
     ats: globallogic                     # 127 India jobs / 13 requests on 2026-09-19
     interval: 3600
 
   siemens:
-    ats: unsupported
-    note: "Avature board; its public sitemap contains only static/favicon entries, not jobs"
-    recheck:
-      - https://jobs.siemens.com/en_US/externaljobs/SearchJobs/
-      - https://jobs.siemens.com/sitemap.xml
+    ats: siemens
+    enabled: true
+    interval: 3600
+    page_delay: 1.2
+    max_requests_per_run: 16
+    cursor_max_age: 86400
+    location: [india, bangalore, bengaluru, hyderabad, chennai, pune, mumbai,
+               gurugram, gurgaon, noida, delhi]
+    # The permitted country-faceted HTML search returns six rows/page. A full
+    # 954-row validation completed with unique IDs and resolved 120 multi-location
+    # details. Three facet anomalies name only non-India/global locations and are
+    # retained in inventory but excluded by this strict filter.
+    # 2026-09-20: sorted production baseline completed at 939 unique jobs,
+    # cursor-free and error-free; 82 match the title/location filters. All
+    # backlog notifications were suppressed before enabling monitoring.
+    # With the explicit oldest-first order, count growth extends the saved sweep;
+    # a decrease or page overlap still restarts to prevent gaps. RSS/sitemap
+    # cannot prove coverage.
   caterpillar:
-    ats: blocked
-    blocked: dynamic-challenge
-    note: "sitemap job URLs omit location and job pages return HTTP 403, so India filtering is unsafe"
-    recheck:
-      - https://careers.caterpillar.com/sitemap.xml
-      - https://careers.caterpillar.com/en/jobs/
+    ats: workday
+    tenant: cat
+    shard: wd5
+    sites: [CaterpillarCareers]
+    applied_facets:
+      locationCountry: [c4f78be1a8f14da0ab49ce1162348a5e]
+    interval: 3600
+    # Verified India facet: 97 jobs, five pages instead of 989 global/50 pages.
+    # Ordering is not strictly newest-first; use a complete India sweep.
   citadelsecurities:
-    ats: blocked
-    blocked: dynamic-challenge
-    note: "official Citadel Securities careers site is behind a Cloudflare challenge"
+    ats: citadel_securities
+    enabled: true
+    interval: 14400
+    location: [india, bangalore, bengaluru, hyderabad, chennai, pune, mumbai,
+               gurugram, gurgaon, noida, delhi]
+    # 2026-09-20: official public careers_listing_filter form POST returns
+    # all 84 listings in one counted response; repeated with the live adapter.
+    # Four Gurugram listings, one title match. Temporary silent baseline passed.
+    # Slugs are posting IDs, not requisition numbers; dates deliberately omitted.
+    # User approved activation; complete silent production baseline 20 Sep 16:51.
+    note: "84-job production baseline complete; four-hour polling enabled"
     recheck:
       - https://www.citadelsecurities.com/careers/
+      - https://www.citadelsecurities.com/career-sitemap.xml
   hsbc:
-    ats: unsupported
-    note: "Avature board; its public sitemap contains only static/favicon entries, not jobs"
-    recheck:
-      - https://mycareer.hsbc.com/en_GB/external/SearchJobs/
-      - https://mycareer.hsbc.com/sitemap.xml
+    ats: eightfold
+    host: portal.careers.hsbc.com
+    domain: hsbc.com
+    api: apply
+    locations: [India]
+    location: [india]
+    interval: 10800
+    page_delay: 6.0
+    max_pages_per_run: 20
+    cursor_max_age: 86400
+    # Official HSBC India page links this portal. 167 jobs / 17 requests.
+    # Apply flavor is unordered: no incremental stopping. Nine Eightfold tenants
+    # share one start per 15-minute run, so hourly polling cannot be promised.
   greyorange:
-    ats: unsupported
-    note: "official board uses Zwayam; no safe public job feed or supported adapter identified"
-    recheck:
-      - https://careers.greyorange.com/greyorange/
+    ats: zwayam
+    company_id: "16090"
+    host: careers.greyorange.com
+    board_path: greyorange
+    interval: 3600
+    page_delay: 1.0
+    max_pages_per_run: 12
+    location: [india, bangalore, bengaluru, hyderabad, chennai, pune, mumbai,
+               gurugram, gurgaon, noida, delhi]
+    # Official frontend publishes public.zwayam.com/jobs/search. Complete
+    # 88-ID sweep and public detail identity validated; 17 filter matches.
   bain:
-    ats: unsupported
-    note: "official board uses Avature; no safe supported API or job-bearing sitemap identified"
-    recheck:
-      - https://www.bain.com/careers/find-a-role/
+    ats: bain
+    page_size: 400
+    interval: 3600
+    location: [india, bangalore, bengaluru, hyderabad, chennai, pune, mumbai,
+               gurugram, gurgaon, noida, delhi]
+    # The official careers UI publishes a counted public API. Its default
+    # ten-row ordering shifts between requests, so fetch the current 326-row
+    # inventory in one 400-row response. Three source rows explicitly omit
+    # location; retain them in inventory but do not infer India eligibility.
   mckinsey:
-    ats: unsupported
-    note: "official careers search repeatedly times out with zero bytes over HTTP/2 and HTTP/1.1; no reliable public feed identified"
+    ats: mckinsey
+    enabled: true
+    interval: 14400
+    location: [india, bangalore, bengaluru, hyderabad, chennai, pune, mumbai,
+               gurugram, gurgaon, noida, delhi]
+    # www.mckinsey.com search/detail/sitemap still fail at the TCP level, even at
+    # a 75-second timeout, while robots.txt on that same host answers.
+    # 2026-09-20: a usable source WAS found and validated on McKinsey's own host:
+    #   GET https://gateway.mckinsey.com/apigw-x0cceuow60/v1/api/jobs/search
+    #       ?pageSize=800&start=1&lang=en     (anonymous; no key/cookie/Referer)
+    # numFound 595 = 595 docs = 595 unique jobID in one request; &countries=India
+    # gives 46, exactly the 46 derived from the global countries[] arrays; a repeat
+    # 12 minutes later returned the identical 595 IDs in identical order.
+    # `start` is a ONE-based page index paired with pageSize; `rows=` returns 400.
+    # cities[]/countries[] are equal-length and aligned on all 595 records.
+    # Adapter now implemented: one complete response or fail closed; no cursor.
+    # Temporary live baseline: 595 jobs, 46 India, one configured title match.
+    # Identity rests on the first-party host plus mckinsey.avature.net apply URLs,
+    # not a detail page; there is no reliable posted date; apigw-x0cceuow60 may
+    # rotate, so any adapter must fail closed on response shape.
+    # See BLOCKED_SOURCE_REVIEW.md for the full validation.
+    # User approved activation; complete silent production baseline 20 Sep 16:50.
+    note: "595-job production baseline complete; four-hour polling enabled"
     recheck:
       - https://www.mckinsey.com/careers/search-jobs
       - https://www.mckinsey.com/sitemap.xml
+      - https://jobs.mckinsey.com/
+
+  ola:
+    ats: blocked
+    blocked: robots
+    note: "official Mobility/Electric pages expose no jobs and link one TurboHire org; its robots disallows watcher access"
+    # Verified from both official pages; shared org e0c1eb37-eb7a-4ca4-bcc5-d59ce4ce9212.
+    # This does not establish Krutrim coverage. No requests to disallowed board paths.
+    recheck:
+      - https://www.olacabs.com/careers
+      - https://www.olaelectric.com/careers
+      - https://olacareers.turbohire.co/robots.txt
+
+  # ---- Labelled SECONDARY coverage: Instahyre, not employer-owned boards ----
+  # Each employer below has its own `ats: blocked` entry above recording why its
+  # OWN board is unreadable. Instahyre is a separate Indian job site where these
+  # companies' recruiters post openings themselves; its robots publishes a bare
+  # "User-agent: *" with no rules. The human `/jobs-at-<company>/` page IS
+  # Cloudflare-challenged and is never fetched — only the JSON API the site's own
+  # bundle calls, `/api/v1/job_search?companies=<employer>`.
+  #
+  # The `-instahyre` suffix is deliberate: it is what the phone view shows, so a
+  # row is never presented as the employer's own inventory (same convention as
+  # levelai / levelai-lever). Coverage is PARTIAL with respect to the employer
+  # and COMPLETE with respect to Instahyre, which is why these sweep and retire
+  # normally instead of pretending to be incremental. Never read a fall in these
+  # counts as the employer closing roles.
+  #
+  # The user approved clearly-labelled partial coverage on 2026-09-20, including
+  # Flipkart and Ola, whose own TurboHire board remains robots-disallowed and is
+  # still never fetched. Validated 2026-09-20: every row's employer name and
+  # positive numeric id are checked (against the configured id where known, or
+  # for one consistent id otherwise), because a misspelled `company=` filter is
+  # silently ignored and returns the whole 13k-row site.
+  flipkart-instahyre:
+    ats: instahyre
+    enabled: true                # silent production baseline 2026-09-20 17:17, zero alerts
+    employer: Flipkart
+    employer_id: 38                      # 48 jobs on 2026-09-20; two offset pages
+    interval: 14400
+    page_delay: 1.2
+    location: [india, bangalore, bengaluru, hyderabad, chennai, pune, mumbai,
+               gurugram, gurgaon, noida, delhi, work from home]
+  zepto-instahyre:
+    ats: instahyre
+    enabled: true                # silent production baseline 2026-09-20 17:17, zero alerts
+    employer: Zepto
+    employer_id: 34141                   # 24 jobs on 2026-09-20
+    interval: 14400
+    page_delay: 1.2
+    location: [india, bangalore, bengaluru, hyderabad, chennai, pune, mumbai,
+               gurugram, gurgaon, noida, delhi, work from home]
+  coindcx-instahyre:
+    ats: instahyre
+    enabled: true                # silent baseline 2026-09-20 23:15, 9 jobs, zero alerts
+    employer: CoinDCX
+    employer_id: 990                     # 9 jobs on 2026-09-20; careers.coindcx.com 403s
+    interval: 14400
+    page_delay: 1.2
+    location: [india, bangalore, bengaluru, hyderabad, chennai, pune, mumbai,
+               gurugram, gurgaon, noida, delhi, work from home]
+  cgi-instahyre:
+    ats: instahyre
+    enabled: true                # silent baseline 2026-09-20 23:15, authoritative zero
+    employer: CGI                        # authoritative zero on 2026-09-20; Njoyn board is
+    interval: 14400                      # CAPTCHA-gated, so this is the only readable route
+    page_delay: 1.2
+    location: [india, bangalore, bengaluru, hyderabad, chennai, pune, mumbai,
+               gurugram, gurgaon, noida, delhi, work from home]
+  joveo-instahyre:
+    ats: instahyre
+    enabled: true                # silent baseline 2026-09-20 23:15, authoritative zero
+    employer: Joveo                      # authoritative zero on 2026-09-20. Joveo's OWN board
+    interval: 14400                      # is readable under a TLS 1.3 runtime - see its entry
+    page_delay: 1.2
+    location: [india, bangalore, bengaluru, hyderabad, chennai, pune, mumbai,
+               gurugram, gurgaon, noida, delhi, work from home]
+  nykaa-instahyre:
+    ats: instahyre
+    enabled: true                # silent production baseline 2026-09-20 20:53, zero alerts
+    employer: Nykaa
+    employer_id: 1961                    # 24 jobs on 2026-09-20
+    interval: 14400
+    page_delay: 1.2
+    location: [india, bangalore, bengaluru, hyderabad, chennai, pune, mumbai,
+               gurugram, gurgaon, noida, delhi, work from home]
+    # Unlike the other -instahyre entries, Nykaa is NOT blocked: the `nykaa`
+    # entry above watches careers.nykaa.com, whose own page states
+    # "Currently there are no job postings available" and has done for 36
+    # consecutive polls. That is a true confirmed-empty, not a broken parser —
+    # but Instahyre carries 24 live Nykaa roles, so the employer is hiring and
+    # its own site simply does not list it. Both entries are kept, as with
+    # levelai / levelai-lever; neither supersedes the other.
+  blinkit-instahyre:
+    ats: instahyre
+    enabled: true                # silent production baseline 2026-09-20 17:17, zero alerts
+    employer: Blinkit
+    employer_id: 333                     # 4 jobs on 2026-09-20; blinkit.com lists zero
+    interval: 14400
+    page_delay: 1.2
+    location: [india, bangalore, bengaluru, hyderabad, chennai, pune, mumbai,
+               gurugram, gurgaon, noida, delhi, work from home]
+  zomato-instahyre:
+    ats: instahyre
+    enabled: true                # silent production baseline 2026-09-20 17:17, zero alerts
+    employer: Zomato
+    employer_id: 27                      # 3 jobs on 2026-09-20; Eternal is referral-only
+    interval: 14400
+    page_delay: 1.2
+    location: [india, bangalore, bengaluru, hyderabad, chennai, pune, mumbai,
+               gurugram, gurgaon, noida, delhi, work from home]
+  ola-instahyre:
+    ats: instahyre
+    enabled: true                # silent production baseline 2026-09-20 17:17, zero alerts
+    employer: Ola
+    employer_id: 198                     # 1 job on 2026-09-20
+    interval: 14400
+    page_delay: 1.2
+    location: [india, bangalore, bengaluru, hyderabad, chennai, pune, mumbai,
+               gurugram, gurgaon, noida, delhi, work from home]
+  instabase-instahyre:
+    ats: instahyre
+    enabled: true                # silent production baseline 2026-09-20 17:17, zero alerts
+    employer: Instabase
+    employer_id: 5535                    # 1 job on 2026-09-20; Greenhouse board is dead
+    interval: 14400
+    page_delay: 1.2
+    location: [india, bangalore, bengaluru, hyderabad, chennai, pune, mumbai,
+               gurugram, gurgaon, noida, delhi, work from home]
+  gupshup-instahyre:
+    ats: instahyre
+    enabled: true                # silent production baseline 2026-09-20 20:38, zero alerts
+    employer: Gupshup
+    interval: 14400
+    page_delay: 1.2
+    location: [india, bangalore, bengaluru, hyderabad, chennai, pune, mumbai,
+               gurugram, gurgaon, noida, delhi, work from home]
+    # Known Instahyre employer returning an authoritative total_count 0 on
+    # 2026-09-20, corroborating Gupshup's own API. With no row, Instahyre exposes
+    # no numeric employer id; the adapter will learn it from a future first row
+    # while enforcing exact name equality and one consistent positive id.
+  krutrim-instahyre:
+    ats: instahyre
+    enabled: true                # silent production baseline 2026-09-20 20:38, zero alerts
+    employer: Krutrim
+    interval: 14400
+    page_delay: 1.2
+    location: [india, bangalore, bengaluru, hyderabad, chennai, pune, mumbai,
+               gurugram, gurgaon, noida, delhi, work from home]
+    # Known Instahyre employer returning an authoritative total_count 0 on
+    # 2026-09-20. This is labelled secondary coverage; Krutrim's first-party
+    # careers CTA still leads only to LinkedIn.
