@@ -2,13 +2,13 @@
 
 Polls public ATS job boards every 15 minutes and sends a Telegram alert the
 moment a matching requisition appears, with the req ID to attach to a referral
-request. Public JSON endpoints only — no headless browser, no HTML scraping, no
-LinkedIn, no paid APIs.
+request. Reads public ATS JSON and permitted careers HTML/XML with completeness
+checks. No headless browser, LinkedIn scraping, or paid APIs.
 
 Standard library only. It runs on a stock macOS `/usr/bin/python3`.
 
 ```sh
-make test                         # 145 tests, no network
+make test                         # Python tests, no network
 python3 -m watcher seed           # FIRST: record every open req, alert nothing
 python3 -m watcher run            # fetch, diff, alert on what's new
 ```
@@ -28,7 +28,7 @@ make export
 
 | | |
 | --- | --- |
-| `watcher seed` | Record every board as already-seen. Run this first: `run` on an empty database would alert on thousands of open reqs. |
+| `watcher seed` | Record every board as already-seen. First baselines are also silent during normal runs. |
 | `watcher run` | One sweep of whatever is due. Alerts only on requisitions never seen before. |
 | `watcher status` | Per-company poll state: interval, last poll, next due, backoff, sweeps in progress. |
 | `watcher list --company X --since 7d --matches` | What's in the store. |
@@ -107,13 +107,16 @@ tests/                   fixtures recorded from live boards; no network
 
 ## Non-goals
 
-No auto-apply, no LinkedIn, no headless browser, no paid scraping APIs, no
-daemon. Companies whose board is not reachable as public keyless JSON — or that
-refuse an honest User-Agent — are recorded as `ats: blocked` with a typed reason
-and skipped, rather than scraped or spoofed.
+No auto-apply, no LinkedIn-platform scraping, no headless browser, no paid scraping APIs, no
+daemon. Sources must be public, accessible with an honest User-Agent, and
+permitted by robots rules. Inaccessible or unvalidated sources remain disabled.
 
-Currently **69 companies polled, 17 not**. Every one of the 17 is typed
-`robots`, `dynamic-challenge`, `server-rendered` or `no-board`, and
-[EVIDENCE.md](EVIDENCE.md) gives the exact request/response pair behind each
-verdict. The three `robots` cases are never requested at all — only their
-`robots.txt` is read, and the disallow line is quoted.
+LinkedIn as an employer is monitored through its public SmartRecruiters career
+page; this does not access or scrape the LinkedIn Jobs platform.
+
+Current company coverage is defined in `config.yaml`; a configured prototype
+with `enabled: false` is not polled. [AUTOMATION_AUDIT.md](AUTOMATION_AUDIT.md)
+records the original 17-company batch and the follow-up across all inactive
+companies, with separate source validation and production baseline status. [EVIDENCE.md](EVIDENCE.md)
+contains earlier observations, some superseded by that audit. Robots-disallowed
+job endpoints are not fetched.
