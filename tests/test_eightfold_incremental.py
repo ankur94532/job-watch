@@ -1,8 +1,4 @@
-"""Eightfold incremental polls: pcsx sorted by timestamp, newest first.
-
-Microsoft's quota runs out a few requests into a 23-request sweep, so a normal
-poll must be the newest pages only, and must never pretend to be a sweep.
-"""
+"""Eightfold incremental polls and Microsoft's bounded full-sweep mode."""
 
 import unittest
 from urllib.parse import parse_qs, urlparse
@@ -73,6 +69,17 @@ class Incremental(unittest.TestCase):
         self.assertFalse(a.incremental)
         self.assertNotIn("sort_by", a.url("India", 0))
 
+    def test_timestamp_sort_without_incremental_does_not_refetch_failed_probe(self):
+        stamps = [NOW - i * 3600 for i in range(30)]
+        stamps[5] = NOW + 1  # Microsoft does not reliably honor descending order.
+        http = board(30, stamps)
+        a = adapter(http, incremental=False, sort_by='timestamp', max_pages_per_run=3)
+        result = a.fetch(ctx(range(1000, 1030)))
+        self.assertTrue(result.complete)
+        self.assertEqual(len(http.calls), 3)
+        self.assertEqual([parse_qs(urlparse(c[1]).query)['start'][0] for c in http.calls], ['0', '10', '20'])
+        self.assertIn('sort_by=timestamp', http.calls[0][1])
+
     def test_full_sweep_stops_at_the_configured_page_budget_and_resumes(self):
         http = board(40)
         a = adapter(http, incremental=False, max_pages_per_run=3)
@@ -85,6 +92,16 @@ class Incremental(unittest.TestCase):
         second = a.fetch(FetchContext(cursor=first.cursor))
         self.assertTrue(second.complete)
         self.assertEqual(parse_qs(urlparse(http.calls[3][1]).query)["start"], ["30"])
+
+    def test_legacy_cursor_requests_a_fresh_sweep_epoch_without_an_http_call(self):
+        http = board(40)
+        result = adapter(http, incremental=False).fetch(FetchContext(
+            cursor={"loc": 0, "start": 20, "ids": ["1000", "1001"]}))
+
+        self.assertTrue(result.restart)
+        self.assertFalse(result.complete)
+        self.assertIsNone(result.cursor)
+        self.assertEqual(http.calls, [])
 
     def test_incremental_requests_count_against_the_same_page_budget(self):
         stamps = [NOW - i * 3600 for i in range(40)]

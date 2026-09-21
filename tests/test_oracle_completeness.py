@@ -1,0 +1,149 @@
+"""Oracle inventory validation, resumability, and Uber's location shape."""
+
+import unittest
+from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
+
+from tests.fakes import FakeHttp
+from watcher.adapters import AdapterError, FetchContext, build_adapter
+from watcher.http import HttpStatusError
+
+
+CFG = {"ats": "oracle", "host": "oracle.example", "site": "CX_1", "locations": ["India"]}
+
+
+def row(jid, **fields):
+    return dict({"Id": str(jid), "Title": "Software Engineer", "PrimaryLocation": "Bengaluru, India"}, **fields)
+
+
+def page(count, *rows):
+    return {"items": [{"TotalJobsCount": count, "requisitionList": list(rows)}]}
+
+
+def adapter(pages, cfg=None):
+    def handle(method, url, payload, cache):
+        finder = parse_qs(urlsplit(url).query)["finder"][0]
+        offset = int(finder.split("offset=")[1].split(",")[0])
+        response = pages[offset]
+        if isinstance(response, Exception):
+            raise response
+        return response
+    http = FakeHttp({lambda m, u, p: True: handle})
+    return build_adapter("uber", cfg or CFG, http=http, page_delay=0), http
+
+
+class OracleCompleteness(unittest.TestCase):
+    def test_secondary_name_preserves_other_locations(self):
+        a, _ = adapter({0: page(1, row(1, PrimaryLocation="London, United Kingdom",
+                                      secondaryLocations=[{"Name": "Bengaluru, India", "CountryCode": "IN"}]))})
+        with patch("watcher.adapters.oracle.log.warning") as warning:
+            self.assertEqual(a.fetch().postings[0].location, "London, United Kingdom | Bengaluru, India")
+        warning.assert_not_called()
+
+    def test_count_drift_or_page_overlap_restarts_without_rows(self):
+        for second in (page(3, row(2)), page(2, row(1))):
+            with self.subTest(second=second):
+                a, _ = adapter({0: page(2, row(1)), 1: second})
+                result = a.fetch()
+                self.assertTrue(result.restart)
+                self.assertFalse(result.complete)
+                self.assertEqual(result.postings, [])
+
+    def test_invalid_pages_cannot_close_jobs(self):
+        for pages in ({0: page(None, row(1))}, {0: page(True, row(1))},
+                      {0: page(2, row(1), row(1))}, {0: page(1, row(1), row(2))},
+                      {0: page(2, row(1)), 1: page(2)},
+                      {0: page(1, row(1, Id=None))}, {0: page(1, row(1, Title=""))},
+                      {0: page(1, row(1, PrimaryLocation=""))}):
+            with self.subTest(pages=pages):
+                a, _ = adapter(pages)
+                with self.assertRaises(AdapterError):
+                    a.fetch()
+
+    def test_explicit_zero_count_is_a_complete_empty_inventory(self):
+        a, _ = adapter({0: page(0)})
+        result = a.fetch()
+        self.assertTrue(result.complete)
+        self.assertEqual(result.postings, [])
+
+    def test_legacy_cursor_restarts_without_http(self):
+        a, http = adapter({})
+        result = a.fetch(FetchContext(cursor={"loc": 0, "offset": 1, "ids": ["1"]}))
+        self.assertTrue(result.restart)
+        self.assertEqual(http.calls, [])
+
+    def test_deadline_persists_count_and_ids_then_resumes(self):
+        a, _ = adapter({0: page(2, row(1)), 1: page(2, row(2))})
+        with patch("watcher.adapters.oracle.time.monotonic", return_value=11):
+            first = a.fetch(FetchContext(deadline=10))
+        self.assertEqual(first.cursor["total"], 2)
+        self.assertEqual(first.cursor["loc_ids"], ["1"])
+        second = a.fetch(FetchContext(cursor=first.cursor))
+        self.assertTrue(second.complete)
+        self.assertEqual([p.job_id for p in second.postings], ["2"])
+
+    def test_partial_throttle_keeps_paid_for_rows_and_resume_offset(self):
+        err = HttpStatusError("https://oracle.example", 429, retry_after=1800)
+        a, _ = adapter({0: page(2, row(1)), 1: err})
+        result = a.fetch()
+        self.assertIs(result.throttled, err)
+        self.assertEqual([p.job_id for p in result.postings], ["1"])
+        self.assertEqual(result.cursor["offset"], 1)
+        self.assertFalse(result.complete)
+
+    def test_locations_are_deduplicated_only_across_queries(self):
+        a, _ = adapter({0: page(1, row(1))}, dict(CFG, locations=["India", "Bengaluru"]))
+        result = a.fetch()
+        self.assertTrue(result.complete)
+        self.assertEqual(len(result.postings), 1)
+
+
+class OracleCountTolerance(unittest.TestCase):
+    """Oracle's OWN tenant over-declares TotalJobsCount by exactly one.
+
+    Every one of the 14 failures on 2026-09-20 had a shortfall of 1, across two
+    different totals (47 and 44), and the sweep therefore never completed, so
+    closed requisitions were never retired. The allowance is opt-in per company
+    and bounded; it must not become a blanket relaxation.
+    """
+
+    def test_default_is_strict_so_other_oracle_boards_are_unaffected(self):
+        a, _ = adapter({0: page(3, row(1), row(2)), 2: page(3)})
+        with self.assertRaises(AdapterError) as e:
+            a.fetch()
+        self.assertIn("incomplete Oracle page at 2/3", str(e.exception))
+
+    def test_tolerated_shortfall_completes_the_sweep(self):
+        cfg = dict(CFG, count_tolerance=1)
+        a, _ = adapter({0: page(3, row(1), row(2)), 2: page(3)}, cfg)
+        with patch("watcher.adapters.oracle.log.warning") as warning:
+            result = a.fetch()
+        self.assertTrue(result.complete)
+        self.assertEqual([p.job_id for p in result.postings], ["1", "2"])
+        # The allowance is deliberately loud.
+        self.assertTrue(warning.called)
+        self.assertIn("shortfall", warning.call_args[0][0])
+
+    def test_shortfall_larger_than_the_tolerance_still_fails(self):
+        cfg = dict(CFG, count_tolerance=1)
+        a, _ = adapter({0: page(4, row(1), row(2)), 2: page(4)}, cfg)
+        self.assertRaises(AdapterError, a.fetch)
+
+    def test_tolerance_never_excuses_a_page_exceeding_the_total(self):
+        """Over-delivery is a different fault and no tolerance applies to it."""
+        cfg = dict(CFG, count_tolerance=5)
+        a, _ = adapter({0: page(1, row(1), row(2))}, cfg)
+        self.assertRaises(AdapterError, a.fetch)
+
+    def test_exact_count_still_completes_without_warning(self):
+        cfg = dict(CFG, count_tolerance=1)
+        a, _ = adapter({0: page(2, row(1), row(2)), 2: page(2)}, cfg)
+        with patch("watcher.adapters.oracle.log.warning") as warning:
+            self.assertTrue(a.fetch().complete)
+        warning.assert_not_called()
+
+    def test_bad_tolerance_is_refused(self):
+        for bad in (-1, "1", 1.5, True):
+            with self.subTest(bad=bad):
+                a, _ = adapter({0: page(0)}, dict(CFG, count_tolerance=bad))
+                self.assertRaises(AdapterError, a.fetch)

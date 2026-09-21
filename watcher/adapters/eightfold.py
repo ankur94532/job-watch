@@ -14,13 +14,15 @@ the same product, so `api:` selects one (verified 2026-09-16):
 
 Both cap `num` at 10 server-side, both count in `count`, and neither wraps.
 
-Verified against apply.careers.microsoft.com on 2026-09-16:
+Verified against apply.careers.microsoft.com on 2026-09-16 and rechecked from
+scheduler evidence through 2026-09-19:
 
 * `num` is capped at 10 server-side — asking for 50 or 100 still returns 10.
-  Microsoft's India board is 221 positions, so ~23 requests per sweep.
+  Microsoft's latest complete India inventory was 239 positions, so 24 requests
+  per sweep at that count.
 * `start` past the end returns an empty list (no Workday-style wrap-around).
 * `data.count` is the total for the query and is present on every page.
-* No ETag; `cache-control: no-store`. Hence the hourly default interval.
+* No ETag; `cache-control: no-store`.
 * `location` filters server-side. That matters: unfiltered, Microsoft's board is
   thousands of rows, and fetching all of them 10 at a time to throw away 95%
   would be exactly the traffic pattern worth avoiding. One query per configured
@@ -49,11 +51,10 @@ class EightfoldAdapter(Adapter):
     # One Eightfold board at a time, even across different hosts. Each tenant
     # has its own hostname, so parallel polling gave each its own lane, and on
     # 2026-09-18 Microsoft and Qualcomm were throttled (429) within a minute of
-    # each other: the quota behaves as shared across tenants from one client.
+    # each other. Shared quota is a hypothesis, not confirmed by response headers.
     max_parallel = 1
-    # Serialising them was not enough: several tenants still spent the shared
-    # allowance sequentially in one process. launchd runs every 15 minutes, so
-    # start one tenant per process and let oldest-first scheduling rotate them.
+    # Keep traffic conservative across tenants. launchd runs every 15 minutes,
+    # so start one tenant per process and let oldest-first scheduling rotate them.
     max_per_run = 1
 
     def locations(self):
@@ -96,7 +97,7 @@ class EightfoldAdapter(Adapter):
                     f"&location={quote(location)}&start={start}&num={PAGE}")
         # Incremental boards are swept in timestamp order too: the same order
         # every time is kinder to a paused-and-resumed sweep than relevance.
-        order = "&sort_by=timestamp" if self.incremental else ""
+        order = "&sort_by=timestamp" if self.incremental or self.cfg.get("sort_by") == "timestamp" else ""
         return (f"https://{host}/api/pcsx/search?domain={domain}"
                 f"&query={quote(self.cfg.get('query') or '')}&location={quote(location)}"
                 f"&start={start}&num={PAGE}{order}")
@@ -104,16 +105,14 @@ class EightfoldAdapter(Adapter):
     def fetch_incremental(self, ctx, requests=0):
         """The newest pages only; `(None, requests)` means "sweep instead".
 
-        pcsx with `sort_by=timestamp` is newest first (checked 2026-09-18 on
-        morganstanley: ordered through offset 90, identical across reads, and
-        the server echoes sortBy "timestamp"). Re-checked on every page:
-        postedTs must never go UP, or the shortcut is abandoned. Stops after
-        KNOWN_PAGES_TO_STOP pages in a row with nothing new. It cannot see
-        closures, so the result is incremental and retires nothing; a complete
-        sweep still runs every `full_sweep` seconds.
-
-        Written for Microsoft, whose quota runs out a few requests into a
-        23-request sweep: a normal poll here is 2-3 requests.
+        `sort_by=timestamp` produced newest-first results on Morgan Stanley in
+        a 2026-09-18 check (ordered through offset 90 and identical across
+        reads). Since other tenants have not honored the requested order,
+        postedTs is re-checked on every page: it must never go UP, or the
+        shortcut is abandoned. Stops after KNOWN_PAGES_TO_STOP pages in a row
+        with nothing new. It cannot see closures, so the result is incremental
+        and retires nothing; a complete sweep still runs every `full_sweep`
+        seconds.
         """
         out, seen = [], set()
         max_pages = self.max_pages_per_run()
@@ -170,6 +169,10 @@ class EightfoldAdapter(Adapter):
             if quick is not None:
                 return quick
         cur = ctx.cursor or {}
+        if cur and "loc_ids" not in cur:
+            # Legacy cursors cannot prove per-location completeness. Restart
+            # with a fresh sweep epoch, without declaring closures from old pages.
+            return FetchResult([], complete=False, restart=True)
         locations = self.locations()
         first_loc = min(cur.get("loc", 0), len(locations) - 1)
         ids = set(cur.get("ids", []))
@@ -179,32 +182,56 @@ class EightfoldAdapter(Adapter):
         for i in range(first_loc, len(locations)):
             location = locations[i]
             start = cur["start"] if (i == first_loc and cur.get("start")) else 0
+            loc_ids = set(cur.get("loc_ids", [])) if i == first_loc else set()
+            total = cur.get("total") if i == first_loc else None
+            if len(loc_ids) != start:
+                raise AdapterError(f"{self.company}: invalid Eightfold resume count")
+            def cursor():
+                return {"loc": i, "start": start, "ids": sorted(ids),
+                        "loc_ids": sorted(loc_ids), "total": total}
             pages = 0
             while True:
                 if max_pages is not None and requests >= max_pages:
                     return FetchResult(out, complete=False,
-                                       cursor={"loc": i, "start": start, "ids": sorted(ids)})
+                                       cursor=cursor())
                 if requests and ctx.deadline is not None and time.monotonic() >= ctx.deadline:
                     return FetchResult(out, complete=False,
-                                       cursor={"loc": i, "start": start, "ids": sorted(ids)})
+                                       cursor=cursor())
                 if requests:
                     self.pause()
                 try:
                     requests += 1
                     body = self.http.get_json(self.url(location, start)) or {}
                 except HttpStatusError as e:
-                    # ~6-7 requests per window is all this board allows; keep what we have.
-                    if e.code in (403, 429) and out:
+                    # Keep rows already paid for and resume after the persisted backoff.
+                    if e.code in (403, 429):
                         return self.partial_on_throttle(
-                            e, out, {"loc": i, "start": start, "ids": sorted(ids)})
+                            e, out, cursor())
                     raise
                 # pcsx nests everything under "data"; apply/v2 returns it at the top level.
                 data = body if self.flavor() == "apply" else (body.get("data") or {})
                 pages += 1
-                rows = data.get("positions") or []
+                rows = data.get("positions")
                 count = data.get("count")
-                for raw in rows:
-                    p = self._posting(raw)
+                if not isinstance(rows, list) or type(count) is not int or count < 0:
+                    raise AdapterError(f"{self.company}: missing Eightfold positions/count")
+                if total is not None and total != count:
+                    log.warning("%s: Eightfold count changed %d -> %d at offset %d; restarting",
+                                self.company, total, count, start)
+                    return FetchResult([], complete=False, restart=True)
+                total = count
+                postings = [self._posting(raw) for raw in rows]
+                keys = [p.job_id for p in postings]
+                if len(set(keys)) != len(keys):
+                    raise AdapterError(f"{self.company}: duplicate Eightfold page IDs")
+                if loc_ids.intersection(keys):
+                    log.warning("%s: Eightfold page overlaps prior IDs at offset %d; restarting",
+                                self.company, start)
+                    return FetchResult([], complete=False, restart=True)
+                if start + len(rows) > count or (not rows and start < count):
+                    raise AdapterError(f"{self.company}: incomplete Eightfold page at {start}/{count}")
+                loc_ids.update(keys)
+                for p in postings:
                     if p.job_id not in ids:
                         ids.add(p.job_id)
                         out.append(p)
@@ -220,8 +247,12 @@ class EightfoldAdapter(Adapter):
         return FetchResult(out)
 
     def _posting(self, raw):
+        if not isinstance(raw, dict) or not raw.get("id") or not raw.get("name"):
+            raise AdapterError(f"{self.company}: missing Eightfold identity/title")
         location = join_locations(raw.get("locations") or raw.get("location") or [],
                                   raw.get("standardizedLocations") or [])
+        if not location:
+            raise AdapterError(f"{self.company}: missing Eightfold location")
         posted = raw.get("postedTs") or raw.get("creationTs") or raw.get("t_update")
         path = raw.get("positionUrl") or raw.get("canonicalPositionUrl") or f"/careers/job/{raw.get('id')}"
         return Posting(

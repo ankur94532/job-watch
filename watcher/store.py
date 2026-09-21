@@ -238,9 +238,10 @@ class Store:
         self.commit()
         return cur.rowcount
 
-    def sweep_progress(self, company, now, sweep_started, cursor):
+    def sweep_progress(self, company, now, sweep_started, cursor, clear_backoff=True):
         self._set(company, last_polled=now, sweep_started=sweep_started, cursor=cursor, last_error=None)
-        self.reset_backoff(company)
+        if clear_backoff:
+            self.reset_backoff(company)
 
     def sweep_complete(self, company, now, sweep_started, count, cache):
         self._set(
@@ -292,7 +293,10 @@ class Store:
         st = self.state(company)
         first, ceiling = BACKOFF[kind]
         level = (st["backoff_level"] or 0) if (st["backoff_kind"] == kind and escalate) else 0
-        wait = max(min(first * (2**level), ceiling), min_wait or 0)
+        # A per-company floor is the starting delay, so consecutive failures
+        # double it too (1h, 2h, 4h), rather than repeating the first 1h wait.
+        first = max(first, min_wait or 0)
+        wait = min(first * (2**level), max(ceiling, first))
         if retry_after:
             wait = max(wait, min(int(retry_after), MAX_RETRY_AFTER))
         until = now + wait

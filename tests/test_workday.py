@@ -39,6 +39,12 @@ def offsets(http):
 
 
 class RecordedBoard(unittest.TestCase):
+    def test_configured_country_facet_is_sent_on_every_page(self):
+        http = board({o: page(o) for o in (0, 20, 40, 60, 80)})
+        facets = {"locationCountry": ["india-id"]}
+        WorkdayAdapter("natwest", dict(CFG, applied_facets=facets), http=http, page_delay=0).fetch()
+        self.assertTrue(all(c[2]["appliedFacets"] == facets for c in http.calls))
+
     def test_stops_on_total_from_first_page(self):
         http = board({o: page(o) for o in (0, 20, 40, 60, 80, 100)})
         res = WorkdayAdapter("natwest", CFG, http=http, page_delay=0).fetch()
@@ -144,6 +150,16 @@ class Resumable(unittest.TestCase):
 
 
 class Detail(unittest.TestCase):
+    def test_location_hint_keeps_authoritative_country_on_multi_location_row(self):
+        cfg = dict(CFG, location_hint="India")
+        adapter = WorkdayAdapter("filtered", cfg, http=FakeHttp({}), page_delay=0)
+        p = adapter._posting("RBS", {
+            "title": "Platform Engineer", "externalPath": "/job/X/Platform-Engineer_R1",
+            "locationsText": "2 Locations", "postedOn": "Posted Today", "bulletFields": ["R1"],
+        })
+        self.assertEqual(p.location, "2 Locations | India")
+        self.assertTrue(adapter.needs_enrich(p))
+
     def test_enrich_resolves_multi_location(self):
         detail = fixture("workday_detail_salesforce.json")
         cfg = {"tenant": "salesforce", "shard": "wd12", "sites": ["External_Career_Site"]}

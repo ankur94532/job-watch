@@ -32,6 +32,7 @@ import logging
 import time
 from urllib.parse import quote
 
+from ..http import HttpStatusError
 from .base import Adapter, AdapterError, FetchContext, FetchResult, Posting, join_locations
 
 log = logging.getLogger(__name__)
@@ -49,6 +50,21 @@ class OracleAdapter(Adapter):
         locs = self.cfg.get("locations") or [""]
         return [locs] if isinstance(locs, str) else list(locs)
 
+    def count_tolerance(self):
+        """How many rows this tenant may over-declare before the sweep fails.
+
+        Defaults to 0: a board that says 200 and hands over 199 is normally a
+        parser losing a row, and silently accepting that would retire a real
+        job. Oracle's OWN tenant is the exception — see the note on the
+        `oracle` entry in config.yaml — so the allowance is opt-in per company
+        and bounded, never a blanket relaxation for every Oracle board.
+        """
+        value = self.cfg.get("count_tolerance", 0)
+        if type(value) is not int or value < 0:
+            raise AdapterError(
+                f"{self.company}: count_tolerance must be a non-negative integer")
+        return value
+
     def url(self, location, offset):
         finder = f"findReqs;siteNumber={self.cfg['site']},limit={PAGE},offset={offset},sortBy=POSTING_DATES_DESC"
         if location:
@@ -59,6 +75,9 @@ class OracleAdapter(Adapter):
     def fetch(self, ctx=None):
         ctx = ctx or FetchContext()
         cur = ctx.cursor or {}
+        if cur and "loc_ids" not in cur:
+            return FetchResult([], complete=False, restart=True)
+        self.count_tolerance()      # refuse a misconfigured allowance up front
         locations = self.locations()
         first = min(cur.get("loc", 0), len(locations) - 1)
         ids = set(cur.get("ids", []))
@@ -67,29 +86,69 @@ class OracleAdapter(Adapter):
         for i in range(first, len(locations)):
             location = locations[i]
             offset = cur["offset"] if (i == first and cur.get("offset")) else 0
+            loc_ids = set(cur.get("loc_ids", [])) if i == first else set()
+            total = cur.get("total") if i == first else None
+            if len(loc_ids) != offset:
+                raise AdapterError(f"{self.company}: invalid Oracle resume count")
+
+            def cursor():
+                return {"loc": i, "offset": offset, "ids": sorted(ids),
+                        "loc_ids": sorted(loc_ids), "total": total}
+
             pages = 0
             while True:
                 if requests and ctx.deadline is not None and time.monotonic() >= ctx.deadline:
                     return FetchResult(out, complete=False,
-                                       cursor={"loc": i, "offset": offset, "ids": sorted(ids)})
+                                       cursor=cursor())
                 if requests:
                     self.pause()
-                data = self.http.get_json(self.url(location, offset))
                 requests += 1
+                try:
+                    data = self.http.get_json(self.url(location, offset))
+                except HttpStatusError as e:
+                    if e.code in (403, 429):
+                        return self.partial_on_throttle(e, out, cursor())
+                    raise
                 pages += 1
                 items = data.get("items") or []
-                if not items:
+                if not isinstance(items, list) or len(items) != 1 or not isinstance(items[0], dict):
                     raise AdapterError(f"{self.company}: no items in response — API shape changed?")
-                total = items[0].get("TotalJobsCount")
+                count = items[0].get("TotalJobsCount")
                 rows = items[0].get("requisitionList")
-                if rows is None:
+                if not isinstance(rows, list):
                     raise AdapterError(
                         f"{self.company}: response has no requisitionList "
-                        f"(total={total}) — the expand parameter is required")
+                        f"(total={count}) — the expand parameter is required")
+                if type(count) is not int or count < 0:
+                    raise AdapterError(f"{self.company}: missing/invalid Oracle total")
+                if total is not None and count != total:
+                    log.warning("%s: Oracle count changed %d -> %d; restarting", self.company, total, count)
+                    return FetchResult([], complete=False, restart=True)
+                total = count
+                postings = [self._posting(raw) for raw in rows]
+                keys = [p.job_id for p in postings]
+                if len(set(keys)) != len(keys):
+                    raise AdapterError(f"{self.company}: duplicate Oracle page IDs")
+                if loc_ids.intersection(keys):
+                    return FetchResult([], complete=False, restart=True)
+                # A page handing over more than the declared total is always
+                # wrong, and no tolerance applies to it.
+                if offset + len(rows) > count:
+                    raise AdapterError(f"{self.company}: incomplete Oracle page at {offset}/{count}")
+                if not rows and offset < count:
+                    shortfall = count - offset
+                    if shortfall > self.count_tolerance():
+                        raise AdapterError(
+                            f"{self.company}: incomplete Oracle page at {offset}/{count}")
+                    # Loud on purpose: an allowance that stops being needed, or
+                    # starts being needed for more rows, should be visible.
+                    log.warning("%s: Oracle declared %d but served %d; accepting a "
+                                "shortfall of %d within the configured tolerance of %d",
+                                self.company, count, offset, shortfall, self.count_tolerance())
                 if location and pages == 1 and rows:
                     self._warn_if_filter_ignored(location, rows)
-                for raw in rows:
-                    p = self._posting(raw)
+                loc_ids.update(keys)
+                for p in postings:
                     if p.job_id not in ids:
                         ids.add(p.job_id)
                         out.append(p)
@@ -106,15 +165,20 @@ class OracleAdapter(Adapter):
         """A location this tenant does not know returns the entire board, quietly."""
         needle = location.lower()
         sample = rows[:20]
-        if not any(needle in (r.get("PrimaryLocation") or "").lower() for r in sample):
+        if not any(needle in self._posting(r).location.lower() for r in sample):
             log.warning(
                 "%s: location=%r matched none of the first %d rows (e.g. %r) — this tenant "
                 "probably does not know that location and is returning the whole board",
                 self.company, location, len(sample), (sample[0].get("PrimaryLocation") or ""))
 
     def _posting(self, raw):
-        secondary = [s.get("LocationName") or s.get("Location") or "" for s in raw.get("secondaryLocations") or []]
+        if not isinstance(raw, dict) or not raw.get("Id") or not (raw.get("Title") or "").strip():
+            raise AdapterError(f"{self.company}: missing Oracle identity/title")
+        secondary = [s.get("LocationName") or s.get("Location") or s.get("Name") or ""
+                     for s in raw.get("secondaryLocations") or []]
         location = join_locations(raw.get("PrimaryLocation"), secondary)
+        if not location:
+            raise AdapterError(f"{self.company}: missing Oracle location")
         job_id = str(raw.get("Id"))
         return Posting(
             company=self.company,

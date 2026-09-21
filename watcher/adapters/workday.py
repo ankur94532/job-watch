@@ -174,7 +174,7 @@ class WorkdayAdapter(Adapter):
 
             if total and len(site_ids) < total:
                 msg = f"{self.company}/{site}: got {len(site_ids)} of {total} reported"
-                if len(site_ids) < total * MIN_COVERAGE:
+                if self.cfg.get("require_exact_count") or len(site_ids) < total * MIN_COVERAGE:
                     raise AdapterError(msg + " — incomplete sweep, not trusting it")
                 log.warning(msg)
         return FetchResult(out)
@@ -229,7 +229,8 @@ class WorkdayAdapter(Adapter):
         return FetchResult(out, complete=False, incremental=True)
 
     def fetch_page(self, site, offset):
-        body = {"appliedFacets": {}, "limit": PAGE, "offset": offset, "searchText": ""}
+        body = {"appliedFacets": self.cfg.get("applied_facets") or {},
+                "limit": PAGE, "offset": offset, "searchText": ""}
         try:
             return self.http.post_json(f"{self.api(site)}/jobs", body)
         except HttpStatusError as e:
@@ -247,7 +248,10 @@ class WorkdayAdapter(Adapter):
         # unique per posting and is what Workday shows as the job's ID.
         job_id = slug.rsplit("_", 1)[-1] if "_" in slug else (slug or path)
         req_id = next((b for b in raw.get("bulletFields") or [] if b and b in slug), "") or job_id
-        location = (raw.get("locationsText") or "").strip()
+        # A configured country/location facet is authoritative even when the
+        # compact row says only "2 Locations".  Keep that scope available to
+        # local filtering; detail enrichment below still expands the cities.
+        location = join_locations(raw.get("locationsText"), self.cfg.get("location_hint"))
         return Posting(
             company=self.company,
             ats=self.ats,
@@ -263,7 +267,11 @@ class WorkdayAdapter(Adapter):
         )
 
     def needs_enrich(self, posting):
-        return bool(MULTI_LOCATION.match(posting.location))
+        # `location_hint` may have turned this into "2 Locations | India".
+        # Inspect the source field so multi-location rows still get expanded.
+        return "_detail" not in posting.raw and bool(
+            MULTI_LOCATION.match((posting.raw.get("locationsText") or "").strip())
+        )
 
     def enrich(self, posting):
         site = posting.raw.get("_site") or self.sites()[0]
@@ -272,7 +280,7 @@ class WorkdayAdapter(Adapter):
         info = self.http.get_json(f"{self.api(site)}{path}").get("jobPostingInfo") or {}
         location = join_locations(info.get("location"), info.get("additionalLocations") or [])
         if location:
-            posting.location = location
+            posting.location = join_locations(location, self.cfg.get("location_hint"))
         if info.get("jobReqId"):
             posting.req_id = info["jobReqId"]
         if info.get("startDate"):

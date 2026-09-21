@@ -69,6 +69,12 @@ board as a miss.
 
 ## Workday
 
+Nasdaq was added on 2026-09-20 from the Workday tenant linked by its official
+careers page (`nasdaq.wd1`, `Global_External_Site`). The board's published
+`Location_Country` facet returned exactly 30 declared/returned/unique India
+jobs across two pages. Its silent production baseline completed before
+activation; seven rows pass the configured filters.
+
 `POST https://{tenant}.{shard}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/jobs`
 with `{"appliedFacets": {}, "limit": 20, "offset": N, "searchText": ""}`.
 
@@ -120,20 +126,95 @@ Confirmed against `salesforce.wd12` (1,465 reqs) and `rbs.wd3` (89):
   whose `applyUrl` is `ebay.wd5.myworkdayjobs.com/apply/job/…` — tenant, shard and
   slug in one string. Worth trying on any Phenom-fronted careers site.
 
+Cisco is a stricter version of that pattern. Its current official Phenom site
+publishes `cisco.wd5/Cisco_Careers` apply URLs and a country facet near 300
+India jobs, but consecutive 100-row Phenom pages reshuffled and produced only
+286–300 unique IDs for the same declared 300. The dedicated `cisco` adapter
+therefore reads Workday's live location facet first, selects every descriptor
+ending `, India` plus the legacy `IND-*` location, persists that exact ID set in
+the resume cursor, then runs an exact-count Workday sweep. This returned 302 of
+302 unique postings across ten current India location IDs on 2026-09-20 and
+will automatically include a newly published India office on the next sweep.
+
+## Maersk official careers API
+
+Maersk's own permitted vacancies page calls
+`GET https://api.maersk.com/careers/vacancies?country=India&offset=N...` using
+a read-only `Consumer-Key` published in its client JavaScript. The API host has
+no robots policy (its `/robots.txt` answers 404), while the public careers page
+is allowed. This is safer than selecting dozens of individual India office IDs
+from the underlying Workday tenant: the publisher's country filter will include
+new offices automatically.
+
+The endpoint declared 251 India jobs on 2026-09-20 and returned exactly 251
+unique rows over pages 0–25. `offset` is a **page number**, not a row offset;
+pages are fixed at ten rows and ignore a larger `limit`. Every live row carried
+`Brand: Maersk`, `Platform: Workday`, `Country: India`, a unique Workday URL on
+the `Maersk_Careers` or `APMT_Careers` site, and a matching `ExternalId`. Ten rows omitted `City`, so the adapter retains their
+authoritative `India` location rather than inventing a city. It holds every page
+against `ResultCount` and `ResultsPerPage`, and restarts on count drift or page
+overlap instead of trusting a potentially incoherent sweep.
+
+## IBM first-party careers search
+
+IBM's own `ibm.com/careers/search` component calls the public, robots-permitted
+`www-api.ibm.com/search/api/v1/ibmcom/appid/careers` service with scope
+`careers2`. `filter=field_keyword_05:India` returned **730 declared, returned
+and unique** numeric job IDs on 2026-09-20; every row echoed the exact filter,
+country, nonempty location, date and a unique `careers.ibm.com` job URL. The API
+accepts `nr=1000`, so this is one coherent response rather than shifting pages.
+
+`rmdt=ALL` was 9.5 MB because every row carried roughly 170 mostly empty
+attributes. Requesting only `field_keyword_05,field_keyword_19,
+field_keyword_17,dcdate` retained all watcher fields and reduced the complete
+response to about 661 KB. The adapter checks the echoed app, collection, source,
+empty query and India filter plus declared/returned counts and every row's
+sequence, country, metadata and URL identity before accepting the sweep.
+
+## MathWorks first-party XML feed
+
+MathWorks' official careers search publishes a “job feed” link to the
+robots-permitted `https://www.mathworks.com/company/jobs/opportunities/rss.xml`.
+The careers HTML itself returned 403 to the watcher's ordinary client, but the
+machine-readable XML feed is directly readable without cookies, credentials or
+browser impersonation.
+
+On 2026-09-20 the feed contained 193 entries and 183 unique requisition IDs.
+Ten items were exact duplicates, including two India jobs. Filtering the
+feed's explicit `<location><country>IN</country>` fields produced 29 entries
+and **27 unique India requisitions**, exactly matching the official India
+search's independent 27-result count. India locations were 19 Bangalore, nine
+Hyderabad and one Delhi before duplicate collapse; 12 unique jobs passed the
+watcher's current title/location filters.
+
+The adapter groups repeated IDs, collapses exact repeated ID/location pairs,
+and rejects conflicting titles or URLs. Every item must have a numeric ID,
+title, two-letter country, nonempty location and an HTTPS MathWorks URL whose
+path repeats the same ID. Six valid current URLs omit the optional title slug,
+so both `/opportunities/123-title.html` and `/opportunities/123.html` are
+accepted. A missing/malformed feed or zero target-country rows fails closed.
+The source publishes no reliable opening date, so `posted_at` is intentionally
+blank. Its silent production baseline completed at 21:44 IST with 27 jobs, 12
+matches, no cursor/error/backoff, zero unsuppressed rows, no notification and
+no export.
+
 ## Eightfold (Microsoft)
 
-**Newest first, 2026-09-18:** pcsx accepts `sort_by=timestamp` (not `sortBy`, not
-`sort_by=postedTs`, both silently ignored) and echoes `sortBy: "timestamp"`; checked on
-morganstanley: ordered through offset 90 and identical across reads. The apply/v2
-flavour (Netflix, NetApp) accepts the parameter and returns rows unordered. So
-pcsx boards can set `incremental: true`: a poll reads the newest pages until two
-are all known (2-3 requests; Microsoft's full sweep is 23 and its quota runs out a
-few requests in), re-checks the order on every page, and a complete sweep runs
-every `full_sweep`. All Eightfold boards also share `max_parallel = 1` and
-`max_per_run = 1`: two tenants throttled within a minute of each other when
-polled together, and merely running them sequentially still spent the same
-shared allowance. The 15-minute launcher therefore rotates one Eightfold tenant
-per process using the normal oldest-first scheduler.
+The pcsx API accepts `sort_by=timestamp` (not `sortBy` or
+`sort_by=postedTs`) and echoes `sortBy: "timestamp"`. That produced stable
+newest-first pages in a 2026-09-18 Morgan Stanley check, but it is a request,
+not a guarantee across tenants. An incremental board re-checks timestamps on
+every page and falls back to a full sweep if they increase. Microsoft failed
+that check repeatedly on 2026-09-18 and 2026-09-19, so its config explicitly
+disables incremental stopping. It still requests timestamp order to keep
+resumed full sweeps as stable as the service permits. The apply/v2 flavour
+(Netflix, NetApp) has also returned unordered rows and is never incremental.
+
+Eightfold adapters use `max_parallel = 1` and `max_per_run = 1`. Microsoft and
+Qualcomm were both observed returning 429s close together, so the conservative
+scheduler rotates one Eightfold tenant per 15-minute process. That timing does
+not establish a shared quota, a per-IP quota, or the service's quota window;
+the inspected responses disclosed none of those details.
 
 
 `GET https://{host}/api/pcsx/search?domain={domain}&query=&location={location}&start=N&num=10`
@@ -146,28 +227,35 @@ with `id`, `displayJobId` (the requisition number a referral needs), `name`,
 `workLocationOption`, `positionUrl`.
 
 * **`num` is capped at 10** — asking for 50 or 100 still returns 10. Microsoft's
-  India board is ~220 positions, so ~23 requests per sweep.
+  last complete India inventory on 2026-09-19 was 239 positions, so a sweep was
+  24 requests at that count.
 * `start` past the end returns an empty list. No wrap-around.
 * Pages advance by rows returned, not by `num`, so a short page cannot skip rows.
 * `location` filters server-side, which is the point: unfiltered, Microsoft's
   board is thousands of rows at 10 a page. One query per configured location,
   deduped by position id.
-* **It rate-limits by volume, not by spacing.** A 23-request sweep at 0.5s gaps
-  returned 429 at request 10; repeating it at 2s and then 6s gaps still hit 429
-  after 4-5 requests, while single requests kept working. The limit behaves like
-  a per-IP quota over a window of tens of minutes, so no polite delay avoids it
-  once the quota is spent. Microsoft is hourly with 6s gaps, but has a hard
-  three-page budget per run (including any incremental attempt before a sweep),
-  a one-hour 429 backoff, and a 24-hour cursor lifetime. Expect occasional
-  `BACKED-OFF microsoft` lines in the log; the sweep resumes from its cursor.
-* **Partial sweeps are the normal case here.** Because the quota bites well
-  before a 23-request sweep finishes, the adapter returns the rows it did get
-  along with a cursor instead of raising, and the runner records them, keeps the
-  cursor, and parks the company for 30 minutes. Observed live: 79 rows on the
-  first run, 40 more on the next, and so on until the sweep completes. A park
-  that follows real progress does **not** escalate the backoff — otherwise a
-  board that always throttles mid-sweep would climb to the 24-hour ceiling while
-  it was in fact working.
+* Microsoft returned 429s with 0.5s, 2s, and 6s page spacing. On 2026-09-19 it
+  also throttled the first request at offset 90 after about 136 minutes without
+  a Microsoft request. A single diagnostic request after the stored cooldown
+  returned 200, but exposed neither `Retry-After` nor a rate-limit header. Page
+  spacing remains polite and may affect burst behavior; it does not by itself
+  prevent the observed 429s. The exact limit and whether tenants share it are
+  unknown.
+* **Microsoft full sweeps are intentionally partial across runs.** Each run is
+  capped at three pages, keeps a 24-hour cursor, and waits at least one hour
+  after any partial chunk. A throttle after fetched rows records those rows and
+  parks for the one-hour base delay without escalating. Consecutive throttles
+  that make no progress wait 1h, 2h, 4h, and so on up to the normal 24-hour
+  blocked ceiling; a server `Retry-After`, when present, is also respected.
+* Nine Eightfold tenants share one allowed start per scheduled process. The
+  previous pure oldest-first rotation could turn eight Microsoft chunks into
+  an 18-hour sweep. Since 2026-09-20 Microsoft sets `resume_priority: true`:
+  after the one-hour minimum, its existing cursor takes the next available
+  Eightfold slot. Other tenants retain oldest-first ordering in the intervening
+  slots, and unrelated ATS slots are unchanged. Backoff, page caps, and the
+  one-tenant-per-run limit still apply. This shortens the intended awake-time
+  sweep to roughly eight hourly chunks, at the cost of slower peer rotation;
+  it does not promise successful completion under changing inventory or sleep.
 * The older `/api/apply/v2/jobs` flavour exists on some tenants; on Microsoft it
   answers `{"message": "Not authorized for PCSX"}`, and on a host that is not the
   tenant's own it answers `"Tenant not identified"`. There is no single Eightfold
@@ -216,7 +304,31 @@ number**, so ranking falls back to first_seen and a referral gets only the URL.
   posting had a US state first and a Bangalore row later, so first-wins would
   have hidden an India job. Rows are merged by `uuid`, locations joined.
 
-## Oracle Recruiting Cloud (JPMorgan Chase)
+## Oracle Recruiting Cloud (JPMorgan Chase, Uber)
+
+DP World's official careers page links directly to
+`ehpv.fa.em2.oraclecloud.com` / `CX_1`. Its exact `location=India` query on
+2026-09-20 declared and returned **118 unique jobs in one request**; every row
+explicitly named India in its primary or secondary locations, and a public job
+detail identified the candidate site as DP World. The silent production
+baseline stored all 118 with two current filter matches, no cursor/error/
+backoff, zero unsuppressed rows, no notification and no export before the entry
+was enabled.
+
+Uber recovered on 2026-09-20 through `iaziqy.fa.ocs.oraclecloud.com` / `CX_1`.
+The anonymous candidate page identifies itself as Uber Careers; its 531 global
+IDs exactly matched the official `jobs.uber.com/en/jobs/sitemap.xml`. The India
+query's 20 jobs exactly matched the global inventory's primary/secondary India
+locations. Two public detail responses confirmed IDs, titles, locations, and
+Uber descriptions. A silent complete production baseline recorded all 20 with
+no cursor/error/backoff before enabling; three pass the current local filters.
+Oracle-generated job URLs use the same branded, accessible candidate site.
+
+The adapter accepts `secondaryLocations[].Name` as well as the older field
+names. Counts, unique IDs, page coverage, required identity/title/location, and
+resume state are validated; drift/overlap restarts without declaring closures.
+403/429 retains successful rows and the precise resume offset. Legacy cursors
+restart without HTTP. These safeguards also apply to existing Oracle tenants.
 
 `GET https://{host}/hcmRestApi/resources/latest/recruitingCEJobRequisitions`
 `?onlyData=true&expand=requisitionList.secondaryLocations`
@@ -261,7 +373,7 @@ requisition number), `title`, `location_name` ("IN-Bangalore"), `country`,
 `categories[]`, and a multi-KB `description` that is dropped rather than carried
 in memory for every row.
 
-## Radancy / TalentBrew via sitemap (Intuit)
+## Radancy / TalentBrew via sitemap (Intuit, Synopsys)
 
 `GET https://jobs.intuit.com/sitemap.xml`
 
@@ -276,43 +388,111 @@ This is a weaker source than an API and is typed as such: titles are
 location is a **bare city slug** with no country, `lastmod` is last-changed not
 first-posted, and coverage is only what the sitemap lists — Intuit's own search
 implies more open reqs than 512. No ETag on a ~330KB file, so it runs hourly.
-Verified only on Intuit: `careers.walgreens.com` and `jobs.cvshealth.com` publish
+Synopsys was independently validated on 2026-09-20: its permitted official
+sitemap contained 500 unique job URLs, and the 155 URLs in its six India city
+slugs exactly matched the official India-search count. Three pass the current
+title/location filters. It completed a silent 500-row production baseline
+before activation. Intuit's sitemap remains a partial source; completeness is
+tenant-specific. `careers.walgreens.com` and `jobs.cvshealth.com` publish
 nothing comparable, so this does not automatically generalise to TalentBrew.
 
-## Checked and still not reachable
+Arm is also a TalentBrew site, but its sitemap is **not** sufficient for India.
+On 2026-09-20 the official India search declared and returned 105 unique jobs
+over seven server-rendered 15-row pages (98 Karnataka, seven Uttar Pradesh).
+The simultaneously generated sitemap held only 104 Bengaluru/Noida URLs. The
+missing posting was real: its canonical URL uses Cambridge because that is the
+primary office, while its public detail lists Cambridge, Sophia Antipolis and
+Bengaluru. City-slug inference would therefore silently lose a valid India job.
 
-| Company | Why |
+The dedicated `arm` adapter reads the exact country-filtered pages instead. It
+validates the Arm organization ID, India facet ID, declared count, page number,
+page size, total pages, card IDs and same-host published next links. Count drift
+or cross-page overlap restarts the sweep rather than closing rows from a mixed
+snapshot. Exact country-facet membership is retained as `India` when a
+multi-location card exposes only `Multiple locations` or a foreign primary
+office. The silent production baseline completed at 21:54 IST with 105 jobs,
+17 current filter matches, no cursor/error/backoff, zero unsuppressed rows, no
+notification and no export.
+
+## Meta public careers search
+
+The anonymous careers page publishes fresh LSD/SiteData request context. The
+adapter uses that context with the public location-filter and job-search Relay
+operations, an ordinary `Origin`/`Referer`, and the repository User-Agent. It
+does not hardcode transient page tokens or require cookies.
+
+On 2026-09-19, global search returned 989 unique `all_jobs` plus one distinct
+featured job; those 990 IDs exactly matched the allowed job sitemap. Four global
+jobs had empty locations. The live location-filter operation exposed Bangalore,
+Gurgaon, Hyderabad, Mumbai, and New Delhi for India, and searching those offices
+returned 24 unique jobs with no empty location. None of the four global
+locationless jobs appeared in the India result. Persisted operation IDs can
+change when Meta deploys, so query errors or an unexpected response shape fail
+the poll without closing stored jobs.
+
+## Siemens counted India search
+
+The public India-faceted HTML board returns six rows per page. The adapter
+requests `postedDate:ASC` and validates the server's sort echo, result count,
+page ranges, next links, unique IDs, and detail identity. Multi-location rows
+are resolved from details; pending detail work persists across bounded chunks.
+Count drift or page overlap restarts without declaring closures.
+
+The silent production baseline completed on 2026-09-20 at 11:28 IST with
+939 unique jobs, no cursor/error/backoff, and all backlog alerts suppressed.
+All rows have validated identity/title/location/URLs; 82 pass configured filters.
+Three non-India/global-location facet results remain in inventory but fail the
+strict India filter. Siemens is enabled. Its six-row pagination still requires
+many bounded polling chunks; this baseline does not guarantee future stability.
+
+## SmartRecruiters career HTML (LinkedIn as an employer)
+
+`careers.smartrecruiters.com/LinkedIn3?search=India` publishes counted location
+groups. The career page's own `/LinkedIn3/api/more` route supplies HTML for its
+Show more control; this is separate from the robots-disallowed REST API at
+`api.smartrecruiters.com`, which was not fetched. No LinkedIn-platform scraping,
+login, browser impersonation, or challenge solving is involved.
+
+On 2026-09-20, inspection of all six global group pages established the complete
+India location set: Bengaluru (51), Gurgaon (2), Mumbai (4). Country search
+returned those same groups, and its seven-request sweep produced 57 unique
+jobs. Detail samples in every city confirmed employer, title, location, public
+application URL and September 2026 posting dates. The silent production baseline
+completed at 11:47 IST: 57 stored, 22 configured matches, no cursor/error/backoff,
+all notifications suppressed. LinkedIn is now enabled through this adapter.
+
+The adapter checks organization, complete group pagination, visible/attribute
+counts, initial nine-card limits and subsequent ten-card pages, safe links,
+unique IDs, and a final reread of starting counts and group heads. Rows stay in
+the resumable cursor until verification completes. Missing cards fail, overlap
+or changed inventory restarts, and a throttle retains the exact pending page.
+Empty inventories require the explicit empty-state text on two reads.
+
+## Checked and still unresolved
+
+This list was revalidated on 2026-09-19. It excludes sources recovered since
+the older investigation: Nutanix, Chargebee, BookMyShow, Qdrant, Vespa, Navi,
+Akamai, Caterpillar, HSBC, GreyOrange, Bain, Meta, Uber, Siemens, and LinkedIn
+(through SmartRecruiters) are now polled. Google, Apple,
+Myntra, Hasura, D. E. Shaw, PhonePe, ScyllaDB, and Quadeye also have working
+adapters elsewhere in this file. See `AUTOMATION_AUDIT.md` for source and
+production-baseline evidence.
+
+| Company | Current evidence |
 | --- | --- |
-| Google | No public JSON endpoint found: `careers.google.com/api/v3/search/` and the `google.com/about/careers/applications/api/…` paths all answer 404 |
-| Uber | `uber.com/careers` answers **406** to an honest User-Agent, and the old `/api/loadSearchJobsResults` RPC handler no longer exists |
-| Flipkart | SPA; no API reference in the served HTML, and `flipkartcareers.com/api/v1/jobs` 301s away |
-| Nutanix | `careers.nutanix.com` is behind a Cloudflare challenge, and `nutanix.eightfold.ai` 404s |
-| Apple | `jobs.apple.com` is a JS app; `/api/role/search` 301s to a not-found page and no endpoint appears in the served HTML |
-| Meta | `metacareers.com` GraphQL needs a `doc_id` plus a session token; answers 400 without them |
-| Myntra | `careers.myntra.com` redirects to a 2.5KB `jobs.myntra.com` SPA shell; no API in the served HTML or its bundles |
-| Chargebee | No board at all — `chargebee.com/careers` sends applicants to LinkedIn |
-| ~~Nykaa~~ | polled since 2026-09-18 by the Skima HTML adapter (see below); no API exists |
-| Hasura, Gupshup, D. E. Shaw | jobs embedded in a Next.js `__NEXT_DATA__` payload — reading that on every poll is HTML scraping |
-| Zepto, BookMyShow, Blinkit, Qdrant, Krutrim, Vespa | careers host 403s, 404s, fails DNS, or rejects our TLS handshake |
-| Flipkart, Zomato, PhonePe, LinkedIn, ScyllaDB, Quadeye | nothing job-shaped in the served HTML at all |
+| Gupshup | Both Darwinbox candidate apps expose current inventory route names, but company config/all-jobs/filter requests return Cloudflare 403. Official CTAs use WhatsApp. |
+| Krutrim | Official AI Labs now has an Open Positions button, but it leads only to LinkedIn, excluded by project policy. |
+| Flipkart | Official TurboHire board disallows this crawler. The permitted first-party jobs list is an incomplete static placeholder without IDs or links. |
+| Zepto | Main careers path returns an AWS WAF challenge; the officially linked TalentRecruit board consistently returns AWS ELB 403. |
+| Zomato | Eternal's live careers bundle is referral-only and makes no job API call; the old SmartRecruiters board is abandoned. |
+| Blinkit | Allowed official listing returns Cloudflare 403. Indexed zero-result text is not a pollable baseline; `jobs.blinkit.com` is a Vendor Dashboard. |
+| Instabase | Official page still names dead Greenhouse board `instabase`; board/API/details return 404 and page cards are placeholders. |
+| Citadel Securities | Sitemap has 88 detail slugs but no IDs/title/location; direct details are Cloudflare-challenged and some entries are evergreen. |
+| McKinsey | Indexed copies show roles, but direct search/detail/sitemap requests time out; the accessible Avature site is only a candidate portal. |
+| Ola | Official Mobility and Electric pages expose no inventory and link one TurboHire organization whose robots rules disallow the watcher. |
 
-Revised 2026-09-18 (evening), superseding the rows above where they disagree:
-**Media.net** is polled from its HTML (below). **Zepto** is bot protection, not
-server rendering: every careers path answers 202 with `x-amzn-waf-action:
-challenge`. **Zomato**: `eternal.com/careers` publishes no openings at all, only
-"find someone who can vouch for you" and `mailto:hr@eternal.com`. **Blinkit**'s
-board does exist, at `jobs.blinkit.com`, and blocks automated clients at
-Cloudflare, headless Chromium included. Bot protection is not worked around, so
-Zepto and Blinkit stay closed.
-
-A second pass read each site's same-origin JavaScript bundles looking for an API
-base, and probed `/api/jobs`, `/api/v1/jobs`, `/jobs.json`, `/wp-json/wp/v2/jobs`,
-`/sitemap.xml` and friends on every one of them. The only job-bearing feed found
-anywhere was Intuit's sitemap. PhonePe, ScyllaDB, Gupshup, Chargebee and Google
-publish sitemaps that contain no individual job URLs; Nykaa runs a third-party
-ATS (Skima) whose API path could not be guessed.
-
-Each would need a browser-spoofed UA or a headless browser, which is out of scope.
+These restrictions are left visible rather than bypassed with challenge solving,
+proxying, user-agent impersonation, or guessed third-party board identities.
 
 ## Goldman Sachs Higher
 
@@ -443,3 +623,25 @@ a closed requisition except Quadeye's, which was the real bug.
 Note that a fix here cannot reach the database on its own: boards that answer
 **304 re-derive nothing**, so the corrected code never runs against the stored
 rows. Follow an adapter change with `watcher seed --company <name> --refetch`.
+# Recovery candidates added 20 September 2026
+
+`mckinsey` and `citadel_securities` are registered, tested and enabled with
+four-hour intervals after explicit user approval. Both completed live silent
+production baselines under RunLock at 16:50–16:51 IST: 595 and 84 jobs,
+respectively. All backlog notifications were suppressed; export was disabled.
+
+- McKinsey: anonymous first-party counted JSON, one request for up to 800
+  global postings. Enforces total/unique identity, Avature folder identity and
+  aligned city/country arrays. Preserves all locations. No posting date inferred
+  from LinkedIn syndication metadata. The deployment-specific gateway path may
+  rotate; public detail pages remain unverified from the local HTTP client.
+- Citadel Securities: official `careers_listing_filter` form POST at
+  `/wp-admin/admin-ajax.php`, one counted response of up to 100 HTML cards.
+  Current four role-type IDs (`323,325,324,326`) match the official form's default
+  selection. Ten-second delay after robots fetch. Public slugs are posting IDs,
+  never requisition numbers; dates are omitted. Some listings are evergreen
+  expressions of interest. Access remains intermittent on other page paths.
+
+Both fail closed on truncation, duplicates, unexpected shape or growth beyond
+the verified single-response bound. Neither can treat a partial sweep as a
+complete inventory. See `BLOCKED_SOURCE_REVIEW.md` for evidence and limitations.

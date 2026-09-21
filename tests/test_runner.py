@@ -495,6 +495,75 @@ class Parallel(Base):
         self.assertEqual(len(res.ok), 3)
         self.assertEqual(res.deferred, [])
 
+    def test_nine_capped_tenants_all_get_a_turn_with_partial_sweeps(self):
+        class Capped(FakePaged):
+            max_per_run = 1
+            max_parallel = 1
+
+            def fetch(self_, ctx=None):
+                FakeBoard.CALLS.append(self_.company)
+                return FetchResult([], complete=False, cursor={"offset": 1, "ids": []})
+
+        ADAPTERS["fakeworkday"] = Capped
+        for i in range(9):
+            self.company(f"tenant{i}", [], ats="fakeworkday", host=f"tenant{i}.example")
+        polled = []
+        for _ in range(9):
+            result = self.run_once(advance=900)
+            self.assertEqual(len(result.partial), 1)
+            polled.extend(FakeBoard.CALLS)
+        self.assertEqual(set(polled), set(self.cfg["companies"]))
+
+    def test_due_priority_resume_uses_one_slot_without_starving_eight_peers(self):
+        class Capped(FakePaged):
+            max_per_run = 1
+            max_parallel = 1
+
+            def fetch(self_, ctx=None):
+                FakeBoard.CALLS.append(self_.company)
+                return FetchResult([], complete=False, cursor={"offset": 1, "ids": []})
+
+        ADAPTERS["fakeworkday"] = Capped
+        for i in range(9):
+            name = f"tenant{i}"
+            self.company(name, [], ats="fakeworkday", host=f"tenant{i}.example",
+                         cursor_max_age=86400)
+            self.store.sweep_progress(name, int(self.clock()) - 7200 - i,
+                                      int(self.clock()) - 7200, {"offset": 1, "ids": []})
+        self.cfg["companies"]["tenant0"].update(resume_priority=True, resume_interval=3600)
+        calls = []
+        for _ in range(16):
+            result = self.run_once(advance=900)
+            self.assertEqual(len(result.partial), 1)  # never another ATS slot
+            calls.extend(FakeBoard.CALLS)
+        self.assertEqual(calls[::4], ["tenant0"] * 4)
+        self.assertEqual(calls.count("tenant0"), 4)  # no early resume
+        self.assertEqual(set(calls), set(self.cfg["companies"]))
+
+    def test_resume_priority_cannot_skip_backoff(self):
+        FakePaged.max_per_run = 1
+        self.company("priority", [], ats="fakeworkday", host="priority.example",
+                     resume_priority=True, resume_interval=3600)
+        self.company("peer", [], ats="fakeworkday", host="peer.example")
+        now = int(self.clock())
+        self.store.sweep_progress("priority", now - 7200, now - 7200,
+                                  {"offset": 1, "ids": []})
+        self.store.back_off("priority", "blocked", now, "HTTP 429", retry_after=7200)
+        result = self.run_once(advance=0)
+        self.assertEqual(FakeBoard.CALLS, ["peer"])
+        self.assertEqual(result.backed_off[0][0], "priority")
+
+    def test_resume_priority_does_not_displace_other_ats_slots(self):
+        FakePaged.max_per_run = 1
+        def entry(name, ats, priority=False):
+            cfg = {"ats": ats, "token": name, "resume_priority": priority, "resume_interval": 3600}
+            adapter = ADAPTERS[ats](name, cfg)
+            return (name, cfg, {"cursor": {"offset": 1}}, adapter)
+        plan = [entry("peer", "fakeworkday"), entry("other", "fake"),
+                entry("priority", "fakeworkday", True)]
+        runner._prioritize_resumes(plan)
+        self.assertEqual([e[0] for e in plan], ["priority", "other", "peer"])
+
     def test_priority_order_still_holds_on_a_shared_host(self):
         for name, ago in (("fresh", 1000), ("stalest", 90000), ("stale", 5000)):
             self.company(name, [job(name)])
@@ -659,6 +728,43 @@ class Backoff(Base):
         warnings = [m for m in self.sink.messages if "extended backoff" in m]
         self.assertEqual(len(warnings), 1)
         self.assertIn("acme", warnings[0])
+
+
+class HTMLPartialSafety(Base):
+    def test_empty_partial_throttle_preserves_cursor_and_escalates_without_progress(self):
+        class Paused(FakePaged):
+            html = True
+
+            def fetch(self_, ctx=None):
+                FakeBoard.CALLS.append(self_.company)
+                return FetchResult([], complete=False, cursor={"offset": 1, "ids": ['1']},
+                                   throttled=HttpStatusError('u', 429))
+
+        ADAPTERS['fakeworkday'] = Paused
+        self.company('html', [], ats='fakeworkday')
+        for attempt, expected in enumerate((1800, 3600)):
+            result = self.run_once(seed=True, advance=0)
+            state = self.store.state('html')
+            self.assertEqual(state['cursor']['offset'], 1)
+            self.assertIsNone(state['last_complete'])
+            self.assertEqual(state['blocked_until'] - int(self.clock()), expected)
+            self.assertEqual(len(result.partial), 1)
+            self.clock.advance(expected + 1)
+
+    def test_partial_resume_obeys_company_cooldown(self):
+        class Paused(FakePaged):
+            def fetch(self_, ctx=None):
+                FakeBoard.CALLS.append(self_.company)
+                return FetchResult([], complete=False, cursor={"offset": 1, "ids": []})
+
+        ADAPTERS['fakeworkday'] = Paused
+        self.company('ms', [], ats='fakeworkday', resume_interval=3600)
+        self.run_once(advance=900)
+        r = self.run_once(advance=2700)
+        self.assertEqual(FakeBoard.CALLS, [])
+        self.assertEqual([n for n, _ in r.not_due], ['ms'])
+        self.run_once(advance=0)
+        self.assertEqual(FakeBoard.CALLS, ['ms'])
 
 
 class ThrottledMidSweep(Base):
@@ -831,6 +937,37 @@ class PartialSweeps(Base):
         self.assertEqual([r["job_id"] for r in self.store.rows(closed=True)], ["2"])
 
 
+class RestartedSweeps(Base):
+    def test_restart_uses_a_fresh_epoch_so_abandoned_rows_can_close(self):
+        class Drifting(FakePaged):
+            phase = 0
+
+            def fetch(self_, ctx=None):
+                FakeBoard.CALLS.append(self_.company)
+                Drifting.phase += 1
+                if Drifting.phase == 1:
+                    posting = Posting(self_.company, "fake", "old", "Software Engineer",
+                                      "Bengaluru, India", False, "2026-09-15", "https://x/old")
+                    return FetchResult([posting], complete=False, cursor={"offset": 1})
+                if Drifting.phase == 2:
+                    return FetchResult([], complete=False, restart=True)
+                posting = Posting(self_.company, "fake", "current", "Software Engineer",
+                                  "Bengaluru, India", False, "2026-09-15", "https://x/current")
+                return FetchResult([posting])
+
+        ADAPTERS["fakeworkday"] = Drifting
+        self.company("drift", [], ats="fakeworkday")
+        self.run_once(seed=True, advance=1)
+        self.run_once(seed=True, advance=1)
+        state = self.store.state("drift")
+        self.assertIsNone(state["cursor"])
+        self.assertIsNone(state["sweep_started"])
+
+        self.run_once(seed=True, advance=1)
+        self.assertEqual([r["job_id"] for r in self.store.rows(company="drift", closed=True)],
+                         ["old"])
+
+
 
 class BackoffMin(Base):
     def test_a_board_can_ask_for_a_longer_first_pause(self):
@@ -840,6 +977,14 @@ class BackoffMin(Base):
         now = self.clock() - 900                                  # run_once advanced the clock
         self.assertEqual(self.store.state("ms")["blocked_until"] - now, 3600)
         self.assertEqual(self.store.state("gh")["blocked_until"] - now, 30 * 60)   # the default
+
+    def test_company_minimum_is_the_exponential_starting_delay(self):
+        self.company('ms', HttpStatusError('u', 429), backoff_min=3600)
+        for expected in (3600, 7200, 14400):
+            self.run_once(advance=0)
+            state = self.store.state('ms')
+            self.assertEqual(state['blocked_until'] - int(self.clock()), expected)
+            self.clock.advance(expected + 1)
 
 
 class FakeHtml(FakeBoard):

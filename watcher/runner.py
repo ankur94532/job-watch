@@ -125,8 +125,11 @@ def _fmt_interval(seconds):
     return f"{seconds // 60}m" if seconds < 3600 else f"{seconds / 3600:.0f}h"
 
 
-def _due(st, interval, now):
+def _due(st, interval, now, resume_interval=0):
     if st["cursor"]:
+        if resume_interval and st["last_polled"] is not None:
+            due_at = st["last_polled"] + resume_interval
+            return now >= due_at, due_at
         return True, now
     if st["last_polled"] is None:
         return True, now
@@ -168,7 +171,8 @@ def run(cfg, store, sink=None, seed=False, only=None, http=None, budget=RUN_BUDG
             log.info("%s: unfinished sweep is stale, restarting it", name)
             store.drop_cursor(name)
             st = store.state(name)
-        due, due_at = _due(st, config_mod.interval_for(ccfg, defaults), now)
+        due, due_at = _due(st, config_mod.interval_for(ccfg, defaults), now,
+                          resume_interval=int(ccfg.get("resume_interval") or 0))
         if not due and not seed:
             res.not_due.append((name, due_at))
             continue
@@ -182,7 +186,7 @@ def run(cfg, store, sink=None, seed=False, only=None, http=None, budget=RUN_BUDG
             continue
         plan.append((name, ccfg, st, adapter))
 
-    # Longest-waiting first, always. This used to sort on `paginated` FIRST, to
+    # Longest-waiting first. This used to sort on `paginated` FIRST, to
     # stop a long Workday sweep starving the cheap single-request boards. It did
     # the opposite: every paginated board sat permanently behind every cheap one,
     # the ~50 cheap boards ate the whole 50s budget, and the Workday tenants were
@@ -195,6 +199,8 @@ def run(cfg, store, sink=None, seed=False, only=None, http=None, budget=RUN_BUDG
     # stale. A big sweep can still take most of a run, but it yields at the
     # deadline with a cursor, and it is no longer the stalest next time.
     plan.sort(key=lambda x: (x[2]["last_polled"] or 0, x[3].paginated))
+    if not seed:
+        _prioritize_resumes(plan)
 
     if plan and not online():
         log.info("offline — skipping run (%d companies due)", len(plan))
@@ -246,6 +252,26 @@ def run(cfg, store, sink=None, seed=False, only=None, http=None, budget=RUN_BUDG
     if not res.offline and res.exit_code == 0:
         res.exported = _export(cfg, store, clock)
     return res
+
+
+def _prioritize_resumes(plan):
+    """Give opted-in due cursors the next slot within a staggered ATS.
+
+    The due/backoff checks already removed ineligible companies. A mandatory
+    resume interval leaves intervening slots for the other tenants, whose
+    oldest-first order is retained. Only swap entries of the same capped ATS:
+    a partial sweep must not jump ahead of unrelated boards or create another
+    ATS slot. Microsoft uses this to avoid an entire nine-tenant rotation
+    between each three-page chunk of a changing inventory.
+    """
+    for ats in {a.ats for _, _, _, a in plan if a.max_per_run}:
+        indices = [i for i, entry in enumerate(plan) if entry[3].ats == ats]
+        group = [plan[i] for i in indices]
+        group.sort(key=lambda entry: not (
+            entry[1].get("resume_priority") and entry[2]["cursor"]
+            and int(entry[1].get("resume_interval") or 0) > 0))
+        for i, entry in zip(indices, group):
+            plan[i] = entry
 
 
 class _Dispatcher:
@@ -397,7 +423,21 @@ def _poll_company(name, ccfg, st, adapter, store, res, defaults, seed, deadline,
         log.error("%s: FAILED: %s", name, e)
         return False
 
-    html_problem = _html_checks(name, result, st, store) if getattr(adapter, "html", False) else None
+    # A paused HTML slice can legitimately have zero rows (e.g. a pending
+    # detail throttles). Only complete sweeps can close jobs or establish an
+    # empty board; partial slices must retain their cursor.
+    html_problem = (_html_checks(name, result, st, store)
+                    if getattr(adapter, "html", False) and result.complete else None)
+
+    if result.restart:
+        # The previous and current slices cannot form one trustworthy sweep.
+        # Clear both the cursor and its epoch before recording anything from the
+        # incoherent attempt. Reusing the old sweep_started would leave rows seen
+        # only in the abandoned sweep falsely open after the replacement sweep.
+        store.sweep_progress(name, now, None, None)
+        res.partial.append((name, 0, 0))
+        log.info("%s: sweep changed while paging; restarting from the beginning next run", name)
+        return False
 
     # Never alert on a board we've never completed a sweep of: that's its whole backlog.
     silent = seed or st["last_complete"] is None
@@ -441,9 +481,10 @@ def _poll_company(name, ccfg, st, adapter, store, res, defaults, seed, deadline,
     if result.throttled is not None:
         # Partial sweep cut short by 403/429: the rows are kept, the cursor is kept,
         # and the company is parked exactly as if the fetch had failed outright.
-        store.sweep_progress(name, now, sweep_started, result.cursor)
+        store.sweep_progress(name, now, sweep_started, result.cursor, clear_backoff=False)
         # Progress was made, so park for the base wait without escalating.
-        _back_off(name, result.throttled, store, res, defaults, now, escalate=False, ccfg=ccfg)
+        _back_off(name, result.throttled, store, res, defaults, now,
+                  escalate=not bool(result.postings), ccfg=ccfg)
         res.partial.append((name, len(result.postings), len(fresh)))
         return False
     if html_problem:
@@ -522,6 +563,8 @@ def _back_off(name, err, store, res, defaults, now, escalate=True, ccfg=None):
     res.backed_off.append((name, until, str(err)))
     log.warning("%s: %s — backing off until %s", name, err,
                 time.strftime("%Y-%m-%d %H:%M", time.localtime(until)))
+    if getattr(err, "retry_after", None) is not None:
+        log.info("%s: server Retry-After=%ss", name, err.retry_after)
 
 
 def _notify(cfg, store, sink, res, clock):

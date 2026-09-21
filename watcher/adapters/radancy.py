@@ -1,4 +1,4 @@
-"""Radancy / TalentBrew career sites, read from their XML sitemap (Intuit).
+"""Radancy / TalentBrew career sites, read from their XML sitemap.
 
 Intuit's board (`jobs.intuit.com`, Radancy TalentBrew over Avature) has no JSON
 API: `/search-jobs/results` returns a JSON envelope whose `results` field is a
@@ -21,12 +21,14 @@ Consequences worth knowing, because they are weaker than a real API:
 * `lastmod` is when the posting last changed, not when it opened — close enough
   to rank on, and new reqs are detected by id regardless.
 * **Coverage is whatever the sitemap lists.** Intuit's search UI implies more
-  open reqs than the 512 here, so treat this as a good subset, not the board.
+  open reqs than the 512 here, so treat that tenant as a good subset, not the
+  board. Synopsys's 155 India-city sitemap URLs exactly matched its official
+  India search count when validated.
 * No ETag on the sitemap, and it is ~330KB, so this defaults to hourly.
 
-Only verified against Intuit — `careers.walgreens.com` and `jobs.cvshealth.com`
-publish nothing comparable, so do not assume it generalises to every TalentBrew
-site without checking.
+Verified against Intuit and Synopsys — `careers.walgreens.com` and
+`jobs.cvshealth.com` publish nothing comparable, so do not assume it
+generalises to every TalentBrew site without checking.
 """
 
 import re

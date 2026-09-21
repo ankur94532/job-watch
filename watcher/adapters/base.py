@@ -55,6 +55,11 @@ class FetchResult:
     # add postings but says nothing about which ones closed, so it never
     # retires anything and never counts as a complete sweep.
     incremental: bool = False
+    # The adapter detected that an unfinished sweep is no longer coherent
+    # (for example count drift or overlapping pages). Discard its resume point
+    # and start the next attempt with a fresh sweep epoch, so rows seen only in
+    # the abandoned sweep cannot remain falsely open.
+    restart: bool = False
 
 
 class AdapterError(Exception):

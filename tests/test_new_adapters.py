@@ -47,10 +47,10 @@ class Eightfold(unittest.TestCase):
         build_adapter("microsoft", self.CFG, http=http, page_delay=0).fetch()
         self.assertEqual([c[1] for c in http.calls], [self.url(0), self.url(3)])
 
-    def test_empty_page_ends_a_location(self):
+    def test_premature_empty_page_cannot_complete_a_location(self):
         http = FakeHttp({self.url(0): {"data": {"count": 900, "positions": []}}})
-        res = build_adapter("microsoft", self.CFG, http=http, page_delay=0).fetch()
-        self.assertEqual(res.postings, [])
+        with self.assertRaises(AdapterError):
+            build_adapter("microsoft", self.CFG, http=http, page_delay=0).fetch()
         self.assertEqual(len(http.calls), 1)
 
     def test_one_query_per_location_deduped(self):
@@ -64,13 +64,16 @@ class Eightfold(unittest.TestCase):
         self.assertEqual(len(http.calls), 2)
         self.assertEqual(len(res.postings), 3)            # same rows from both queries, kept once
 
-    def test_page_cap(self):
+    def test_repeated_page_restarts_without_closing_jobs(self):
         endless = {"data": {"count": 10**6, "positions": [
             {"id": 1, "name": "x", "locations": ["India"], "positionUrl": "/careers/job/1"}]}}
         http = FakeHttp({lambda m, u, p: True: endless})
-        with self.assertRaises(AdapterError):
-            build_adapter("microsoft", self.CFG, http=http, page_delay=0).fetch()
-        self.assertEqual(http.requests, ef.MAX_PAGES)
+        result = build_adapter("microsoft", self.CFG, http=http, page_delay=0).fetch()
+        self.assertFalse(result.complete)
+        self.assertTrue(result.restart)
+        self.assertIsNone(result.cursor)
+        self.assertEqual(result.postings, [])
+        self.assertEqual(http.requests, 2)
 
 
 class EightfoldApplyFlavour(unittest.TestCase):
@@ -410,6 +413,113 @@ class Phenom(unittest.TestCase):
         self.assertEqual(len(res.postings), 1001)
         self.assertEqual(len(http.calls), 11)  # ten unpartitioned pages, then one category page
         self.assertNotIn(1000, [call[2]["from"] for call in http.calls])
+
+    def test_tenant_verified_deep_window_can_page_past_1000(self):
+        cfg = dict(self.CFG, max_window=2000)
+
+        def response(method, url, payload, cache):
+            start = payload["from"]
+            rows = [self.job(i) for i in range(start, min(start + 100, 1001))]
+            return {"refineSearch": {"status": 200, "totalHits": 1001,
+                                     "data": {"jobs": rows}}}
+
+        http = FakeHttp({self.API: response})
+        res = build_adapter("deep", cfg, http=http, page_delay=0).fetch()
+
+        self.assertEqual(len(res.postings), 1001)
+        self.assertEqual([call[2]["from"] for call in http.calls][-2:], [900, 1000])
+
+    def test_multiple_disjoint_facets_can_cover_uncategorized_jobs(self):
+        cfg = dict(self.CFG, partition_fields=["category", "department"])
+
+        def response(method, url, payload, cache):
+            selected = payload["selected_fields"]
+            start = payload["from"]
+            if selected.get("department"):
+                rows, total = [self.job(1000)], 1
+            elif selected.get("category"):
+                rows, total = [self.job(i) for i in range(start, min(start + 100, 1000))], 1000
+            else:
+                rows = [self.job(i) for i in range(start, min(start + 100, 1000))]
+                total = 1001
+            aggregations = ([{"field": "category", "value": {"Other": 1000}},
+                             {"field": "department", "value": {"Unspecified": 1}}]
+                            if not selected.get("category") and not selected.get("department")
+                            and start == 0 else [])
+            return {"refineSearch": {"status": 200, "totalHits": total,
+                                     "data": {"jobs": rows, "aggregations": aggregations}}}
+
+        http = FakeHttp({self.API: response})
+        res = build_adapter("multi-facet", cfg, http=http, page_delay=0).fetch()
+
+        self.assertEqual(len(res.postings), 1001)
+        self.assertEqual(http.calls[-1][2]["selected_fields"]["department"], ["Unspecified"])
+
+    def test_replays_a_shifting_facet_until_its_declared_ids_are_unique(self):
+        energy_pass = 0
+
+        def response(method, url, payload, cache):
+            nonlocal energy_pass
+            selected = payload["selected_fields"]
+            start = payload["from"]
+            category = selected.get("category")
+            if category == ["Energy"]:
+                if start == 0:
+                    energy_pass += 1
+                # The first pass returns 501 rows but repeats job 0 at its
+                # final boundary, omitting job 500. The replay is coherent.
+                ids = list(range(start, min(start + 100, 501)))
+                if energy_pass == 1 and start == 500:
+                    ids = [0]
+                rows, total = [self.job(i) for i in ids], 501
+            elif category == ["Other"]:
+                ids = range(501 + start, min(501 + start + 100, 1001))
+                rows, total = [self.job(i) for i in ids], 500
+            else:
+                # The redundant unpartitioned sample deliberately omits 500,
+                # so only the replay can make the final union complete.
+                ids = range(start, min(start + 100, 900))
+                rows, total = [self.job(i) for i in ids], 1001
+            aggregations = ([{"field": "category", "value": {"Energy": 501, "Other": 500}}]
+                            if not category and start == 0 else [])
+            return {"refineSearch": {"status": 200, "totalHits": total,
+                                     "data": {"jobs": rows, "aggregations": aggregations}}}
+
+        cfg = dict(self.CFG, max_window=900)
+        http = FakeHttp({self.API: response})
+        res = build_adapter("questglobal", cfg, http=http, page_delay=0).fetch()
+
+        self.assertEqual(len(res.postings), 1001)
+        energy_starts = [call[2]["from"] for call in http.calls
+                         if call[2]["selected_fields"].get("category") == ["Energy"]]
+        self.assertEqual(energy_starts, [0, 100, 200, 300, 400, 500,
+                                         0, 100, 200, 300, 400, 500])
+
+    def test_fails_closed_when_facet_replays_never_fill_duplicate_ids(self):
+        def response(method, url, payload, cache):
+            selected = payload["selected_fields"]
+            start = payload["from"]
+            category = selected.get("category")
+            if category == ["Energy"]:
+                ids = list(range(start, min(start + 100, 501)))
+                if start == 500:
+                    ids = [0]
+                rows, total = [self.job(i) for i in ids], 501
+            elif category == ["Other"]:
+                ids = range(501 + start, min(501 + start + 100, 1001))
+                rows, total = [self.job(i) for i in ids], 500
+            else:
+                ids = range(start, min(start + 100, 900))
+                rows, total = [self.job(i) for i in ids], 1001
+            aggregations = ([{"field": "category", "value": {"Energy": 501, "Other": 500}}]
+                            if not category and start == 0 else [])
+            return {"refineSearch": {"status": 200, "totalHits": total,
+                                     "data": {"jobs": rows, "aggregations": aggregations}}}
+
+        cfg = dict(self.CFG, max_window=900, partition_replays=1)
+        with self.assertRaisesRegex(AdapterError, "500 unique of 501.*after 2 pass"):
+            build_adapter("questglobal", cfg, http=FakeHttp({self.API: response}),
+                          page_delay=0).fetch()
 
 
 if __name__ == "__main__":
