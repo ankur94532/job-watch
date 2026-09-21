@@ -5,6 +5,7 @@ how "Google disallows its own results page 1" appears out of thin air.
 """
 
 import os
+import sys
 import unittest
 
 from tests.fakes import FIXTURES
@@ -29,14 +30,31 @@ class Google(unittest.TestCase):
         self.assertFalse(self.r.allowed(UA, GOOG + "/?page=3"))
         self.assertIn("page=", self.r.why(UA, GOOG + "?location=India&page=2"))
 
-    def test_stdlib_would_disagree_and_be_wrong(self):
-        """Pinning the reason we do not use urllib.robotparser."""
+    def test_stdlib_disagreed_and_was_wrong_before_3_14(self):
+        """Pinning the reason we do not use urllib.robotparser.
+
+        The stdlib dropped the query string, so Google's
+        `Disallow: /...results?page=` blocked the unpaginated results page too.
+        **Python 3.14 fixed that**, so on a new enough interpreter the stdlib
+        now agrees with us here. The reason to keep our own matcher stands
+        anyway: this still runs on the system 3.9 (where the bug is live), and
+        `robotparser` exposes no way to report WHICH rule matched, which
+        `Robots.why()` provides for logs and for writing an honest config note.
+
+        Asserted both ways round so this test keeps documenting the behaviour
+        instead of failing the day the interpreter changes.
+        """
         import urllib.robotparser
         with open(os.path.join(FIXTURES, "robots_google.txt")) as f:
             rp = urllib.robotparser.RobotFileParser()
             rp.parse(f.read().splitlines())
-        self.assertFalse(rp.can_fetch(UA, GOOG + "?location=India&sort_by=date"))  # wrong
-        self.assertTrue(self.r.allowed(UA, GOOG + "?location=India&sort_by=date"))  # right
+        stdlib_ok = rp.can_fetch(UA, GOOG + "?location=India&sort_by=date")
+        self.assertEqual(stdlib_ok, sys.version_info >= (3, 14))
+        # Ours is right on every version, which is the part that matters.
+        self.assertTrue(self.r.allowed(UA, GOOG + "?location=India&sort_by=date"))
+        # And the pagination rule is honoured by both.
+        self.assertFalse(rp.can_fetch(UA, GOOG + "?location=India&page=2"))
+        self.assertFalse(self.r.allowed(UA, GOOG + "?location=India&page=2"))
 
     def test_other_disallowed_careers_paths_still_blocked(self):
         self.assertFalse(self.r.allowed(

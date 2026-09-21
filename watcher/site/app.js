@@ -577,6 +577,7 @@ function renderHome() {
        ticked most of a board, "25 open roles" stops meaning anything. */
     var done = (c.count || 0) - left;
     el(".company-meta", node).textContent =
+      c.count === 0 ? "No matching open roles" :
       (done > 0 ? left + " unticked of " + c.count : c.count + (c.count === 1 ? " open role" : " open roles")) +
       " · " + ago(now - c.newest);
     var dot = el(".dot", node);

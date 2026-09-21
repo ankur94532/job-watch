@@ -15,6 +15,7 @@ thumb does not do that. These checks dispatch a DOM `click()` instead.
 """
 
 import http.server
+import json
 import os
 import re
 import socketserver
@@ -91,6 +92,8 @@ def main():
 
     serve()
     base = "http://127.0.0.1:%d/index.html" % PORT
+    with open(os.path.join(ROOT, "data", "jobs.json")) as f:
+        index = json.load(f)
 
     with sync_playwright() as pw:
         b = pw.chromium.launch()
@@ -113,6 +116,8 @@ def main():
 
         rows = p.locator(".company-row")
         n = rows.count()
+        check("all watched companies are visible", n == index["watched"],
+              "%d rows / %d watched" % (n, index["watched"]))
         dots = p.locator(".company-row .dot:not([hidden])").count()
         check("green dot on companies with new jobs", dots > 0, "%d/%d dotted" % (dots, n))
 
@@ -211,7 +216,7 @@ def main():
         p.evaluate("(i) => document.querySelectorAll('.company-row')[i].click()", idx)
         p.wait_for_timeout(1000)
         p.reload(wait_until="networkidle")        # as Memory Saver does to a background tab
-        p.wait_for_selector(".job")
+        p.wait_for_selector(".job, #empty:not([hidden])")
         p.click("#back")
         p.wait_for_timeout(1200)
         after = p.evaluate("window.pageYOffset")
@@ -222,8 +227,7 @@ def main():
         p.evaluate("localStorage.clear()")
         p.reload(wait_until="networkidle")
         p.wait_for_selector(".company-row")
-        first = p.evaluate("""() => document.querySelectorAll('.company-row')[0]
-            .querySelector('.company-name').textContent""")
+        first = next(c["company"] for c in index["companies"] if c["count"] > 1)
         p.evaluate("""(nm) => [...document.querySelectorAll('.company-row')]
             .find(e => e.querySelector('.company-name').textContent === nm).click()""", first)
         p.wait_for_timeout(1200)
@@ -257,6 +261,20 @@ def main():
         p.wait_for_selector(".company-row")
         check("ticks on closed jobs do not reduce the unticked count", row_meta(p, first) == meta,
               "%r vs %r" % (row_meta(p, first), meta))
+
+        empty_names = [c["company"] for c in index["companies"] if c["count"] == 0]
+        if empty_names:
+            check("empty companies have an explicit label",
+                  all(row_meta(p, nm) == "No matching open roles" for nm in empty_names),
+                  "%d empty companies" % len(empty_names))
+            check("empty companies have no new-job dot",
+                  all(dot_hidden(p, nm) for nm in empty_names))
+            p.evaluate("""(nm) => [...document.querySelectorAll('.company-row')]
+                .find(e => e.querySelector('.company-name').textContent === nm).click()""",
+                       empty_names[0])
+            p.wait_for_selector("#empty:not([hidden])")
+            check("empty company opens without a fetch error",
+                  p.locator(".job").count() == 0 and "of 0" in p.inner_text("#summary"))
 
         b.close()
 

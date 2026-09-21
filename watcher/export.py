@@ -39,6 +39,7 @@ SITE_FILES = (
     "functions/api/jobs.js",    # current job snapshot, read from KV
     "functions/_lib/access.js", # shared Access JWT verification
     "_routes.json",             # only /api/* runs the function; pages stay static
+    "_headers",                 # app shell must revalidate: see the file for why
 )
 INDEX_FILE = "jobs.json"
 
@@ -53,9 +54,12 @@ def collect(cfg, store, now=None):
     """Matching, currently-open rows, newest poll first."""
     now = int(now or time.time())
     defaults = cfg.get("defaults") or {}
+    active = {name for name, _ in config_mod.active_companies(cfg)[0]}
     filters, jobs = {}, []
     for row in store.rows():
         company = row["company"]
+        if company not in active:
+            continue
         # A row is closed when it is older than its company's last complete sweep.
         if row["last_complete"] is not None and row["last_seen"] < row["last_complete"]:
             continue
@@ -93,15 +97,18 @@ def group(jobs):
     return by_company
 
 
-def index_payload(jobs, watched, now, polled_at=None, site_url=None):
+def index_payload(jobs, watched, now, polled_at=None, site_url=None, company_names=()):
     companies = []
-    for company, rows in group(jobs).items():
+    by_company = group(jobs)
+    for name in company_names:
+        by_company.setdefault(name, [])
+    for company, rows in by_company.items():
         companies.append({
             "company": company,
             "count": len(rows),
             # Newest poll that turned something up here: what the home page sorts
             # and badges on, without fetching a single company file.
-            "newest": max(r["first_seen"] or 0 for r in rows),
+            "newest": max((r["first_seen"] or 0 for r in rows), default=0),
             "file": shard_name(company),
             # The open job ids, so the home screen can count what is still
             # unticked exactly. Without them it subtracted every stored tick,
@@ -134,18 +141,21 @@ def write(cfg, store, out_dir, now=None):
     os.makedirs(data_dir, exist_ok=True)
 
     body = index_payload(jobs, len(active), now, polled_at=last_poll(store, [n for n, _ in active]),
-                         site_url=config_mod.export_settings(cfg).get("url"))
+                         site_url=config_mod.export_settings(cfg).get("url"),
+                         company_names=[name for name, _ in active])
     blob = dumps(body)
     written = [write_file(os.path.join(data_dir, INDEX_FILE), blob)]
 
     by_company = group(jobs)
+    for name, _ in active:
+        by_company.setdefault(name, [])
     keep = {INDEX_FILE}
     for company, rows in by_company.items():
         name = shard_name(company)
         keep.add(name)
         written.append(write_file(os.path.join(data_dir, name),
                                   dumps({"company": company, "count": len(rows), "jobs": rows})))
-    for stale in os.listdir(data_dir):     # a company that stops matching leaves no orphan file
+    for stale in os.listdir(data_dir):     # removed/disabled companies leave no orphan files
         if stale not in keep:
             os.remove(os.path.join(data_dir, stale))
 

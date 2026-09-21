@@ -93,7 +93,7 @@ class Collect(unittest.TestCase):
             # Exactly these, by path: the page, the job shards, and the one function
             # (tick sync, behind Access). Anything new here has to be added on purpose.
             self.assertEqual(sorted(os.path.relpath(f, d) for f in files),
-                             ["_routes.json", "app.css", "app.js", "data/acme.json", "data/globex.json",
+                             ["_headers", "_routes.json", "app.css", "app.js", "data/acme.json", "data/globex.json",
                               "data/jobs.json", "functions/_lib/access.js", "functions/api/jobs.js",
                               "functions/api/state.js", "index.html"])
             page = open(os.path.join(d, "index.html")).read()
@@ -125,13 +125,29 @@ class Collect(unittest.TestCase):
             self.assertEqual(stamps, sorted(stamps, reverse=True))       # descending poll time
             self.assertEqual(stamps, [800, 300, 200])
 
-    def test_a_company_that_stops_matching_leaves_no_orphan_file(self):
+    def test_watched_company_stays_visible_when_it_stops_matching(self):
         with tempfile.TemporaryDirectory() as d:
             export.write(CFG, FakeStore(self.rows()), d, now=1000)
             self.assertIn("globex.json", os.listdir(os.path.join(d, "data")))
             only_acme = [r for r in self.rows() if r["company"] == "acme"]
-            export.write(CFG, FakeStore(only_acme), d, now=1000)
-            self.assertEqual(sorted(os.listdir(os.path.join(d, "data"))), ["acme.json", "jobs.json"])
+            _, blob = export.write(CFG, FakeStore(only_acme), d, now=1000)
+            index = json.loads(blob)
+            self.assertEqual(len(index['companies']), index['watched'])
+            empty = next(c for c in index['companies'] if c['company'] == 'globex')
+            self.assertEqual((empty['count'], empty['newest'], empty['ids']), (0, 0, []))
+            snapshot = json.loads(export.snapshot_blob(d, blob))
+            self.assertEqual(snapshot['companies']['globex.json']['jobs'], [])
+
+    def test_disabled_company_rows_are_excluded_and_old_shard_removed(self):
+        with tempfile.TemporaryDirectory() as d:
+            export.write(CFG, FakeStore(self.rows()), d, now=1000)
+            cfg = dict(CFG, companies=dict(CFG['companies'],
+                globex=dict(CFG['companies']['globex'], enabled=False)))
+            _, blob = export.write(cfg, FakeStore(self.rows()), d, now=1000)
+            index = json.loads(blob)
+            self.assertEqual(index['watched'], 1)
+            self.assertEqual([c['company'] for c in index['companies']], ['acme'])
+            self.assertEqual(sorted(os.listdir(os.path.join(d, 'data'))), ['acme.json', 'jobs.json'])
 
     def test_snapshot_is_one_value_with_index_and_company_shards(self):
         with tempfile.TemporaryDirectory() as d:

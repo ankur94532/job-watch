@@ -1,0 +1,25 @@
+# Cloudflare Pages response headers.
+#
+# Why this file exists: on 2026-09-21 the phone showed job data days old while
+# the KV snapshot was current to the minute. The data path was never the
+# problem — /api/* already answers `cache-control: no-store` (functions/api/
+# jobs.js) and the snapshot read back fresh. What went stale was the APP SHELL.
+#
+# index.html, app.js and app.css are deployed as static assets and carry no
+# hash or version query, so a browser that cached them keeps running whatever
+# copy it has. A phone holding an old app.js keeps asking for whatever that old
+# copy asked for, and the page silently looks frozen even though the server is
+# fine. `no-cache` does not mean "never store" — it means "revalidate before
+# using", so the ETag still turns an unchanged asset into a cheap 304 and only
+# a genuinely changed file is re-downloaded.
+#
+# Pages deploys the site only when code changes, so this cannot mask a data
+# problem: if the snapshot itself were stale, this file would change nothing.
+
+/*
+  Cache-Control: no-cache
+
+# Belt and braces: the Function sets this itself, and a proxy between the phone
+# and Cloudflare must not be allowed to keep a copy of the job snapshot.
+/api/*
+  Cache-Control: no-store

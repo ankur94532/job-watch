@@ -1,4 +1,10 @@
-PYTHON ?= /usr/bin/python3
+# /usr/bin/python3 is macOS's 3.9 on LibreSSL 2.8.3, which cannot negotiate
+# TLS 1.3 — careers.joveo.com and boards like it fail the handshake outright.
+# (LibreSSL reports ssl.TLSVersion.TLSv1_3 as present but cannot use it, so
+# that attribute is not a capability check.) Homebrew's python3 is on
+# OpenSSL 3.x and reaches them. The watcher is stdlib-only, so this needs no
+# packages; the suite passes on both. Override with `make PYTHON=... test`.
+PYTHON ?= /opt/homebrew/bin/python3
 LABEL  := com.shashwattripathi.jobswatch
 REPO   := $(CURDIR)
 PLIST_SRC := $(REPO)/deploy/$(LABEL).plist
