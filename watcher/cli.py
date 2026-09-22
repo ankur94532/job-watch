@@ -141,7 +141,8 @@ def cmd_status(args):
     for name, c in active:
         st = store.state(name)
         interval = config_mod.interval_for(c, defaults)
-        due_at = (st["last_polled"] or 0) + interval - config_mod.DUE_SLACK
+        due, due_at = runner._due(
+            st, interval, now, resume_interval=int(c.get("resume_interval") or 0))
         if st["blocked_until"] and st["blocked_until"] > now:
             state = f"BACKED OFF until {fmt_ts(st['blocked_until'])}: {st['last_error']}"
         elif st["last_polled"] and now - st["last_polled"] > interval * runner.STARVING_POLLS:
@@ -164,7 +165,7 @@ def cmd_status(args):
             state = f"last error: {st['last_error']}"
         else:
             state = f"ok, {st['last_count']} open" + (", etag" if st["cache"] else "")
-        nxt = "now" if due_at <= now or st["cursor"] else fmt_ts(due_at)
+        nxt = "now" if due else fmt_ts(due_at)
         print(f"{name:<22} {c['ats']:<16} {fmt_age(interval):>6}  {fmt_ts(st['last_polled']):<16} {nxt:<16} {state}")
     store.close()
     if skipped:

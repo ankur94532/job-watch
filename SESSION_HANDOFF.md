@@ -1,5 +1,242 @@
 # Job-watch session handoff — 2026-09-20
 
+## START HERE — 22 September, 08:45 IST — Microsoft proven; Qualcomm is the remaining drift problem
+
+**State: 177 tracked / 166 active / 11 blocked; 395 Python + 11 site tests
+pass; `git diff --check` clean. All Siemens, Honeywell and Microsoft work is now
+committed on `job-sources-sep-2026` (the commit after `e745dda`). The branch is
+still not merged into `main` and not pushed; do neither without the user's
+instruction.**
+
+### Resolved overnight (normal scheduler, no manual runs)
+
+- **Microsoft is proven.** The filtered closure sweep completed cursor-free at
+  05:25: **87 open**, error/backoff null (`last_complete` shows 23:26 because it
+  records the sweep epoch start). Every 15-minute run since has read exactly the
+  three newest official-page roles. The only remaining caveat is scope: roles
+  outside the Software Engineering profession are not closure-inventoried.
+- Siemens completed again at 08:00 (**951**), Honeywell at 08:27 (**329**),
+  Target is cursor-free at 1,980, NTT DATA completed at 05:59 (1,042).
+
+### Still open
+
+1. **Qualcomm (last complete 2026-09-20 16:01, ~40h STARVING).** Not a quota
+   problem any more — it is drift. Its ~58-page sweep is split into 20-page
+   chunks, but it only gets an Eightfold slot every ~2-3h, and its
+   `sort_by=timestamp` order is newest-first, so new postings shift earlier
+   pages and the overlap guard restarts it: offset 70 (22:33), 30 (02:57) and
+   200 (08:26, after pausing at 200 at 05:43). The guard is correct; the
+   schedule cannot currently produce a coherent sweep. Options to evaluate:
+   an oldest-first sort if the pcsx API honors it (lets growth append, as with
+   Siemens), a shorter `resume_interval` with its own slot, or a narrower
+   official facet as for Microsoft. Do not relax the overlap guard.
+2. **Walmart (last complete 2026-09-21 16:48, 1,949).** Failed closed four more
+   times today (1,708 x2, 1,866, 1,885 of a reported 2,000). The failure rate
+   is now high enough to investigate whether the 2,000 figure is a capped total
+   rather than true inventory; until then keep the fail-closed rule.
+3. NTT DATA's moving `Other` partition still fails intermittently (latest:
+   count changed 724 -> 737 mid-sweep) but completes regularly; watch only.
+4. **Microsoft scope caveat:** roles outside the Software Engineering
+   profession are not closure-inventoried. Revisit only if non-SWE Microsoft
+   roles become relevant.
+5. **Git:** merge `job-sources-sep-2026` into `main` and push — only when the
+   user asks.
+6. Re-run `make test` and `git diff --check` after any edit, and add a new
+   START HERE section with production evidence.
+
+## START HERE — 22 September, 00:23 IST — Microsoft cadences separated; closure advanced
+
+**State: 177 tracked / 166 active / 11 blocked. All work remains uncommitted on
+`job-sources-sep-2026`; preserve the 14 modified and two untracked files. Do not
+commit, merge or push without the user's instruction.** The full suite passes
+at **395 Python + 11 site tests**, and `git diff --check` is clean. Re-run it
+after any further edit.
+
+### Microsoft scheduling defect found and fixed
+
+The 23:50 design did not actually provide a 15-minute latest-role path during a
+closure sweep. Any cursor made runner scheduling use `resume_interval: 3600`,
+and the specialized adapter still reported `ats = eightfold`, so its cheap
+official-page read also competed for the one Eightfold tenant slot. The 23:52
+normal run demonstrated both symptoms: Morgan Stanley took the slot and
+Microsoft was not polled.
+
+The two cadences are now independent:
+
+- Microsoft has its own scheduler group and remains due every 15 minutes.
+- Its cursor carries `api_after` for the quota-sensitive closure API. Successful
+  two-page chunks wait one hour; zero-progress 403/429s delay only the API by
+  1h, 2h, 4h ... up to 24h. The latest page is not globally backed off.
+- An incremental latest-page result deliberately preserves the existing closure
+  cursor and sweep epoch; this has runner regression coverage.
+- Status now displays a cursor's real `resume_interval` due time instead of
+  claiming every unfinished sweep is due `now`.
+
+Normal production proof is complete for the cadence split:
+
+- At 00:19 Microsoft read two API pages, advanced its scoped closure cursor
+  **0 -> 20**, stored `api_after` = 01:20:38, and recorded 20 rows / three new
+  without a throttle or global backoff. HSBC completed 157 rows in the same run.
+- At 00:37 the next normal launch read exactly the **three newest official-page
+  roles** (zero new), while the database preserved offset 20, all 20 IDs, facet
+  total 87, `api_after` 01:20:38, and null error/backoff. Qualcomm used the
+  separate Eightfold slot in that same run.
+
+### Other live evidence and open work
+
+- Siemens completed another normal cursor-free **955/955** sweep at 00:02 in
+  the 23:52 run. Its private budget remains isolated and proven.
+- Honeywell completed normally again at 00:20 with 327 rows; its two tolerated
+  one-row partition shortfalls were logged explicitly.
+- Qualcomm finally got the 00:37 Eightfold slot, advanced to offset 30, then
+  received HTTP 429 and correctly retained its cursor with backoff until 01:07.
+  Its last complete sweep remains 20 September 16:01, so it is still STARVING;
+  do not force it during the recorded cooldown.
+- Target completed its long sweep at 00:38 with **1,980/2,000** unique rows,
+  inside Workday's existing bounded coverage rule; its cursor/error are null and
+  the STARVING condition is cleared. Walmart failed closed again at 1,708/2,000;
+  do not add tolerance. NTT DATA's prior strict moving-partition failure remains
+  unchanged.
+- Microsoft still needs a cursor-free filtered closure count (roughly 89) before
+  it is fixed. Also retain the caveat that roles outside the Software
+  Engineering profession are not closure-inventoried.
+
+## START HERE — 21 September, 23:50 IST — Siemens and Honeywell proven; Microsoft rescoped
+
+**State: 177 tracked / 166 active / 11 blocked. 389 Python + 11 site tests
+pass; `git diff --check` is clean.** The four handoff commits remain on
+`job-sources-sep-2026` at `e745dda`. Everything below is **uncommitted**: 13
+modified files plus the new `watcher/adapters/microsoft.py` and
+`tests/test_microsoft.py`. Do not merge or commit without the user's instruction.
+
+### Resolved since 21:47 (production evidence)
+
+- **Siemens is proven.** The 22:50 normal run completed a cursor-free
+  **955/955** sweep at 23:02 (run 690.7s) with 36 new rows and two alerts. The
+  private 900s `poll_budget` did not widen the shared window: Wells Fargo,
+  Target and Walmart paused at the 120s boundary while Siemens continued.
+- **Honeywell is proven.** Oracle caps pages at 200 and its offset pagination
+  repeated a boundary ID even with a stable total. `OracleAdapter` now covers
+  the India inventory with the official disjoint 3 workplace x 2 posting-date
+  facets (every partition < 200 rows, one request each). Two partitions stably
+  advertise one inaccessible row each, so `count_tolerance: 1` applies **per
+  partition only**. Live validation: 327 unique in 10 requests; normal
+  production poll at 23:18: **326 open**, cursor/error null.
+- **Eightfold backlog mostly cleared:** Morgan Stanley (21:58, 101), Eightfold
+  AI (22:50), Lam Research (23:17, 116), UKG (23:27, 75), Netflix (23:28, 9).
+  IDFC FIRST (1,225) and Quest Global (1,021) completed again at 23:17.
+
+### Microsoft — rescoped, closure sweep not yet proven
+
+Root cause is a host quota (roughly one-two requests before 429), not paging.
+The full India query needs ~24 pages, so it could never finish. New design
+(`ats: microsoft` -> `MicrosoftAdapter`, still scheduled as an Eightfold tenant):
+
+- **New roles:** every 15 minutes, one request to the robots-permitted official
+  India page (`careers.microsoft.com/.../l-india`), which lists the 3 newest
+  roles with ID/title/location/date. Layout drift fails closed (exactly 3 valid
+  cards required). It has already produced a 3-new alert.
+- **Closures:** a daily sweep using the official `filter_profession=software
+  engineering` facet (**89 India roles vs 235**), 2 pages per run, hourly
+  resume, `resume_priority: false` so it no longer starves healthy tenants.
+- The cursor now carries a `scope`; the old unfiltered cursor was discarded via
+  a restart, and production holds a fresh scoped offset-0 cursor (23:26).
+
+Caveats to confirm: (a) Microsoft roles outside the "Software Engineering"
+profession are no longer inventoried — Codex reported checking that stored
+title-matching jobs fall inside the facet, but that evidence is not recorded
+here; (b) more than 3 India postings within 15 minutes would be missed by the
+fast path until the daily sweep sees them (only if they are in the facet).
+
+### Still open
+
+1. **Microsoft closure sweep:** needs ~5 hourly two-page runs without a 429.
+   Require a cursor-free complete filtered count (~89) before calling it fixed.
+   Last complete sweep is still 2026-09-20 10:11 (37h STARVING warning expected
+   until then).
+2. **Qualcomm** (last complete 2026-09-20 16:01, 31.6h) and **Target** (last
+   complete 2026-09-20 14:35; cursor at 1,520/2,000 and advancing) remain
+   STARVING. Qualcomm is still being deferred as out-of-time; watch whether it
+   gets an Eightfold slot now that Microsoft has no priority.
+3. **Fail-closed recurrences at 23:36 (correct behavior, watch only):** Walmart
+   `got 1827 of 2000` (23rd such failure since 09-19; last complete 16:48,
+   1,949) and NTT DATA's moving `Other` partition (651/658; last complete 21:00,
+   988). Do not add tolerance to either without new evidence.
+4. **Git:** commit this work on `job-sources-sep-2026`, then merge/push to
+   `main` — both only when the user asks.
+5. Re-run `make test` and `git diff --check` after any edit.
+
+## START HERE — 21 September, 21:47 IST — Siemens gets a targeted coherent-sweep budget
+
+**State: 177 tracked / 166 active / 11 blocked. 382 Python + 11 site tests
+pass; `git diff --check` is clean.** The four handoff commits remain on
+`job-sources-sep-2026` at `e745dda`; the Siemens throughput work below is
+**uncommitted**. Preserve the modified config, runner, adapter, tests and the
+updated documentation. Do not merge or commit without the user's instruction.
+
+### Production facts that changed after the 16:55 handoff
+
+- NTT DATA is now proven in normal production: complete polls at 15:57 (978),
+  17:24 (967) and 21:19 (988), with null cursor/error after completion.
+- IDFC FIRST's strict Phenom guard eventually completed normally at 21:00 with
+  **1,226/1,226** open and 14 new rows. Earlier failures on the moving `Others`
+  partition were still correct fail-closed results; no tolerance or replay
+  relaxation was added.
+- Citadel Securities completed another normal 84/84 poll at 20:59. Quest Global
+  completed normally at 16:49 (1,006) and 20:59 (1,015).
+- Microsoft remains unresolved. Its 20:59 request was throttled at offset 0 and
+  backed off until 21:59. Do not increase its page cap.
+- Qualcomm and several other large tenants were temporarily poll-starved after
+  the laptop's multi-hour sleep/catch-up backlog. The 21:35 run did recover
+  NetApp and several large Workday boards; do not call the backlog fixed until
+  later normal rotations clear the starvation warnings.
+
+### Siemens throughput change — implemented and tested, completion still open
+
+The shared 120-second run deadline made Siemens's six-row pages span ~4.5 hours,
+long enough that ordinary closures repeatedly forced the safe count-decrease
+restart. Raising the global budget would also make every large Workday/Phenom
+poll longer, so the runner now supports an opt-in per-company `poll_budget`:
+
+- The shared deadline still decides whether another paginated company may
+  start. Siemens alone gets up to 900 seconds after it has earned a slot.
+- Siemens can make up to 320 requests in that slot, at 0.8-second configured
+  pacing. Other companies retain the existing limits.
+- Known multi-location Siemens IDs no longer refetch detail pages. Every such ID
+  was resolved before entering the store, and `Store.record` deliberately
+  preserves an existing row's location; only new IDs still require detail
+  resolution before filtering/alerting.
+- A count/overlap restart may now carry only a validated zero-progress cursor.
+  The runner starts a fresh sweep epoch and Siemens waits 30 minutes before the
+  retry, instead of keeping incoherent IDs or waiting the full normal interval.
+  Other adapters that return no restart cursor retain the old clear-and-wait
+  behavior. Seed runs remain deadline-free.
+
+The first normal run under the private budget started at 21:35 from the existing
+offset-72 cursor. It proved the scheduler isolation: many cheap boards completed
+normally and three large Workday boards paused at the shared boundary while
+Siemens continued. At 21:43 Siemens correctly restarted when the declared count
+fell **956 -> 955 at offset 426**. The run finished normally in 482.6 seconds
+and published the current 166-company snapshot. **This is not a Siemens
+completion.** The known-detail optimization and zero-progress restart cursor
+were added after that run and have unit coverage but no production proof yet.
+Because the already-recorded restart used the old behavior, current production
+state is cursor-null and next due around 22:34; do not rewrite the DB to hurry it.
+
+### Next actions
+
+1. Observe the next normal Siemens attempt. Require a cursor-free complete count
+   before calling the throughput fix proven. A real decrease/overlap must still
+   fail closed; after a future restart, confirm the stored cursor is exactly
+   offset 0 with no IDs and the retry waits at least 30 minutes.
+2. Observe Eightfold rotation after Microsoft's cooldown. Qualcomm,
+   Morgan Stanley, Eightfold AI, Netflix, Lam Research and UKG were stale at
+   21:43; normal oldest-first slots should clear them. Do not force requests or
+   infer a shared quota from the warnings alone.
+3. Re-run 382 Python tests, 11 site tests and `git diff --check` after any edit.
+   Update this section with production evidence. Do not commit/merge unless the
+   user asks.
+
 ## START HERE — 21 September, 14:53 IST — Phenom fixes proven; Siemens restart narrowed
 
 **State: 177 tracked / 166 active / 11 blocked. 376 Python + 11 site tests

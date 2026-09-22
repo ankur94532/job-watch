@@ -29,6 +29,10 @@ class SiemensAdapter(RobotsAware):
     ats = "siemens"
     paginated = True
     html = True
+    # A known multi-location row was resolved before it entered the store, and
+    # Store.record deliberately preserves an existing row's location. Fetching
+    # that detail again cannot change stored data; only new IDs need it.
+    needs_known_ids = True
 
     def url(self, offset):
         return BASE + "SearchJobs/?" + urlencode({"42386": "[812053]", "42386_format": "17546",
@@ -38,8 +42,12 @@ class SiemensAdapter(RobotsAware):
     def fetch(self, ctx=None):
         ctx = ctx or FetchContext()
         cur = ctx.cursor or {}
+
+        def restart_cursor():
+            return {"offset": 0, "total": None, "pending": [], "ids": [], "order": ORDER}
+
         if cur and cur.get("order") != ORDER:
-            return FetchResult([], complete=False, restart=True, declared=0)
+            return FetchResult([], complete=False, cursor=restart_cursor(), restart=True, declared=0)
         offset, total = cur.get("offset", 0), cur.get("total")
         pending, ids = list(cur.get("pending", [])), set(cur.get("ids", []))
         if len(ids) + len(pending) != offset:
@@ -70,7 +78,8 @@ class SiemensAdapter(RobotsAware):
                         if count < total:
                             log.warning("%s: Siemens count fell %d -> %d at offset %d; restarting",
                                         self.company, total, count, offset)
-                            return FetchResult([], complete=False, restart=True, declared=0)
+                            return FetchResult([], complete=False, cursor=restart_cursor(),
+                                               restart=True, declared=0)
                         # The requested order is oldest-first. New postings at
                         # the end can safely extend a sweep already in progress.
                         # If an insertion landed before the cursor instead, it
@@ -87,13 +96,15 @@ class SiemensAdapter(RobotsAware):
                     if ids.intersection(keys):
                         log.warning("%s: Siemens page overlaps prior IDs at offset %d; restarting",
                                     self.company, offset)
-                        return FetchResult([], complete=False, restart=True, declared=0)
+                        return FetchResult([], complete=False, cursor=restart_cursor(),
+                                           restart=True, declared=0)
                     pending = rows
                     offset += len(rows)
                     if not pending:
                         continue
                 row = dict(pending[0])
-                if re.search(r"multiple|\d+\s+locations?", row["location"], re.I):
+                if (re.search(r"multiple|\d+\s+locations?", row["location"], re.I)
+                        and row["job_id"] not in (ctx.known or set())):
                     if requests >= int(self.cfg.get("max_requests_per_run", 16)):
                         return FetchResult(out, complete=False, cursor=cursor(), declared=len(out))
                     self.pause()

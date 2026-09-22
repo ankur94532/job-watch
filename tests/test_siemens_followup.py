@@ -18,6 +18,8 @@ class SiemensFacetSafety(unittest.TestCase):
         self.assertTrue(result.restart)
         self.assertFalse(result.complete)
         self.assertEqual(result.postings, [])
+        self.assertEqual(result.cursor['offset'], 0)
+        self.assertEqual(result.cursor['ids'], [])
         robots.assert_not_called()
 
     def test_ignored_or_changed_sort_cannot_complete(self, _):
@@ -62,6 +64,16 @@ class SiemensFacetSafety(unittest.TestCase):
         with self.assertRaisesRegex(AdapterError, 'missing Siemens detail locations'):
             adapter.fetch()
 
+    def test_known_multi_location_job_does_not_refetch_its_detail(self, _):
+        adapter = SiemensAdapter('siemens', {}, page_delay=0)
+        adapter.http = FakeHttp({
+            adapter.url(0): siemens_page([1], multiple=True),
+        })
+        result = adapter.fetch(FetchContext(known={'1'}))
+        self.assertTrue(result.complete)
+        self.assertEqual([p.job_id for p in result.postings], ['1'])
+        self.assertEqual(adapter.http.requests, 1)
+
     def test_structured_plain_location_keeps_global_scope(self, _):
         adapter = SiemensAdapter('siemens', {}, page_delay=0)
         detail = (siemens_detail(493275).split(
@@ -91,7 +103,8 @@ class SiemensFacetSafety(unittest.TestCase):
                 self.assertFalse(restarted.complete)
                 self.assertTrue(restarted.restart)
                 self.assertEqual(restarted.postings, [])
-                self.assertIsNone(restarted.cursor)
+                self.assertEqual(restarted.cursor['offset'], 0)
+                self.assertEqual(restarted.cursor['ids'], [])
 
     def test_count_increase_extends_oldest_first_sweep(self, _):
         adapter = SiemensAdapter('siemens', {'max_requests_per_run': 1}, page_delay=0)

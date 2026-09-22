@@ -19,7 +19,9 @@ defaults:
   # because serial polling could not keep up: 44 fifteen-minute boards alone
   # needed ~88s of a 50s run, so a third of them starved for hours.
   # `run_budget` is the seconds multi-page sweeps (Workday, Amazon...) may use
-  # per run; they pause on time and resume next run. Single-request boards may
+  # per run; they pause on time and resume next run. A specific board may set a
+  # longer `poll_budget` after it earns a slot; that does not extend the shared
+  # deadline for starting other paginated boards. Single-request boards may
   # run `overrun` seconds past it, so every due one is polled every run: the ~22
   # Greenhouse boards share one host, hence one lane, and need ~65s.
   # 120s, not 50: at 50 the ~2,000-row Workday boards (walmart, nvidia,
@@ -600,40 +602,34 @@ companies:
     incremental: true                    # pcsx sort_by=timestamp: newest pages only (2-3 requests),
     full_sweep: 43200                    # a complete sweep every 12h to retire closed reqs
   microsoft:
-    ats: eightfold
+    ats: microsoft
     host: apply.careers.microsoft.com
     domain: microsoft.com
     locations: [India]                   # latest complete inventory: 239, 10 rows/page
     page_delay: 6.0
-    # 2026-09-19 log audit: timestamp ordering failed repeatedly on this tenant.
-    # Avoid failed incremental probes followed by duplicate full-sweep requests.
-    # Keep the requested sort stable, but never stop early on known IDs.
-    incremental: false
+    # 2026-09-19 log audit: API timestamp ordering failed repeatedly on this
+    # tenant. `incremental: true` selects the separate official latest-page path;
+    # the closure API still never stops early on known IDs.
+    incremental: true
     sort_by: timestamp
-    # ---- Eightfold volume note (2026-09-20), referenced by the other tenants ----
-    # Eightfold throttles by VOLUME from our IP, not by spacing: a 23-request
-    # sweep tripped 429 at both 0.5s and 6.0s pacing. Microsoft was the only
-    # tenant with a page cap (3), while seven of nine were uncapped, so it was
-    # both the most starved and — because 23 pages at 3/run is ~8h of clean runs
-    # — the least able to finish: eightfold.py restarts a sweep from zero
-    # whenever the declared count changes or a page overlaps known IDs, which an
-    # 8h window on a live board cannot avoid. Result: 429s on the 3rd request of
-    # some runs, no complete sweep in 39h, and count drifting 239 -> 226.
-    # A 429 is the CHEAP failure (it keeps its cursor, costs one backoff); a
-    # drift restart is the expensive one. So: cap every tenant to stop 44-request
-    # bursts, then let Microsoft page harder over a shorter wall-clock window.
-    interval: 14400                      # start a full sweep every 4h, not hourly: the sweep is
-                                         # the only way this tenant sees anything (incremental is
-                                         # off), but 6 sweeps/day beats 24 that never complete
-    resume_interval: 1800                # ...while one is in progress, resume every 30 min so the
-                                         # sweep spans ~1.5h instead of ~8h. Backoff still gates
-                                         # this, so a 429 costs backoff_min regardless
-    resume_priority: true               # once due, use next Eightfold slot; other ATS order unchanged
-    max_pages_per_run: 8                 # 23 pages -> 3 runs. Deliberately not 12+: the observed
-                                         # quota was 2-3 requests/run, so this is a trial that
-                                         # depends on the other tenants' caps freeing volume
+    profession: software engineering    # official Microsoft profession facet: 89 India roles vs 235
+    # ---- Microsoft quota note (2026-09-21) ----
+    # The full 235-role India query needs about 24 requests, but this host has
+    # recently allowed only roughly one or two before 429. Six-second spacing
+    # did not fix it. The official profession facet cuts the closure inventory
+    # to about nine pages, while the separate careers.microsoft.com page exposes
+    # the three newest India roles in one request. The adapter gives those paths
+    # separate cadences: latest roles stay frequent even while the closure API
+    # waits or exponentially delays after a no-progress throttle.
+    interval: 900                        # official India page supplies the three newest roles cheaply
+    full_sweep: 86400                    # filtered closure sweep daily; latest-page polls never retire
+    resume_interval: 900                 # keep the official latest page on its 15-minute cadence even
+                                         # while a closure cursor is in progress
+    closure_resume_interval: 3600        # the API currently permits about two pages per hour; this
+                                         # cadence lives in the cursor and does not suppress latest roles
+    max_pages_per_run: 2                 # 89 filtered roles -> five bounded runs, instead of 24 pages
     cursor_max_age: 86400
-    backoff_min: 3600                    # no-progress 429s now grow 1h, 2h, 4h, ...
+    backoff_min: 3600                    # generic fallback; Microsoft API pacing is cursor-local
     # VERIFY: does a sweep now COMPLETE? `watcher status` should show microsoft
     # with no cursor and a last_complete inside the last ~6h. If it still starves,
     # the next lever is fewer rows to page (an Eightfold `query`), not more pages.
@@ -1140,6 +1136,13 @@ companies:
     host: ibqbjb.fa.ocs.oraclecloud.com  # pod exposed by careers.honeywell.com
     site: CX_1
     locations: [India]                   # 328 India postings on 2026-09-19
+    # Offset pagination is unstable even when TotalJobsCount is unchanged: the
+    # final boundary repeats an ID. These two official enum facets form an exact
+    # 3 x 2 disjoint cover, and every resulting partition is below 200 rows.
+    workplace_types: [ORA_ON_SITE, ORA_HYBRID, ORA_REMOTE]
+    posting_date_facets: [30, 31]        # less than 30 days / greater than 30 days
+    count_tolerance: 1                   # two stable partitions each repeat one final boundary ID
+    resume_interval: 1800
   lamresearch:
     ats: eightfold
     host: lamresearch.eightfold.ai       # linked from opportunities.lamresearch.com
@@ -1228,8 +1231,10 @@ companies:
     ats: siemens
     enabled: true
     interval: 3600
-    page_delay: 1.2
-    max_requests_per_run: 16
+    page_delay: 0.8
+    max_requests_per_run: 320
+    poll_budget: 900
+    resume_interval: 1800
     cursor_max_age: 86400
     location: [india, bangalore, bengaluru, hyderabad, chennai, pune, mumbai,
                gurugram, gurgaon, noida, delhi]
@@ -1241,8 +1246,15 @@ companies:
     # cursor-free and error-free; 82 match the title/location filters. All
     # backlog notifications were suppressed before enabling monitoring.
     # With the explicit oldest-first order, count growth extends the saved sweep;
-    # a decrease or page overlap still restarts to prevent gaps. RSS/sitemap
-    # cannot prove coverage.
+    # a decrease or page overlap still restarts to prevent gaps. The server's
+    # hard six-row page cap made the former 16-request slices span ~4.5h, during
+    # which ordinary closures repeatedly forced a safe restart. Siemens alone
+    # therefore gets one bounded 15-minute poll after it earns a normal scheduler
+    # slot; the shared 120s deadline still governs every other paginated board.
+    # A safe restart keeps only a zero-progress cursor and retries after 30m,
+    # rather than waiting the full normal interval or reusing incoherent rows.
+    # Known multi-location IDs reuse their already-resolved stored location;
+    # only new IDs need a detail request. RSS/sitemap cannot prove coverage.
   caterpillar:
     ats: workday
     tenant: cat

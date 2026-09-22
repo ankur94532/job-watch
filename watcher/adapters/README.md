@@ -198,23 +198,27 @@ blank. Its silent production baseline completed at 21:44 IST with 27 jobs, 12
 matches, no cursor/error/backoff, zero unsuppressed rows, no notification and
 no export.
 
-## Eightfold (Microsoft)
+## Eightfold and Microsoft's specialized wrapper
 
 The pcsx API accepts `sort_by=timestamp` (not `sortBy` or
 `sort_by=postedTs`) and echoes `sortBy: "timestamp"`. That produced stable
 newest-first pages in a 2026-09-18 Morgan Stanley check, but it is a request,
 not a guarantee across tenants. An incremental board re-checks timestamps on
 every page and falls back to a full sweep if they increase. Microsoft failed
-that check repeatedly on 2026-09-18 and 2026-09-19, so its config explicitly
-disables incremental stopping. It still requests timestamp order to keep
-resumed full sweeps as stable as the service permits. The apply/v2 flavour
+that check repeatedly on 2026-09-18 and 2026-09-19, so it does not use
+timestamp order to stop at known IDs. Its specialized adapter instead reads
+the three newest India roles from Microsoft's server-rendered official page
+every 15 minutes. It still requests timestamp order for closure sweeps to keep
+resumed pages as stable as the service permits. The apply/v2 flavour
 (Netflix, NetApp) has also returned unordered rows and is never incremental.
 
-Eightfold adapters use `max_parallel = 1` and `max_per_run = 1`. Microsoft and
+Ordinary Eightfold adapters use `max_parallel = 1` and `max_per_run = 1`. Microsoft and
 Qualcomm were both observed returning 429s close together, so the conservative
 scheduler rotates one Eightfold tenant per 15-minute process. That timing does
 not establish a shared quota, a per-IP quota, or the service's quota window;
-the inspected responses disclosed none of those details.
+the inspected responses disclosed none of those details. Microsoft's latest
+page does not consume that slot. Its closure API is independently limited to
+two pages and an hourly cursor-local resume cadence.
 
 
 `GET https://{host}/api/pcsx/search?domain={domain}&query=&location={location}&start=N&num=10`
@@ -241,21 +245,20 @@ with `id`, `displayJobId` (the requisition number a referral needs), `name`,
   spacing remains polite and may affect burst behavior; it does not by itself
   prevent the observed 429s. The exact limit and whether tenants share it are
   unknown.
-* **Microsoft full sweeps are intentionally partial across runs.** Each run is
-  capped at three pages, keeps a 24-hour cursor, and waits at least one hour
-  after any partial chunk. A throttle after fetched rows records those rows and
-  parks for the one-hour base delay without escalating. Consecutive throttles
-  that make no progress wait 1h, 2h, 4h, and so on up to the normal 24-hour
-  blocked ceiling; a server `Retry-After`, when present, is also respected.
-* Nine Eightfold tenants share one allowed start per scheduled process. The
-  previous pure oldest-first rotation could turn eight Microsoft chunks into
-  an 18-hour sweep. Since 2026-09-20 Microsoft sets `resume_priority: true`:
-  after the one-hour minimum, its existing cursor takes the next available
-  Eightfold slot. Other tenants retain oldest-first ordering in the intervening
-  slots, and unrelated ATS slots are unchanged. Backoff, page caps, and the
-  one-tenant-per-run limit still apply. This shortens the intended awake-time
-  sweep to roughly eight hourly chunks, at the cost of slower peer rotation;
-  it does not promise successful completion under changing inventory or sleep.
+* **Microsoft full sweeps are intentionally partial across runs.** The official
+  `filter_profession=software engineering` facet reduced the observed India
+  inventory from 235 to about 89 roles. Each closure attempt is capped at two
+  pages, keeps a 24-hour cursor, and waits at least one hour after a partial
+  chunk. Consecutive 403/429 responses with no progress delay API retries by
+  1h, 2h, 4h, and so on, without delaying the independent latest-page poll; a
+  server `Retry-After`, when present, remains authoritative.
+* The latest page and closure API originally shared one runner cursor cadence:
+  while a closure cursor existed, `resume_interval: 3600` suppressed the
+  claimed 15-minute path, and Microsoft's inherited Eightfold group cap could
+  defer it behind another tenant. The specialized adapter now has its own
+  scheduler group, remains due every 15 minutes, and stores `api_after` plus an
+  API-only backoff level inside its closure cursor. Latest-role reads therefore
+  continue during each hourly wait without increasing API traffic.
 * The older `/api/apply/v2/jobs` flavour exists on some tenants; on Microsoft it
   answers `{"message": "Not authorized for PCSX"}`, and on a host that is not the
   tenant's own it answers `"Tenant not identified"`. There is no single Eightfold
@@ -435,15 +438,21 @@ the poll without closing stored jobs.
 The public India-faceted HTML board returns six rows per page. The adapter
 requests `postedDate:ASC` and validates the server's sort echo, result count,
 page ranges, next links, unique IDs, and detail identity. Multi-location rows
-are resolved from details; pending detail work persists across bounded chunks.
-Count drift or page overlap restarts without declaring closures.
+are resolved from details before first storage; later sweeps reuse that stored
+location for known IDs and fetch details only for new ones. Pending detail work
+persists across bounded chunks. Count drift or page overlap restarts without
+declaring closures. A restart can retain only a fresh offset-zero/no-ID cursor,
+so the replacement sweep gets a new epoch and a bounded 30-minute retry.
 
 The silent production baseline completed on 2026-09-20 at 11:28 IST with
 939 unique jobs, no cursor/error/backoff, and all backlog alerts suppressed.
 All rows have validated identity/title/location/URLs; 82 pass configured filters.
 Three non-India/global-location facet results remain in inventory but fail the
-strict India filter. Siemens is enabled. Its six-row pagination still requires
-many bounded polling chunks; this baseline does not guarantee future stability.
+strict India filter. Siemens is enabled. Its hard six-row pagination now has an
+opt-in 900-second poll budget after earning a shared scheduler slot; this does
+not extend the 120-second deadline for starting other paginated boards. The
+21 September 21:35 attempt proved that isolation but restarted safely on a live
+956 -> 955 count decrease at offset 426, so a new complete sweep is still open.
 
 ## SmartRecruiters career HTML (LinkedIn as an employer)
 

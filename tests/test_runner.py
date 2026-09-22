@@ -357,6 +357,57 @@ class Scheduling(Base):
         self.assertEqual(len(res.ok), 2)         # 0s and 30s start; at 60s the budget is gone
         self.assertEqual(len(res.deferred), 2)
 
+    def test_one_paginated_company_can_have_a_longer_poll_budget(self):
+        self.cfg["defaults"].update({"run_budget": 50, "overrun": 0})
+        self.company("long", [job("1")], ats="fakeworkday", poll_budget=300)
+        deadlines = []
+        orig = FakeBoard.fetch
+
+        def capture(self_, ctx=None):
+            deadlines.append(ctx.deadline)
+            return orig(self_, ctx)
+
+        FakeBoard.fetch = capture
+        try:
+            self.run_once()
+        finally:
+            FakeBoard.fetch = orig
+        self.assertEqual(deadlines, [300])
+
+    def test_seed_still_has_no_deadline_with_a_poll_budget(self):
+        self.company("long", [job("1")], ats="fakeworkday", poll_budget=300)
+        deadlines = []
+        orig = FakeBoard.fetch
+
+        def capture(self_, ctx=None):
+            deadlines.append(ctx.deadline)
+            return orig(self_, ctx)
+
+        FakeBoard.fetch = capture
+        try:
+            self.run_once(seed=True)
+        finally:
+            FakeBoard.fetch = orig
+        self.assertEqual(deadlines, [None])
+
+    def test_long_poll_budget_does_not_keep_dispatching_after_shared_deadline(self):
+        self.cfg["defaults"].update({"run_budget": 50, "overrun": 0})
+        self.company("first", [job("1")], ats="fakeworkday", poll_budget=300)
+        self.company("second", [job("2")], ats="fakeworkday", poll_budget=300)
+        orig = FakeBoard.fetch
+
+        def slow(self_, ctx=None):
+            self.clock.mono += 60
+            return orig(self_, ctx)
+
+        FakeBoard.fetch = slow
+        try:
+            res = self.run_once()
+        finally:
+            FakeBoard.fetch = orig
+        self.assertEqual(FakeBoard.CALLS, ["first"])
+        self.assertEqual(res.deferred, ["second"])
+
     def test_the_overrun_has_a_ceiling(self):
         """A stalled host must not hold the run open until the next one is due."""
         self.cfg["defaults"].update({"run_budget": 50, "overrun": 120})
@@ -967,6 +1018,36 @@ class RestartedSweeps(Base):
         self.assertEqual([r["job_id"] for r in self.store.rows(company="drift", closed=True)],
                          ["old"])
 
+    def test_restart_can_keep_only_a_fresh_zero_progress_cursor(self):
+        fresh = {"offset": 0, "ids": []}
+
+        class RestartSoon(FakePaged):
+            def fetch(self_, ctx=None):
+                return FetchResult([], complete=False, cursor=fresh, restart=True)
+
+        ADAPTERS["fakeworkday"] = RestartSoon
+        self.company("drift", [], ats="fakeworkday")
+        self.run_once(advance=1)
+        state = self.store.state("drift")
+        self.assertEqual(state["cursor"], fresh)
+        self.assertEqual(state["sweep_started"], self.clock() - 1)
+
+    def test_adapter_can_opt_in_to_known_membership(self):
+        seen = []
+
+        class Knows(FakePaged):
+            needs_known_ids = True
+
+            def fetch(self_, ctx=None):
+                seen.append(ctx.known)
+                return super().fetch(ctx)
+
+        ADAPTERS["fakeworkday"] = Knows
+        self.company("known", [job("1")], ats="fakeworkday")
+        self.run_once(seed=True, advance=3600)
+        self.run_once()
+        self.assertEqual(seen, [set(), {"1"}])
+
 
 
 class BackoffMin(Base):
@@ -1113,6 +1194,29 @@ class IncrementalPolls(Base):
         self.assertEqual(self.store.rows(closed=True), [])               # 2, 3 NOT retired
         self.assertEqual(self.store.state("wf")["last_complete"], swept) # not a sweep
         self.assertGreater(self.store.state("wf")["last_polled"], swept) # but it was polled
+
+    def test_incremental_side_poll_preserves_an_existing_sweep_cursor(self):
+        cursor = {"offset": 20, "ids": ["1"]}
+
+        class SidePoll(FakePaged):
+            incremental = True
+
+            def fetch(self_, ctx=None):
+                self.assertEqual(ctx.cursor, cursor)
+                posting = Posting(self_.company, "fake", "2", "Software Engineer",
+                                  "Bengaluru, India", False, "2026-09-21", "https://x/2")
+                return FetchResult([posting], complete=False, incremental=True)
+
+        ADAPTERS["fakeworkday"] = SidePoll
+        self.company("dual", [], ats="fakeworkday", resume_interval=900)
+        started = int(self.clock()) - 3600
+        self.store.sweep_progress("dual", int(self.clock()) - 900, started, cursor)
+
+        result = self.run_once(advance=0)
+        state = self.store.state("dual")
+        self.assertEqual([n for n, *_ in result.incremental], ["dual"])
+        self.assertEqual(state["cursor"], cursor)
+        self.assertEqual(state["sweep_started"], started)
 
     def test_an_incremental_board_is_not_called_sweep_starved_between_full_sweeps(self):
         from watcher.adapters.workday import FULL_SWEEP

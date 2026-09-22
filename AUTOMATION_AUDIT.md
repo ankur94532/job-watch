@@ -1,5 +1,55 @@
 # Company-source recovery and Microsoft throttling audit — 2026-09-19
 
+## Current verification — 22 September, 00:02 IST
+
+The first continuation check found that Microsoft's new latest-role path did
+not actually meet its claimed cadence. An unfinished closure cursor made the
+runner use the one-hour `resume_interval`, so no 15-minute latest-page reads
+could occur during the roughly five-hour closure sweep. The adapter also still
+reported itself as Eightfold, letting a healthy tenant consume the only group
+slot first; the 23:52 run selected Morgan Stanley and deferred Microsoft.
+
+Microsoft now has an independent scheduler group for its one-request official
+latest page. The company remains due every 15 minutes while its cursor carries
+a separate `api_after` timestamp for the quota-sensitive closure API. Successful
+two-page chunks wait one hour. A 403/429 with no progress increases only that
+API delay (1h, 2h, 4h, up to 24h), while latest-page polls continue and the
+healthy Eightfold rotation is untouched. Unit coverage proves the separate
+cadences, first-page throttling, repeated-throttle escalation and authoritative
+`Retry-After` handling.
+
+Normal production then proved both sides of the split. At 00:19 the closure API
+read two pages and advanced 0 -> 20 of a current 87-role filtered inventory,
+storing an API-only resume time of 01:20:38 with no global backoff. At 00:37 the
+next launch read exactly three official latest-page roles while preserving all
+20 cursor IDs, offset 20, total 87 and the 01:20 API time. Qualcomm independently
+used the Eightfold slot in that run. A cursor-free filtered closure sweep is
+still required before Microsoft is fully resolved. These changes remain
+uncommitted.
+
+## Current verification — 21 September, 21:47 IST
+
+NTT DATA, IDFC FIRST, Quest Global and Citadel Securities have all completed
+normal production polls since the previous audit. Latest complete counts are
+988, 1,226, 1,015 and 84 respectively. IDFC's earlier moving-partition failures
+remain valid fail-closed behavior; no tolerance was introduced. Microsoft was
+again throttled at offset 0 at 20:59 and remains unresolved.
+
+Siemens now has a targeted per-company poll budget instead of enlarging the
+shared 120-second window for every paginated board. The shared deadline still
+gates new work; only a Siemens poll that has already earned a scheduler slot can
+continue for up to 900 seconds. Known multi-location IDs reuse their already
+resolved stored location, while new IDs still fetch and validate details. Safe
+restarts may retain only an empty offset-0 cursor with a fresh epoch and a
+30-minute resume interval.
+
+The 21:35 normal run proved scheduler isolation but not Siemens completeness:
+other boards ran normally, large Workday polls paused at the shared boundary,
+and Siemens continued until a real count decrease (956 -> 955 at offset 426)
+forced the intended restart. The later known-detail and restart-cursor changes
+are unit-tested but still await production proof. **382 Python + 11 site tests
+pass; `git diff --check` is clean. These latest changes are uncommitted.**
+
 ## Current verification — 21 September, 14:53 IST
 
 Quest Global's scheduled 13:37 failure proved the earlier 900-row threshold was

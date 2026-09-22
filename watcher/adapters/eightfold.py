@@ -88,6 +88,10 @@ class EightfoldAdapter(Adapter):
             raise AdapterError(f"{self.company}: max_pages_per_run must be a positive integer")
         return value
 
+    def cursor_scope(self):
+        """Extra query identity that must remain fixed across a resumed sweep."""
+        return None
+
     def url(self, location, start):
         from urllib.parse import quote
 
@@ -169,6 +173,12 @@ class EightfoldAdapter(Adapter):
             if quick is not None:
                 return quick
         cur = ctx.cursor or {}
+        scope = self.cursor_scope()
+        if cur and scope is not None and cur.get("scope") != scope:
+            return FetchResult([], complete=False, restart=True, cursor={
+                "loc": 0, "start": 0, "ids": [], "loc_ids": [],
+                "total": None, "scope": scope,
+            })
         if cur and "loc_ids" not in cur:
             # Legacy cursors cannot prove per-location completeness. Restart
             # with a fresh sweep epoch, without declaring closures from old pages.
@@ -187,8 +197,11 @@ class EightfoldAdapter(Adapter):
             if len(loc_ids) != start:
                 raise AdapterError(f"{self.company}: invalid Eightfold resume count")
             def cursor():
-                return {"loc": i, "start": start, "ids": sorted(ids),
-                        "loc_ids": sorted(loc_ids), "total": total}
+                value = {"loc": i, "start": start, "ids": sorted(ids),
+                         "loc_ids": sorted(loc_ids), "total": total}
+                if scope is not None:
+                    value["scope"] = scope
+                return value
             pages = 0
             while True:
                 if max_pages is not None and requests >= max_pages:

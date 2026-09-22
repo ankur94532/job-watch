@@ -58,7 +58,9 @@ class FetchResult:
     # The adapter detected that an unfinished sweep is no longer coherent
     # (for example count drift or overlapping pages). Discard its resume point
     # and start the next attempt with a fresh sweep epoch, so rows seen only in
-    # the abandoned sweep cannot remain falsely open.
+    # the abandoned sweep cannot remain falsely open. An adapter may supply a
+    # fresh, zero-progress `cursor` when it is safe and useful to resume on the
+    # next scheduler run; otherwise the runner clears the cursor.
     restart: bool = False
 
 
@@ -72,6 +74,7 @@ class Adapter(ABC):
     paginated = False      # multi-request sweeps are scheduled after single-request boards
     max_parallel = None    # cap on this ATS's companies polled at once, even on different hosts
     max_per_run = None     # cap on this ATS's companies started in one scheduled process
+    needs_known_ids = False  # opt in when known membership can safely avoid redundant work
     # Parses a web page rather than a JSON API. A page whose markup changes
     # does not crash; it quietly yields zero rows, which reads exactly like a
     # quiet week. The runner treats zero rows from these as a warning state.

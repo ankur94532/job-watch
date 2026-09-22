@@ -224,7 +224,7 @@ def run(cfg, store, sink=None, seed=False, only=None, http=None, budget=RUN_BUDG
                 if lane_used:                       # same host as a poll just now: be polite
                     sleep(jitter(company_delay))
                 if _poll_company(name, ccfg, st, adapter, store, res, defaults, seed,
-                                 queue.deadline_for(adapter), clock, monotonic, online):
+                                 queue.poll_deadline_for(adapter), clock, monotonic, online):
                     queue.halt()                    # went offline mid-run
             except Exception as e:                  # a thread must never die silently
                 log.exception("%s: poll crashed", name)
@@ -304,7 +304,22 @@ class _Dispatcher:
         return len({a.lane() for *_, a in self.pending})
 
     def deadline_for(self, adapter):
+        """Shared deadline used to decide whether another company may start."""
         return self.deadline if adapter.paginated else self.hard_deadline
+
+    def poll_deadline_for(self, adapter):
+        """Deadline passed to a poll that has already earned a scheduler slot.
+
+        A small number of boards cannot produce a coherent inventory inside the
+        shared run budget. Let those opt into a longer *poll* without also
+        keeping the dispatcher open for more paginated work: `_out_of_time`
+        deliberately continues to use the shared deadline above.
+        """
+        if (self.deadline is not None and adapter.paginated
+                and adapter.cfg.get("poll_budget") is not None):
+            budget = max(MIN_COMPANY_BUDGET, float(adapter.cfg["poll_budget"]))
+            return self.monotonic() + budget
+        return self.deadline_for(adapter)
 
     def _out_of_time(self, adapter):
         dl = self.deadline_for(adapter)
@@ -392,7 +407,9 @@ def _poll_company(name, ccfg, st, adapter, store, res, defaults, seed, deadline,
     cursor = st["cursor"]
     sweep_started = st["sweep_started"] if cursor else now
     ctx = FetchContext(cache=dict(st["cache"]), cursor=cursor, deadline=deadline,
-                       known=store.known_ids(name) if getattr(adapter, "incremental", False) else None,
+                       known=(store.known_ids(name)
+                              if (getattr(adapter, "incremental", False)
+                                  or getattr(adapter, "needs_known_ids", False)) else None),
                        last_complete=st["last_complete"], now=now)
     try:
         result = adapter.fetch(ctx)
@@ -431,10 +448,13 @@ def _poll_company(name, ccfg, st, adapter, store, res, defaults, seed, deadline,
 
     if result.restart:
         # The previous and current slices cannot form one trustworthy sweep.
-        # Clear both the cursor and its epoch before recording anything from the
-        # incoherent attempt. Reusing the old sweep_started would leave rows seen
-        # only in the abandoned sweep falsely open after the replacement sweep.
-        store.sweep_progress(name, now, None, None)
+        # Discard both the old cursor and its epoch before recording anything
+        # from the incoherent attempt. Reusing the old sweep_started would leave
+        # rows seen only in the abandoned sweep falsely open after replacement.
+        # An adapter may provide a validated zero-progress cursor solely to make
+        # that replacement attempt due sooner than its normal poll interval.
+        restart_cursor = result.cursor
+        store.sweep_progress(name, now, now if restart_cursor else None, restart_cursor)
         res.partial.append((name, 0, 0))
         log.info("%s: sweep changed while paging; restarting from the beginning next run", name)
         return False

@@ -97,6 +97,87 @@ class OracleCompleteness(unittest.TestCase):
         self.assertTrue(result.complete)
         self.assertEqual(len(result.postings), 1)
 
+    def test_disjoint_facets_replace_unstable_offset_pagination(self):
+        cfg = dict(CFG, workplace_types=["ON", "HYBRID"], posting_date_facets=[30, 31])
+
+        def response(method, url, payload, cache):
+            finder = parse_qs(urlsplit(url).query)["finder"][0]
+            if "limit=1" in finder:
+                item = page(4)["items"][0]
+                item.update({
+                    "workplaceTypesFacet": [
+                        {"Id": "ON", "TotalCount": 2},
+                        {"Id": "HYBRID", "TotalCount": 2},
+                    ],
+                    # The overlapping seven-day shortcut may be advertised too;
+                    # only the configured 30/31 disjoint cover is summed.
+                    "postingDatesFacet": [
+                        {"Id": 7, "TotalCount": 1},
+                        {"Id": 30, "TotalCount": 2},
+                        {"Id": 31, "TotalCount": 2},
+                    ],
+                })
+                return {"items": [item]}
+            fields = dict(part.split("=", 1) for part in finder.split(",") if "=" in part)
+            work, date = fields["selectedWorkplaceTypesFacet"], fields["selectedPostingDatesFacet"]
+            jid = {("ON", "30"): 1, ("ON", "31"): 2,
+                   ("HYBRID", "30"): 3, ("HYBRID", "31"): 4}[(work, date)]
+            item = page(1, row(jid))["items"][0]
+            item.update({"SelectedWorkplaceTypesFacet": work,
+                         "SelectedPostingDatesFacet": date})
+            return {"items": [item]}
+
+        http = FakeHttp({lambda m, u, p: True: response})
+        a = build_adapter("honeywell", cfg, http=http, page_delay=0)
+        result = a.fetch()
+        self.assertTrue(result.complete)
+        self.assertEqual([p.job_id for p in result.postings], ["1", "2", "3", "4"])
+        self.assertEqual(http.requests, 6)       # metadata + four partitions + final metadata
+
+    def test_partition_metadata_must_prove_an_exact_cover(self):
+        cfg = dict(CFG, workplace_types=["ON", "HYBRID"], posting_date_facets=[30, 31])
+        item = page(4)["items"][0]
+        item.update({
+            "workplaceTypesFacet": [{"Id": "ON", "TotalCount": 2},
+                                      {"Id": "HYBRID", "TotalCount": 1}],
+            "postingDatesFacet": [{"Id": 30, "TotalCount": 2},
+                                   {"Id": 31, "TotalCount": 2}],
+        })
+        http = FakeHttp({lambda m, u, p: True: {"items": [item]}})
+        a = build_adapter("honeywell", cfg, http=http, page_delay=0)
+        with self.assertRaisesRegex(AdapterError, "cover sums"):
+            a.fetch()
+
+    def test_partition_tolerance_accepts_only_a_terminal_boundary_duplicate(self):
+        cfg = dict(CFG, workplace_types=["ON"], posting_date_facets=[30],
+                   count_tolerance=1)
+
+        def response(method, url, payload, cache):
+            finder = parse_qs(urlsplit(url).query)["finder"][0]
+            if "limit=1" in finder:
+                item = page(2)["items"][0]
+                item.update({
+                    "workplaceTypesFacet": [{"Id": "ON", "TotalCount": 2}],
+                    "postingDatesFacet": [{"Id": 30, "TotalCount": 2}],
+                })
+                return {"items": [item]}
+            fields = dict(part.split("=", 1) for part in finder.split(",") if "=" in part)
+            # Oracle exposes the same final boundary row twice while declaring
+            # one additional inaccessible row.
+            item = page(2, row(1))["items"][0]
+            item.update({"SelectedWorkplaceTypesFacet": "ON",
+                         "SelectedPostingDatesFacet": "30"})
+            self.assertIn(fields["offset"], ("0", "1"))
+            return {"items": [item]}
+
+        http = FakeHttp({lambda m, u, p: True: response})
+        a = build_adapter("honeywell", cfg, http=http, page_delay=0)
+        with patch("watcher.adapters.oracle.log.warning") as warning:
+            result = a.fetch()
+        self.assertTrue(result.complete)
+        self.assertEqual([p.job_id for p in result.postings], ["1"])
+        self.assertIn("boundary duplicate", warning.call_args[0][0])
+
 
 class OracleCountTolerance(unittest.TestCase):
     """Oracle's OWN tenant over-declares TotalJobsCount by exactly one.

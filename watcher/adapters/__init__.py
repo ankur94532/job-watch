@@ -23,6 +23,7 @@ from .maersk import MaerskAdapter
 from .mathworks import MathWorksAdapter
 from .meta import MetaAdapter
 from .mckinsey import McKinseyAdapter
+from .microsoft import MicrosoftAdapter
 from .citadel import CitadelSecuritiesAdapter
 from .cisco import CiscoAdapter
 from .instahyre import InstahyreAdapter
@@ -58,6 +59,9 @@ ADAPTERS = {
         TrakstarAdapter, SuccessFactorsHTMLAdapter, SmartRecruitersHTMLAdapter, ArmAdapter,
     )
 }
+# Specialized selector. Its latest-page poll is independent of Eightfold's
+# shared tenant slot; the adapter paces its own bounded closure API requests.
+ADAPTERS["microsoft"] = MicrosoftAdapter
 
 UNSUPPORTED = "unsupported"
 
