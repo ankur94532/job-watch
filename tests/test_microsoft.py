@@ -3,6 +3,7 @@ from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
 
 from tests.fakes import FakeHttp
+from tests.test_eightfold_anchored import Board
 from watcher.adapters import AdapterError, FetchContext, build_adapter
 from watcher.adapters.microsoft import MicrosoftAdapter
 from watcher.http import HttpStatusError
@@ -182,3 +183,74 @@ class MicrosoftSafety(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MicrosoftAllRoles(unittest.TestCase):
+    """Unfiltered closure sweep at two requests per hourly slice, list moving."""
+
+    CFG = {"ats": "microsoft", "host": "apply.careers.microsoft.com",
+           "domain": "microsoft.com", "locations": ["India"], "page_delay": 0,
+           "anchor_resume": True, "max_pages_per_run": 2, "resync_budget": 2,
+           "resync_slices": 12, "closure_resume_interval": 3600}
+
+    def test_sweeps_every_role_while_jobs_are_reposted_added_and_closed(self):
+        board = Board(229)
+        existing = board.ids()
+        adapter = build_adapter("microsoft", self.CFG, http=board.http, page_delay=0)
+        rng = __import__("random").Random(3)
+        cursor, seen, now = None, set(), NOW
+        for hour in range(60):
+            before = board.http.requests
+            result = adapter.fetch(FetchContext(cursor=cursor, now=now,
+                                                last_complete=NOW - 2 * 86400))
+            self.assertLessEqual(board.http.requests - before, 2)
+            self.assertFalse(result.restart, result)
+            seen |= {p.job_id for p in result.postings}
+            if result.complete:
+                break
+            cursor = result.cursor
+            self.assertIn("scope", cursor)
+            now += 3600
+            # A heavier hour than Microsoft's real one (its newest ten roles
+            # spanned 18 hours on 2026-09-22): a re-post jumps to the front, a
+            # new role appears, and a role that was already read closes.
+            job = board.jobs[rng.randrange(len(board.jobs))]
+            board.remove(job[0])
+            board.add(job[0], now)
+            board.add(900000 + hour, now + 1)
+            read = [j for j in board.jobs if str(j[0]) in seen]
+            if read:
+                board.remove(read[rng.randrange(len(read))][0])
+        self.assertTrue(result.complete, "sweep did not finish in 60 hourly slices")
+        # Every role that existed when the sweep began and is still open was
+        # read, re-posted ones included. A role first posted after the second
+        # pass passed the top cannot be falsely closed: it was never stored.
+        self.assertTrue(existing & board.ids() <= seen)
+        for _, url, _ in board.http.calls:
+            self.assertNotIn("filter_profession", url)
+
+    def test_anchored_cursor_keeps_its_scope_so_resumes_do_not_restart(self):
+        board = Board(40)
+        adapter = build_adapter("microsoft", self.CFG, http=board.http, page_delay=0)
+        first = adapter.fetch(FetchContext(now=NOW, last_complete=NOW - 2 * 86400))
+        self.assertEqual(first.cursor["scope"], adapter.cursor_scope())
+        second = adapter.fetch(FetchContext(cursor=first.cursor, now=NOW + 3600,
+                                            last_complete=NOW - 2 * 86400))
+        self.assertFalse(second.restart)
+        self.assertEqual(second.cursor["start"], 40 if second.complete else second.cursor["start"])
+        self.assertGreater(len(second.postings), 0)
+
+    def test_posting_faster_than_the_quota_restarts_instead_of_guessing(self):
+        board = Board(60)
+        adapter = build_adapter("microsoft", self.CFG, http=board.http, page_delay=0)
+        cursor, now = None, NOW
+        for hour in range(40):
+            result = adapter.fetch(FetchContext(cursor=cursor, now=now,
+                                                last_complete=NOW - 2 * 86400))
+            if result.complete or result.restart:
+                break
+            cursor, now = result.cursor, now + 3600
+            for n in range(25):                    # far more new rows per hour than two pages
+                board.add(800000 + hour * 100 + n, now + n)
+        self.assertTrue(result.restart)
+        self.assertFalse(result.complete)

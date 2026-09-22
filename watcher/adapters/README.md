@@ -245,9 +245,13 @@ with `id`, `displayJobId` (the requisition number a referral needs), `name`,
   spacing remains polite and may affect burst behavior; it does not by itself
   prevent the observed 429s. The exact limit and whether tenants share it are
   unknown.
-* **Microsoft full sweeps are intentionally partial across runs.** The official
-  `filter_profession=software engineering` facet reduced the observed India
-  inventory from 235 to about 89 roles. Each closure attempt is capped at two
+* **Microsoft full sweeps span many hourly slices.** From 21 to 22 September
+  the closure sweep used the official `filter_profession=software engineering`
+  facet (235 -> ~89 roles). That hid title-matching roles in other professions
+  (for example "Technology Consulting") and retired every stored role outside
+  the facet, so on 22 September it moved to every India role with anchored
+  resume (`resync_budget: 2`, `resync_slices: 12`). `postedTs` is the latest
+  re-post time, so re-posts jump to the front; `profession` remains an option. Each closure attempt is capped at two
   pages, keeps a 24-hour cursor, and waits at least one hour after a partial
   chunk. Consecutive 403/429 responses with no progress delay API retries by
   1h, 2h, 4h, and so on, without delaying the independent latest-page poll; a
@@ -259,6 +263,29 @@ with `id`, `displayJobId` (the requisition number a referral needs), `name`,
   scheduler group, remains due every 15 minutes, and stores `api_after` plus an
   API-only backoff level inside its closure cursor. Latest-role reads therefore
   continue during each hourly wait without increasing API traffic.
+* **Anchored resume (`anchor_resume: true`: Qualcomm and Microsoft).** Qualcomm's
+  ~600-row India inventory needs ~60 pages at a quota of roughly 15 requests
+  per window, and it gained 23 postings in ~45 minutes on 2026-09-22, so the
+  offset guards restarted every sweep. An anchored sweep still accepts a page
+  by offset only when the count is unchanged and no ID repeats. Otherwise it
+  re-syncs: it finds a page whose first row is strictly newer than the oldest
+  row read, continues from that timestamp boundary, and restarts if an unseen
+  row older than the sweep's first row appears behind the boundary, if rows
+  are out of timestamp order, or if it cannot find the boundary within six
+  requests. It then makes a second pass, with the same drift handling, from
+  the top down to the first pass's newest row, so a job re-posted ahead of
+  the first pass's position is not falsely closed, and it requires the final
+  count to be no larger than the IDs read. A resumed slice always starts with
+  a boundary-checking page, since the list has usually moved in the gap. Qualcomm returns a batch
+  of postings that share one timestamp in a different order on every request,
+  so a same-timestamp group that spans pages is read by count: its first and
+  last positions are witnessed by strictly newer and older rows, its IDs are
+  collected until they equal that size (re-reading its pages up to three
+  times), and the board's count must not change meanwhile. An unfinished
+  re-sync is saved as its own phase, so a paused slice can never resume by
+  plain offset, and it restarts after four slices without success. Residual risk: an old job
+  re-listed behind the boundary at the same time as enough closures to hide
+  it from the final count check would be missed until the next sweep.
 * The older `/api/apply/v2/jobs` flavour exists on some tenants; on Microsoft it
   answers `{"message": "Not authorized for PCSX"}`, and on a host that is not the
   tenant's own it answers `"Tenant not identified"`. There is no single Eightfold

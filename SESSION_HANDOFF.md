@@ -1,5 +1,147 @@
 # Job-watch session handoff — 2026-09-20
 
+## START HERE — 22 September, 14:30 IST — Microsoft moves to every India role
+
+**State: 414 Python + 11 site tests pass; `git diff --check` clean. All work
+through this section is committed and pushed to `main` (the commit after
+`b23c8cb`), at the user's request, before Qualcomm's production proof.**
+
+### Why
+
+The Software Engineering facet had a side effect nobody had flagged: when its
+closure sweep completed at 05:25, every stored Microsoft role outside the facet
+was marked closed. Of the roles seen in the 3 days before, 18 match the title
+filters and are no longer shown as open. Some are genuinely closed, but several
+sit in other professions ("Technology Consulting": ".Net Full Stack & AI"
+consultants; "Solution Engineering - Cloud Infrastructure"). A cover by
+profession is not practical: the filters' broad words (full stack,
+infrastructure, platform, machine learning) span professions, the page names
+only some profession values, and counting each costs as much as a full sweep.
+
+### Evidence gathered (3 requests total)
+
+- careers.microsoft.com India page and the apply.careers.microsoft.com careers
+  shell (robots allows `/careers` and `/api/pcsx`): profession values include
+  Consulting Services, Data Center, Digital Sales and Solutions, Human Resources,
+  Sales, Software Engineering, Supply Chain, Technical Support, Technology Sales.
+- One pcsx request (`sort_by=timestamp`, India): 229 roles, `sortBy`
+  "timestamp", rows strictly non-increasing in `postedTs` (not `creationTs`).
+  `postedTs` is the latest re-post time. Rows carry `department` (the
+  profession): "Software Engineer II - GitHub" is Software Engineering;
+  "Sr Consultant - Infra AI" is Technology Consulting. Old ordering failures
+  (18-19 Sep) would now restart the sweep, not corrupt it.
+
+### What changed
+
+- `config.yaml` microsoft: `profession` removed, `anchor_resume: true`,
+  `resync_budget: 2`, `resync_slices: 12`. `MicrosoftAdapter.profession` is now
+  optional.
+- Anchored sweeps, reworked while testing against Microsoft's 2-request slices:
+  - The completion head check is now a **second pass** with the same drift
+    handling, down to pass 1's newest row. The old single-slice head check could
+    not fit Microsoft's quota and could skip a re-posted row when resumed by
+    offset. Residual: a job re-posted twice, both times ahead of the cursor.
+  - A resumed slice starts with a boundary-checking page (~17-18 new rows per
+    2-request slice instead of ~7).
+  - The anchored cursor carries the query scope (without it, every Microsoft
+    resume would have restarted).
+  - The re-sync request minimum and slice limit are per company.
+- Tests: an unfiltered 229-row Microsoft sweep at 2 requests/hour, with a
+  re-post, a new role and a closure every hour, completes in ~15 slices and
+  reads every role that existed at sweep start (checked on six seeds). A
+  posting rate far above the quota restarts rather than guessing. Mutation
+  checks: disabling re-sync fails 8 tests; the second pass 6; the group read
+  2; re-sync phase persistence 1; the cursor scope 2.
+
+### Next
+
+1. Qualcomm: first run on this code after its 14:14 backoff (~14:28).
+2. Microsoft: its next closure sweep starts when `full_sweep` (24h) elapses,
+   about 23:26 tonight, and should finish ~13-15 hourly slices later
+   (tomorrow afternoon, longer with 429s). Until then non-SWE roles remain
+   shown as closed. New roles in every profession keep arriving through the
+   15-minute official latest page.
+3. If Qualcomm or Microsoft logs an `anchored sweep ... restarting` line, its
+   reason names the guard that fired; investigate before changing any guard.
+4. NTT DATA's Phenom restart path is still unexercised in production.
+
+## START HERE — 22 September, 14:15 IST — Anchored resume fixed for same-timestamp groups
+
+**State: 411 Python + 11 site tests pass; `git diff --check` clean. Still
+uncommitted (see 13:10). `main` = `origin/main` = `b23c8cb`.**
+
+The 13:09 slice worked (0 -> 200 on the new code). The 13:26 slice re-synced
+seven times with no progress. Cause: Qualcomm returns a batch of postings that
+share one `postedTs` in a different order on every request, and that group was
+larger than a page, so no page could witness both of its edges. This probably
+also explains the 12:41 old-code overlap at offset 10 (the 23-posting batch).
+
+Fixed and tested:
+
+- A same-timestamp group spanning pages is read **by count** (see
+  `read_group` in `eightfold.py`). If the first pass already has all members,
+  one re-read of the start edge confirms it (about 7 requests for 23 rows).
+- **Real bug found while testing:** when a re-sync paused on budget, the cursor
+  saved the new count with the old offset, and the next slice's fast path could
+  accept a stale offset and skip a row. A re-sync is now its own cursor phase
+  (`phase: "resync"`) and can only resume as a re-sync. Production was checked:
+  every acceptance so far was a strict page or a completed re-sync, and the
+  13:27 pause was followed by a re-sync rather than a fast-path accept, so the
+  cursor (start 197) was kept.
+- A re-sync may use at least 12 requests (Qualcomm's cap is already 20), and it
+  restarts after 4 slices without success, so it cannot loop forever.
+- `resyncs` now counts consecutive re-syncs without progress (reset on each
+  strict page).
+- Three new tests (unstable 23-row group with drift, a rate limit mid-re-sync,
+  and a group member that never appears). Mutation checks: disabling re-sync
+  fails 6 tests; disabling the group read fails 2; not persisting the re-sync
+  phase fails the rate-limit test.
+
+**Next:** Qualcomm's backoff ends at 14:14. Expect `re-syncing`, then possibly
+`read a N-row same-timestamp group by count`, and eventually `qualcomm: N open`.
+Any `anchored sweep ... restarting` line names its reason.
+
+## START HERE — 22 September, 13:10 IST — Qualcomm switched to anchored resume
+
+**State: 177 tracked / 166 active / 11 blocked; 408 Python + 11 site tests
+pass; `git diff --check` clean. `main` = `origin/main` = `b23c8cb`. The change
+below is uncommitted (`watcher/adapters/eightfold.py`, `config.yaml`, the
+adapters README, the new `tests/test_eightfold_anchored.py`, and this handoff).**
+
+### Why
+
+The 15-minute priority resume worked mechanically (11:22 0 -> 200, 11:39
+200 -> 350, then 429 until 12:09), but at 12:24 the count had jumped 592 -> 615
+and at 12:41 an overlap at offset 10 restarted again. Qualcomm posts faster
+than a quota-bounded ~60-page offset sweep can finish, so the offset guards
+could never let it complete. The user chose the anchored-resume option over
+narrowing to one category or accepting no closure retirement.
+
+### What changed
+
+Opt-in `anchor_resume: true` (Qualcomm only; single location, pcsx with
+timestamp order). Normal pages are accepted by offset under the same strict
+conditions as before. On a count change or repeated ID, the sweep re-syncs on
+the newest-first timestamp boundary instead of restarting, and at completion it
+re-reads the newest pages back to the sweep's first row. It restarts on rows
+out of timestamp order, an unseen *older* job behind the boundary, a boundary
+not found in 6 requests, more than 12 re-syncs, or a final count above the IDs
+read. Design and residual risk are in the "Anchored sweeps" comment in
+`eightfold.py` and in the adapters README. Ten new tests, mutation-checked:
+disabling re-sync fails the insertion, closure, tie and re-post tests;
+disabling the head check fails the re-post test.
+
+### Next
+
+1. **Production proof.** Qualcomm held a zero-progress offset cursor from
+   12:41, which the anchored path accepts as a fresh start (a non-zero offset
+   cursor would have restarted). Expect log lines `Eightfold list moved ...;
+   re-syncing` rather than `restarting`, then `qualcomm: N open` with a
+   cursor-free state, within roughly 4-6 of its 15-minute slices, allowing for
+   429 pauses. Any `anchored sweep ... restarting` line names the reason.
+2. Commit and push once it is proven (or when the user asks).
+3. NTT DATA's new Phenom restart path is still unexercised in production.
+
 ## START HERE — 22 September, 11:50 IST — Qualcomm moving; NTT DATA recovered
 
 - **Qualcomm fix is working so far.** It got its Eightfold slot at 11:22

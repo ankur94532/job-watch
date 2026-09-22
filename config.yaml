@@ -605,14 +605,23 @@ companies:
     ats: microsoft
     host: apply.careers.microsoft.com
     domain: microsoft.com
-    locations: [India]                   # latest complete inventory: 239, 10 rows/page
+    locations: [India]                   # 229 India roles on 2026-09-22, 10 rows/page
     page_delay: 6.0
     # 2026-09-19 log audit: API timestamp ordering failed repeatedly on this
     # tenant. `incremental: true` selects the separate official latest-page path;
     # the closure API still never stops early on known IDs.
     incremental: true
     sort_by: timestamp
-    profession: software engineering    # official Microsoft profession facet: 89 India roles vs 235
+    # 2026-09-22: every India role, not only the Software Engineering facet. The
+    # facet hid title-matching roles filed elsewhere (e.g. "Technology
+    # Consulting": "Consultant - .Net Full Stack & AI"), and when its sweep
+    # completed it retired every stored role outside it. postedTs is the latest
+    # re-post time (a June role showed today's), so re-posts jump to the front;
+    # a check the same day found strict postedTs order. Anchored resume re-syncs
+    # on that order instead of restarting, at the API's ~2 requests per hour.
+    anchor_resume: true
+    resync_budget: 2                     # never exceed the two-page slice, even to re-sync...
+    resync_slices: 12                    # ...so allow a re-sync more hourly slices instead
     # ---- Microsoft quota note (2026-09-21) ----
     # The full 235-role India query needs about 24 requests, but this host has
     # recently allowed only roughly one or two before 429. Six-second spacing
@@ -622,12 +631,12 @@ companies:
     # separate cadences: latest roles stay frequent even while the closure API
     # waits or exponentially delays after a no-progress throttle.
     interval: 900                        # official India page supplies the three newest roles cheaply
-    full_sweep: 86400                    # filtered closure sweep daily; latest-page polls never retire
+    full_sweep: 86400                    # a closure sweep takes ~13-15 hourly slices; start one daily
     resume_interval: 900                 # keep the official latest page on its 15-minute cadence even
                                          # while a closure cursor is in progress
     closure_resume_interval: 3600        # the API currently permits about two pages per hour; this
                                          # cadence lives in the cursor and does not suppress latest roles
-    max_pages_per_run: 2                 # 89 filtered roles -> five bounded runs, instead of 24 pages
+    max_pages_per_run: 2                 # ~23 pages of all India roles -> ~13-15 hourly slices
     cursor_max_age: 86400
     backoff_min: 3600                    # generic fallback; Microsoft API pacing is cursor-local
     # VERIFY: does a sweep now COMPLETE? `watcher status` should show microsoft
@@ -981,6 +990,12 @@ companies:
     max_pages_per_run: 20                # see the volume note under microsoft
     resume_priority: true
     resume_interval: 900
+    # 2026-09-22: even 15-minute slices restarted (count 592 -> 615, then an
+    # overlap at offset 10): Qualcomm posts faster than a quota-bounded ~60-page
+    # offset sweep can finish. Anchored resume re-syncs on the newest-first
+    # timestamp boundary instead of restarting, and re-reads the newest pages at
+    # completion. See "Anchored sweeps" in eightfold.py for what it proves.
+    anchor_resume: true
     # Careers site is Eightfold. Job link verified (200, title shown).
     incremental: true                    # pcsx sort_by=timestamp: newest pages only (2-3 requests),
     full_sweep: 43200                    # a complete sweep every 12h to retire closed reqs

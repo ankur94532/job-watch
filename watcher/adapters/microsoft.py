@@ -1,11 +1,13 @@
 """Microsoft's official latest-jobs page plus a bounded Eightfold sweep.
 
-The full India Eightfold query is too large for the host's observed allowance:
-it needs about 24 ten-row requests while the host currently permits one or two
-before 429. Microsoft's official ``Software Engineering`` profession filter reduces
-that closure inventory to about nine pages. Between those slower complete
-sweeps, the server-rendered India careers page exposes the three newest roles in
-one request. Its cadence and backoff are independent, so new-role alerts do not
+The full India Eightfold query needs about 23 ten-row requests while the host
+permits about two an hour before 429, so a closure sweep spans many hours and
+the list moves under it (``postedTs`` is the latest re-post time, so re-posts
+jump to the front). With ``anchor_resume`` the sweep re-syncs on that
+timestamp order instead of restarting. An optional ``profession`` limits the
+sweep to one official facet; without it every India role is inventoried.
+Between complete sweeps, the server-rendered India careers page exposes the
+three newest roles in one request. Its cadence and backoff are independent, so new-role alerts do not
 wait for a sweep to finish or for the closure API's cooldown.
 """
 
@@ -39,10 +41,7 @@ class MicrosoftAdapter(RobotsAware, EightfoldAdapter):
 
     @property
     def profession(self):
-        value = (self.cfg.get("profession") or "").strip()
-        if not value:
-            raise AdapterError(f"{self.company}: microsoft profession is required")
-        return value
+        return (self.cfg.get("profession") or "").strip() or None
 
     @property
     def incremental(self):
@@ -55,10 +54,7 @@ class MicrosoftAdapter(RobotsAware, EightfoldAdapter):
         return int(self.cfg.get("closure_resume_interval") or 3600)
 
     def _fresh_cursor(self):
-        return {
-            "loc": 0, "start": 0, "ids": [], "loc_ids": [], "total": None,
-            "scope": self.cursor_scope(),
-        }
+        return self.fresh_cursor()      # anchored or offset, always carrying the scope
 
     def _defer_closure(self, cursor, now, throttled=False, progressed=False,
                        retry_after=None):
@@ -78,8 +74,10 @@ class MicrosoftAdapter(RobotsAware, EightfoldAdapter):
         return cur, wait
 
     def url(self, location, start):
-        return (super().url(location, start)
-                + "&filter_profession=" + quote(self.profession))
+        url = super().url(location, start)
+        if self.profession:
+            url += "&filter_profession=" + quote(self.profession)
+        return url
 
     def fetch_incremental(self, ctx, requests=0):
         self.check_robots(self.LATEST)
