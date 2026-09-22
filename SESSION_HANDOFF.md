@@ -1,5 +1,161 @@
 # Job-watch session handoff — 2026-09-20
 
+## START HERE — 22 September, 11:50 IST — Qualcomm moving; NTT DATA recovered
+
+- **Qualcomm fix is working so far.** It got its Eightfold slot at 11:22
+  (0 -> 200). The 15-minute priority resume ran at 11:39 (200 -> 350), then hit
+  HTTP 429 at offset 350. The cursor (350 IDs) is retained, with backoff until
+  12:09. Last complete sweep is still 2026-09-20 16:01. Next: confirm that it
+  resumes from 350 after 12:09 and completes (~580) without an overlap restart.
+  If 429s keep splitting the sweep, consider lowering `max_pages_per_run` so
+  each slice stays under the quota. Do not relax guards.
+- **NTT DATA recovered:** the stale cursor aged out at 10:39 and it completed
+  at 11:21 (1,042). The new Phenom restart path has not been exercised in
+  production yet. IDFC FIRST completed at 10:40 and 11:39 (1,236).
+- Siemens restarted safely at 10:09 (overlap) and 11:06 (951 -> 950 at offset
+  642) after its 09:01 completion. This is expected fail-closed behavior; its
+  zero-progress cursor retries on the 30-minute cadence.
+- Everything from 10:25 onward is still uncommitted.
+
+## START HERE — 22 September, 10:25 IST — Phenom stale-cursor loop fixed; Qualcomm proof pending
+
+**State: 177 tracked / 166 active / 11 blocked; 398 Python + 11 site tests
+pass; `git diff --check` clean. HEAD is `ffbd213` on `job-sources-sep-2026`
+(not merged, not pushed). Uncommitted: the Qualcomm change (see 10:05), the
+Phenom fix below, their tests, and this handoff.**
+
+### NTT DATA was stuck, not flaky — fixed
+
+NTT DATA failed with the identical message `Phenom {'field': 'category',
+'value': 'Other'} count changed during sweep (724 to 737)` in nine consecutive
+runs from 07:43 to 10:02. `PhenomAdapter` raised `AdapterError` on a partition
+count change, and an error keeps the saved cursor, so every retry compared the
+live count (737) against the same stale stored count (724). Only the 3-hour
+`CURSOR_MAX_AGE` (sweep started 07:26) could break the loop. IDFC FIRST uses
+the same adapter and was exposed to the same trap.
+
+A count change now returns `FetchResult(restart=True)` with a warning. The
+runner starts a fresh sweep epoch and declares no closures, which is the same
+contract as the Eightfold and Siemens restarts. Completeness rules are
+unchanged. Regression test:
+`test_count_drift_on_resume_restarts_instead_of_retrying_stale_cursor`
+(verified to fail without the fix).
+
+**Verify:** NTT DATA's next failure on a moving partition should log
+`count changed during sweep ...; restarting` once, not repeat the same error,
+and it should complete again within a few runs.
+
+### Other live checks at 10:16
+
+- Siemens completed 951 at 09:01, then at 10:09 correctly restarted on a page
+  overlap at offset 666 (new behavior: zero-progress cursor, 30-minute retry).
+  That is normal fail-closed behavior, not a regression.
+- Walmart completed at 07:00 (1,973); Honeywell 09:28 (329); Target 1,980;
+  Microsoft latest-page polls continue every 15 minutes.
+- Qualcomm is still waiting its turn in the Eightfold queue (last polled 08:26),
+  as described at 10:05.
+
+### Remaining items
+
+1. **Qualcomm production proof** (expected first slice around 10:45-11:15, then
+   two 15-minute resumes to a cursor-free ~580).
+2. **NTT DATA/IDFC FIRST:** confirm the Phenom restart behavior in production.
+3. **Microsoft scope caveat:** non-Software-Engineering roles are not
+   closure-inventoried (accepted limitation unless it matters).
+4. **Git:** commit the Qualcomm and Phenom changes; merge into `main` and push
+   only when the user asks.
+
+## START HERE — 22 September, 10:05 IST — Qualcomm fix reviewed; waiting on its first slice
+
+**State: 177 tracked / 166 active / 11 blocked; 397 Python + 11 site tests
+pass; `git diff --check` clean. HEAD is `ffbd213` on `job-sources-sep-2026`
+(not merged, not pushed). The Qualcomm change below is uncommitted: `config.yaml`,
+`watcher/adapters/eightfold.py`, four test files and this handoff.**
+
+### Review of the 08:56 Qualcomm change
+
+- Production has **not** exercised it yet, and that is expected. Qualcomm's
+  08:26 overlap restart ran on the old code, so it has no cursor. Its
+  `resume_priority` only applies to an *active* cursor, so the first slice waits
+  in the normal oldest-first Eightfold rotation (`max_per_run: 1`, eight
+  tenants, ~2h). It became due at 09:26:34, about 30s after the 09:26 run gave
+  its Eightfold slot to HSBC. Netflix, NetApp and Morgan Stanley have older
+  `last_polled` values, so expect the first slice around 10:45-11:15. The
+  "deferred (out of time)" lines at 09:29 and 09:46 report the per-run
+  Eightfold cap, not an actual time shortage.
+- The generic `fresh_cursor()` on Eightfold drift/overlap applies to **every**
+  Eightfold tenant, not just Qualcomm. That is safe (the runner still starts a
+  fresh sweep epoch), and tenants without `resume_priority` stay behind in the
+  one-slot rotation. Checked Microsoft specifically: its restart cursor still
+  gets `api_after = now + 1h` through the general deferral path, so a drift
+  restart cannot hit the quota-limited API early. Added
+  `test_count_drift_restart_still_waits_before_the_next_api_call` to pin that.
+
+### Remaining items
+
+1. **Qualcomm production proof.** After the first slice (offset 200), expect
+   resumes at 400 and then a cursor-free ~580 completion on consecutive
+   15-minute runs. A drift restart must leave a zero-progress cursor and retry
+   within about 15 minutes; a 429 must keep progress and obey backoff. If
+   front-insertion drift still restarts it inside a ~30-minute window, the next
+   option is a narrower official facet (as for Microsoft); do not relax the
+   overlap guard.
+2. **Walmart:** resolved. 2,000 is the API wrap boundary, and the 09:01 run
+   completed at 1,973. Keep the 95% coverage rule.
+3. **NTT DATA:** the moving `Other` partition still fails occasionally but
+   completes regularly. Watch only.
+4. **Microsoft scope caveat:** roles outside Software Engineering are not
+   closure-inventoried.
+5. **Git:** commit the Qualcomm change once it is proven (or when the user
+   asks). Merge into `main` and push only when the user asks.
+
+## START HERE — 22 September, 08:56 IST — Qualcomm drift fix implemented; production proof pending
+
+**State: 177 tracked / 166 active / 11 blocked; 396 Python + 11 site tests
+pass; `git diff --check` clean. The five Qualcomm-related files below plus this
+handoff are uncommitted on `job-sources-sep-2026`. Do not commit, merge or push
+unless the user asks.**
+
+### Qualcomm diagnosis and fix
+
+- The cached Eightfold client and Qualcomm's current official careers shell
+  confirm `sort_by` is server-driven and the tenant exposes the standard sort
+  controls, but no tenant-defined oldest-first order. Do not guess an
+  undocumented reverse-sort value.
+- A single read-only diagnostic request to the official Qualcomm index at 08:52
+  received HTTP 429 before returning a body. No retry was made. This is evidence
+  against increasing the existing 20-page per-run cap or giving Qualcomm an
+  independent concurrent Eightfold lane.
+- The safe fix keeps the count and overlap guards unchanged. Qualcomm now has
+  `resume_priority: true` and `resume_interval: 900`, so only an active closure
+  cursor takes the next shared Eightfold slot every 15 minutes. A normal
+  ~58-page sweep should therefore take three closely spaced slices (~30
+  minutes) instead of three slices spread over 2-3 hours each. Backoff is still
+  checked first, and peers keep every slot when Qualcomm has no cursor.
+- Eightfold count-drift and page-overlap restarts now return a validated empty
+  cursor (`loc/start=0`, no ids, no total). The runner already starts a fresh
+  sweep epoch on `restart`, so no rows from the incoherent attempt survive; the
+  cursor exists solely to keep the replacement attempt on the 15-minute resume
+  cadence. Tests cover count drift, page overlap and apply-flavour drift.
+
+### Verification and next work
+
+- `make test`: **396 Python + 11 site tests pass**. `git diff --check` is clean.
+- Production proof is still required. Qualcomm had no cursor after its 08:26
+  overlap restart and is next normally due at 09:25. Let launchd earn the normal
+  Eightfold slot; do not force another request after the diagnostic 429. Once it
+  starts, expect offsets 200 then 400 on consecutive eligible 15-minute runs,
+  then a cursor-free completion around 580. A drift restart should leave a
+  zero-progress cursor and retry 15 minutes later; a 429 should retain progress
+  and obey backoff.
+- **Walmart's 2,000 question is resolved without a code change.** At 08:57 the
+  official Workday endpoint returned the exact same 20 `externalPath` values at
+  offsets 0 and 2,000 while reporting `total: 2000` both times: 2,000 is the
+  API wrap boundary, not an exact unique-count promise. The 09:01 normal run
+  then completed cursor-free with 1,973 unique rows, inside the existing 95%
+  coverage rule. Recent 1,7xx-1,8xx runs were correctly rejected below 95%; do
+  not weaken that threshold.
+
 ## START HERE — 22 September, 08:45 IST — Microsoft proven; Qualcomm is the remaining drift problem
 
 **State: 177 tracked / 166 active / 11 blocked; 395 Python + 11 site tests

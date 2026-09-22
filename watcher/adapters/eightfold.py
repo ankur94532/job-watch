@@ -92,6 +92,20 @@ class EightfoldAdapter(Adapter):
         """Extra query identity that must remain fixed across a resumed sweep."""
         return None
 
+    def fresh_cursor(self):
+        """A validated zero-progress cursor for a replacement sweep.
+
+        Keeping this cursor after count drift or page overlap lets a company
+        with `resume_priority` retry promptly.  It does not preserve any rows
+        from the incoherent sweep: the runner starts a new sweep epoch whenever
+        `restart` is true.
+        """
+        value = {"loc": 0, "start": 0, "ids": [], "loc_ids": [], "total": None}
+        scope = self.cursor_scope()
+        if scope is not None:
+            value["scope"] = scope
+        return value
+
     def url(self, location, start):
         from urllib.parse import quote
 
@@ -175,10 +189,7 @@ class EightfoldAdapter(Adapter):
         cur = ctx.cursor or {}
         scope = self.cursor_scope()
         if cur and scope is not None and cur.get("scope") != scope:
-            return FetchResult([], complete=False, restart=True, cursor={
-                "loc": 0, "start": 0, "ids": [], "loc_ids": [],
-                "total": None, "scope": scope,
-            })
+            return FetchResult([], complete=False, restart=True, cursor=self.fresh_cursor())
         if cur and "loc_ids" not in cur:
             # Legacy cursors cannot prove per-location completeness. Restart
             # with a fresh sweep epoch, without declaring closures from old pages.
@@ -231,7 +242,8 @@ class EightfoldAdapter(Adapter):
                 if total is not None and total != count:
                     log.warning("%s: Eightfold count changed %d -> %d at offset %d; restarting",
                                 self.company, total, count, start)
-                    return FetchResult([], complete=False, restart=True)
+                    return FetchResult([], complete=False, restart=True,
+                                       cursor=self.fresh_cursor())
                 total = count
                 postings = [self._posting(raw) for raw in rows]
                 keys = [p.job_id for p in postings]
@@ -240,7 +252,8 @@ class EightfoldAdapter(Adapter):
                 if loc_ids.intersection(keys):
                     log.warning("%s: Eightfold page overlaps prior IDs at offset %d; restarting",
                                 self.company, start)
-                    return FetchResult([], complete=False, restart=True)
+                    return FetchResult([], complete=False, restart=True,
+                                       cursor=self.fresh_cursor())
                 if start + len(rows) > count or (not rows and start < count):
                     raise AdapterError(f"{self.company}: incomplete Eightfold page at {start}/{count}")
                 loc_ids.update(keys)

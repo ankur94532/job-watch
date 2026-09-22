@@ -89,6 +89,20 @@ class MicrosoftSafety(unittest.TestCase):
         self.assertEqual(result.cursor["scope"], adapter.cursor_scope())
         self.assertEqual(http.calls, [])
 
+    def test_count_drift_restart_still_waits_before_the_next_api_call(self):
+        http = FakeHttp({lambda m, u, p: "/api/pcsx/search" in u: api(88)})
+        adapter = build_adapter("microsoft", CFG, http=http, page_delay=0)
+        ids = [str(1000 + i) for i in range(10)]
+        result = adapter.fetch(FetchContext(cursor={
+            "loc": 0, "start": 10, "ids": ids, "loc_ids": ids, "total": 89,
+            "scope": adapter.cursor_scope(), "api_after": NOW - 1,
+        }, last_complete=NOW - 2 * 86400, now=NOW))
+        self.assertTrue(result.restart)
+        self.assertEqual(result.cursor["start"], 0)
+        self.assertEqual(result.cursor["ids"], [])
+        self.assertEqual(result.cursor["scope"], adapter.cursor_scope())
+        self.assertEqual(result.cursor["api_after"], NOW + 3600)
+
     @patch.object(MicrosoftAdapter, "check_robots")
     def test_latest_page_keeps_polling_while_closure_api_waits(self, robots):
         http = FakeHttp({MicrosoftAdapter.LATEST: latest()})

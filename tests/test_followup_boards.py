@@ -236,7 +236,9 @@ class EightfoldSafety(unittest.TestCase):
         restart = a.fetch(FetchContext(cursor=r.cursor))
         self.assertFalse(restart.complete)
         self.assertTrue(restart.restart)
-        self.assertIsNone(restart.cursor)
+        self.assertEqual(restart.cursor, {
+            'loc': 0, 'start': 0, 'ids': [], 'loc_ids': [], 'total': None,
+        })
 
 
 def trakstar_page(i=1, total=1, nxt=None):

@@ -973,8 +973,14 @@ companies:
     # Was uncapped, so the 120s run_budget was the only bound: it fetched 440 rows
     # (44 requests) in ONE run, twice on 2026-09-20 — about 15x Microsoft's whole
     # hourly budget on shared Eightfold infrastructure. 58 pages now take three
-    # runs instead of two, and it has no resume_interval so it resumes each run.
+    # runs instead of two. While that cursor exists, resume it every 15 minutes
+    # and put it first within the single shared Eightfold slot. This bounds a
+    # normal three-slice sweep to about 30 minutes instead of 2-3 hours, reducing
+    # front-insertion drift without weakening the count/overlap guards. HTTP
+    # backoff still takes precedence and peers retain every non-resume slot.
     max_pages_per_run: 20                # see the volume note under microsoft
+    resume_priority: true
+    resume_interval: 900
     # Careers site is Eightfold. Job link verified (200, title shown).
     incremental: true                    # pcsx sort_by=timestamp: newest pages only (2-3 requests),
     full_sweep: 43200                    # a complete sweep every 12h to retire closed reqs

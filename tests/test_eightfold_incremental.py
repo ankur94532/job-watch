@@ -93,6 +93,20 @@ class Incremental(unittest.TestCase):
         self.assertTrue(second.complete)
         self.assertEqual(parse_qs(urlparse(http.calls[3][1]).query)["start"], ["30"])
 
+    def test_count_drift_keeps_only_a_fresh_replacement_cursor(self):
+        a = adapter(board(40), incremental=False, max_pages_per_run=1)
+        first = a.fetch(FetchContext())
+        self.assertEqual(first.cursor["start"], 10)
+
+        a.http = board(41)
+        restarted = a.fetch(FetchContext(cursor=first.cursor))
+
+        self.assertTrue(restarted.restart)
+        self.assertEqual(restarted.postings, [])
+        self.assertEqual(restarted.cursor, {
+            "loc": 0, "start": 0, "ids": [], "loc_ids": [], "total": None,
+        })
+
     def test_legacy_cursor_requests_a_fresh_sweep_epoch_without_an_http_call(self):
         http = board(40)
         result = adapter(http, incremental=False).fetch(FetchContext(

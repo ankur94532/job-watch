@@ -71,7 +71,9 @@ class Eightfold(unittest.TestCase):
         result = build_adapter("microsoft", self.CFG, http=http, page_delay=0).fetch()
         self.assertFalse(result.complete)
         self.assertTrue(result.restart)
-        self.assertIsNone(result.cursor)
+        self.assertEqual(result.cursor, {
+            "loc": 0, "start": 0, "ids": [], "loc_ids": [], "total": None,
+        })
         self.assertEqual(result.postings, [])
         self.assertEqual(http.requests, 2)
 
@@ -494,6 +496,26 @@ class Phenom(unittest.TestCase):
                          if call[2]["selected_fields"].get("category") == ["Energy"]]
         self.assertEqual(energy_starts, [0, 100, 200, 300, 400, 500,
                                          0, 100, 200, 300, 400, 500])
+
+    def test_count_drift_on_resume_restarts_instead_of_retrying_stale_cursor(self):
+        cursor = {"partitions": [None, {"field": "category", "value": "Other"}],
+                  "partition_counts": [900, 724], "partition": 1, "offset": 300,
+                  "part_seen": 300, "part_ids": [], "pass_ids": [],
+                  "partition_replays": 0, "total": 1039, "ids": []}
+
+        def response(method, url, payload, cache):
+            rows = [self.job(i) for i in range(100)]
+            return {"refineSearch": {"status": 200, "totalHits": 737,
+                                     "data": {"jobs": rows}}}
+
+        http = FakeHttp({self.API: response})
+        res = build_adapter("nttdata", self.CFG, http=http, page_delay=0).fetch(
+            FetchContext(cursor=cursor))
+
+        self.assertTrue(res.restart)
+        self.assertFalse(res.complete)
+        self.assertIsNone(res.cursor)
+        self.assertEqual(res.postings, [])
 
     def test_fails_closed_when_facet_replays_never_fill_duplicate_ids(self):
         def response(method, url, payload, cache):

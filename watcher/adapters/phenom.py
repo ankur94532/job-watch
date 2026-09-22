@@ -6,6 +6,7 @@ country facet plus 100-row pagination.  Quest Global is the verified tenant.
 """
 
 import html
+import logging
 import re
 import time
 from urllib.parse import quote
@@ -16,6 +17,8 @@ PAGE = 100
 MAX_PAGES = 64
 MAX_WINDOW = 1000
 MAX_PARTITION_REPLAYS = 2
+
+log = logging.getLogger(__name__)
 
 
 def clean(value):
@@ -106,8 +109,14 @@ class PhenomAdapter(Adapter):
             pending = None
             expected_page_total = total if partitions[partition] is None else counts[partition]
             if page_total != expected_page_total:
-                raise AdapterError(f"{self.company}: Phenom {partitions[partition] or 'board'} count changed "
-                                   f"during sweep ({expected_page_total} to {page_total})")
+                # The saved sweep is no longer coherent. Raising would keep the
+                # cursor, so every retry would compare against the same stale
+                # count and fail until the cursor aged out (three hours on
+                # 2026-09-22). Restart instead: a fresh epoch, no closures.
+                log.warning("%s: Phenom %s count changed during sweep (%d to %d); restarting",
+                            self.company, partitions[partition] or "board",
+                            expected_page_total, page_total)
+                return FetchResult([], complete=False, restart=True)
 
             for raw in rows:
                 posting = self.posting(raw)
