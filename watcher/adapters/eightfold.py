@@ -606,7 +606,14 @@ class EightfoldAdapter(Adapter):
                 return self.partial_on_throttle(e, out, cursor())
             raise
         if count > len(ids):
-            return restart(f"read {len(ids)} IDs but the board declares {count}")
+            # Not reachable by rows posted during the sweep: pass 2 re-reads the
+            # top, so those are in `ids` too. A shortfall means rows the sweep
+            # never saw, so it fails closed rather than retire what it missed.
+            # 2026-09-22: Qualcomm read 613 of a declared 626 after an 8-hour
+            # sweep (a laptop sleep split it), cause not yet identified; these
+            # numbers are here to place the gap next time.
+            return restart(f"read {len(ids)} IDs ({len(pass_ids)} in pass {sweep_pass}, "
+                           f"{len(out)} this slice) but the board declares {count}")
         return FetchResult(out)
 
     def _posting(self, raw):

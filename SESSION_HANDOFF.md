@@ -1,5 +1,50 @@
 # Job-watch session handoff — 2026-09-20
 
+## START HERE — 22 September, 23:30 IST — Qualcomm anchored sweep works, then fails closed 13 short
+
+**State: 414 Python + 11 site tests pass; `git diff --check` clean. Commit
+`994e648` is on `main`; the two changes below are uncommitted.**
+
+### What production showed
+
+The anchored path works, including the part it was built for:
+
+- 14:30 `read a 21-row same-timestamp group by count`, paused at 366.
+- 22:15 `read a 10-row same-timestamp group by count`, paused at 554 (the
+  laptop slept 14:31-22:15, so this one sweep spanned about 8 hours).
+- 22:43 `read a 3-row same-timestamp group by count`, pass 1 finished, pass 2
+  stopped correctly at offset 10.
+- 22:44 **`read 613 IDs but the board declares 626; restarting`** — it fails
+  closed and discarded 613 rows of work. The 23:00 retry then hit a 429;
+  backoff until 23:30.
+
+### The 13 rows are unexplained — do not weaken that check
+
+Rows posted during the sweep cannot explain it: pass 2 re-reads the top down to
+pass 1's first row, so they are in `ids` too. Pass 2 behaved correctly here
+(stopped at offset 10). So pass 1 never saw 13 rows that the board still lists.
+Completing anyway would retire them as closed. A reproduction attempt (200-row
+board, 3 postings between every slice) completes with nothing missing, so the
+cause is not simple front insertion.
+
+Two changes, both conservative:
+
+1. The shortfall message now names the pass, the IDs read in that pass and the
+   rows read in that slice, to place the gap next time it happens.
+2. Qualcomm `cursor_max_age: 86400 -> 7200`. A normal sweep is 3-4 slices
+   (~45-60 min); a cursor older than two hours slept through a lot of drift.
+   Starting over early is cheaper than a long re-sync that then fails closed.
+
+### Next
+
+1. Watch Qualcomm's next full attempt (from scratch, after 23:30). If it
+   completes, the 8-hour gap was the cause. If it fails short again, the new
+   message says which pass lost the rows — investigate there before touching
+   any guard.
+2. Microsoft's all-roles sweep starts about 23:26 tonight (~13-15 hourly
+   slices). Its `cursor_max_age` stays 86400 on purpose: its sweep is designed
+   to span many hours at ~2 requests each.
+
 ## START HERE — 22 September, 14:30 IST — Microsoft moves to every India role
 
 **State: 414 Python + 11 site tests pass; `git diff --check` clean. All work

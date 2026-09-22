@@ -978,7 +978,12 @@ companies:
     # Shared Eightfold rotation exceeded the default three-hour cursor lifetime
     # on 2026-09-20, discarding a validated 440-row partial sweep before resume.
     # Keep resumable work; count/overlap validation still rejects changed pages.
-    cursor_max_age: 86400
+    # 2026-09-22: a sweep split by an 8-hour laptop sleep resumed coherently but
+    # ended 13 rows short of the declared count and failed closed, discarding
+    # 613 rows of work. A normal sweep is 3-4 fifteen-minute slices, so a cursor
+    # older than two hours is one that slept through a lot of drift: start over
+    # while it is cheap instead of paying for the long re-sync first.
+    cursor_max_age: 7200
     # Was uncapped, so the 120s run_budget was the only bound: it fetched 440 rows
     # (44 requests) in ONE run, twice on 2026-09-20 — about 15x Microsoft's whole
     # hourly budget on shared Eightfold infrastructure. 58 pages now take three
