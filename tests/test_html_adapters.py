@@ -144,6 +144,29 @@ class Kula(unittest.TestCase):
         with self.assertRaisesRegex(AdapterError, "layout changed"):
             self.fetch("<html><body>maintenance</body></html>")
 
+    def test_slugged_job_urls_are_read_and_the_number_stays_the_identity(self):
+        """Kula moved from /slice/50594 to /slice/50594-sde-2-backend.
+
+        The old pattern matched nothing, so the page read as zero jobs for 139
+        runs. The slug comes from the title, so it must NOT become the id: a
+        retitled job would otherwise look like a brand new one.
+        """
+        html = page("kula_slice.html").replace('/slice/50594', '/slice/50594-sde-2-backend')
+        res = self.fetch(html)
+        self.assertEqual((len(res.postings), res.declared), (3, 3))
+        first = res.postings[0]
+        self.assertEqual(first.job_id, "50594")           # the number, not the slug
+        self.assertEqual(first.req_id, "50594")
+        self.assertEqual(first.url, "https://careers.kula.ai/slice/50594-sde-2-backend")
+
+    def test_a_retitled_job_keeps_its_id(self):
+        html = page("kula_slice.html").replace('/slice/50594', '/slice/50594-renamed-role')
+        self.assertEqual(self.fetch(html).postings[0].job_id, "50594")
+
+    def test_bare_ids_still_work_for_an_older_page(self):
+        res = self.fetch(page("kula_slice.html"))
+        self.assertEqual(res.postings[0].url, "https://careers.kula.ai/slice/50594")
+
 
 class GlobalLogic(unittest.TestCase):
     def page(self, count, rows):

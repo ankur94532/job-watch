@@ -99,3 +99,41 @@ class BainSafety(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BainProgrammePages(unittest.TestCase):
+    """Bain adds new KINDS of evergreen programme page, not just new jobs.
+
+    On 2026-10-11 one row, "Undergraduate exploratory programs" (id 2791789),
+    appeared under /careers/recruiting/ and failed the whole 298-row sweep for
+    days. Accepting the prefix is right; accepting any Bain path is not.
+    """
+
+    def adapter(self, link):
+        a = BainAdapter("bain", {"page_size": 10}, page_delay=0)
+        a.http = FakeHttp({a.url(0): {"results": [row(1, Link=link)], "totalResults": 1}})
+        return a
+
+    @patch.object(BainAdapter, "check_robots")
+    def test_recruiting_programme_page_is_accepted(self, _):
+        a = self.adapter("/careers/recruiting/undergraduate-exploratory-programs/")
+        result = a.fetch()
+        self.assertTrue(result.complete)
+        self.assertEqual(result.postings[0].url,
+                         "https://www.bain.com/careers/recruiting/undergraduate-exploratory-programs/")
+
+    @patch.object(BainAdapter, "check_robots")
+    def test_internship_programme_page_still_accepted(self, _):
+        a = self.adapter("/careers/work-with-us/internships-programs/associate-consultant-internship/")
+        self.assertTrue(a.fetch().complete)
+
+    @patch.object(BainAdapter, "check_robots")
+    def test_an_unrelated_bain_path_is_still_refused(self, _):
+        for link in ("/careers/", "/about-us/", "/careers/recruiting", "/vacancies/x/"):
+            with self.subTest(link=link):
+                self.assertRaises(AdapterError, self.adapter(link).fetch)
+
+    @patch.object(BainAdapter, "check_robots")
+    def test_a_position_link_must_still_carry_its_own_jobid(self, _):
+        a = self.adapter("/careers/find-a-role/position/?jobid=999")
+        self.assertRaises(AdapterError, a.fetch)

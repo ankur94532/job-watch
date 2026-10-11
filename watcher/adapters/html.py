@@ -188,11 +188,21 @@ class KulaAdapter(Adapter):
         page = self.http.get_text(self.base() + "?jobs=true")
         if "chakra-" not in page:
             raise AdapterError(f"{self.company}: layout changed — no Kula (Chakra UI) markup on {self.base()}")
-        link = re.compile(r'href="/' + re.escape(self.cfg["account"]) + r'/(\d+)/?[?"]')
-        declared = len(set(link.findall(page)))
+        # On 2026-10-11 Kula changed job URLs from a bare id, /slice/50594, to
+        # an id plus a title slug, /slice/50594-sde-2-backend. The old pattern
+        # required a digit run followed by / ? or ", so it matched nothing and
+        # the page read as zero jobs for 139 runs. The SLUG IS NOT IDENTITY:
+        # it is derived from the title, so keying on it would make a retitled
+        # job look like a new one. The leading number stays the id; the whole
+        # segment is kept only to build a link the site actually serves.
+        link = re.compile(r'href="/' + re.escape(self.cfg["account"]) + r'/(\d+(?:-[^"?#/]*)?)[/?"#]')
+        segments = {}                       # id -> full segment, first one wins
+        for segment in link.findall(page):
+            segments.setdefault(segment.split("-", 1)[0], segment)
+        declared = len(segments)
         out, seen = [], set()
         for card in page.split('<div class="chakra-card')[1:]:
-            ids = link.findall(card)
+            ids = [s.split("-", 1)[0] for s in link.findall(card)]
             texts = [text(t) for t in re.findall(r'<p class="chakra-text[^"]*">(.*?)</p>', card, re.S)]
             if not ids or not texts or ids[0] in seen:
                 continue
@@ -202,7 +212,9 @@ class KulaAdapter(Adapter):
             out.append(Posting(
                 company=self.company, ats=self.ats, job_id=ids[0], title=texts[0], location=location,
                 remote="remote" in (location + " " + kind).lower(), posted_at="",
-                url=f"{self.base()}/{ids[0]}", req_id=ids[0],     # no trailing slash: that one 308s
+                # The slugged segment is what the site links to; fall back to the
+                # bare id for an older page. No trailing slash: that one 308s.
+                url=f"{self.base()}/{segments.get(ids[0], ids[0])}", req_id=ids[0],
             ))
         return FetchResult(out, declared=declared)
 

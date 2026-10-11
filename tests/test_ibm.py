@@ -2,8 +2,8 @@ import unittest
 from unittest.mock import patch
 
 from tests.fakes import FakeHttp
-from watcher.adapters.base import AdapterError
-from watcher.adapters.ibm import IBMAdapter
+from watcher.adapters.base import AdapterError, FetchContext
+from watcher.adapters.ibm import PAGE, IBMAdapter
 
 
 def row(n, **changes):
@@ -23,9 +23,9 @@ def row(n, **changes):
     return base
 
 
-def result(rows, total=None, **search_changes):
+def result(rows, total=None, start=0, **search_changes):
     total = len(rows) if total is None else total
-    search = {"totalresults": total, "startindex": 0, "numresults": total,
+    search = {"totalresults": total, "startindex": start, "numresults": len(rows),
               "searchresultlist": rows}
     search.update(search_changes)
     return {"resultset": {
@@ -113,3 +113,65 @@ class IBMSafety(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@patch.object(IBMAdapter, "check_robots")
+class IBMPaging(unittest.TestCase):
+    """India outgrew IBM's own 1,000-row response ceiling on 2026-10-11.
+
+    `nr` is truncated to 1,000 however large it is, so one request can no
+    longer be complete. `fr` is the offset and `startindex` echoes it.
+    """
+
+    def adapter(self, pages):
+        a = IBMAdapter("ibm", {}, page_delay=0)
+        a.http = FakeHttp({a.url(off): body for off, body in pages.items()})
+        return a
+
+    def page(self, start, stop, total):
+        # `resultnum` restarts at 0 on every page, so it indexes within the
+        # response, not the whole inventory. Ids stay globally unique.
+        return result([row(n, resultnum=i) for i, n in enumerate(range(start, stop))],
+                      total=total, start=start)
+
+    def test_two_pages_make_one_complete_sweep(self, _):
+        a = self.adapter({0: self.page(0, PAGE, 1253), PAGE: self.page(PAGE, 1253, 1253)})
+        res = a.fetch()
+        self.assertTrue(res.complete)
+        self.assertEqual((len(res.postings), res.declared), (1253, 1253))
+        self.assertEqual(len({p.job_id for p in res.postings}), 1253)
+
+    def test_single_page_inventory_still_completes(self, _):
+        a = self.adapter({0: self.page(0, 12, 12)})
+        self.assertTrue(a.fetch().complete)
+
+    def test_offset_is_sent_and_echo_must_match(self, _):
+        a = IBMAdapter("ibm", {}, page_delay=0)
+        self.assertIn("fr=%d" % PAGE, a.url(PAGE))
+        a.http = FakeHttp({a.url(0): self.page(0, PAGE, 1253),
+                           a.url(PAGE): result([row(n, resultnum=i) for i, n
+                                                in enumerate(range(PAGE, 1253))],
+                                               total=1253, start=0)})   # wrong echo
+        self.assertRaises(AdapterError, a.fetch)
+
+    def test_total_changing_mid_sweep_restarts(self, _):
+        a = self.adapter({0: self.page(0, PAGE, 1253), PAGE: self.page(PAGE, 1253, 1200)})
+        res = a.fetch()
+        self.assertTrue(res.restart)
+        self.assertEqual(res.postings, [])
+
+    def test_a_repeated_page_restarts_rather_than_double_counting(self, _):
+        """Echoes the right offset but serves rows already seen."""
+        repeat = result([row(n, resultnum=i) for i, n in enumerate(range(253))],
+                        total=1253, start=PAGE)
+        a = self.adapter({0: self.page(0, PAGE, 1253), PAGE: repeat})
+        self.assertTrue(a.fetch().restart)
+
+    def test_short_page_before_the_total_is_refused(self, _):
+        a = self.adapter({0: result([row(n) for n in range(5)], total=1253, start=0)})
+        self.assertRaises(AdapterError, a.fetch)
+
+    def test_bad_cursor_is_refused(self, _):
+        a = self.adapter({0: self.page(0, PAGE, 1253)})
+        self.assertRaises(AdapterError, a.fetch,
+                          FetchContext(cursor={"offset": 7, "total": 1253, "ids": []}))

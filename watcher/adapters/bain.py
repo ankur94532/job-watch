@@ -103,7 +103,14 @@ class BainAdapter(RobotsAware):
         url = urljoin(BASE, link)
         parts = urlsplit(url)
         position = parts.path == "/careers/find-a-role/position/"
-        program = parts.path.startswith("/careers/work-with-us/internships-programs/")
+        # Bain lists evergreen programme pages alongside real requisitions, and
+        # it adds new KINDS of them: on 2026-10-11 a single row,
+        # "Undergraduate exploratory programs" (id 2791789), arrived under
+        # /careers/recruiting/ and blocked the whole 298-row sweep for days
+        # because the adapter only knew the two prefixes below. These pages
+        # carry no jobid, which is why only `position` is checked against one.
+        program = parts.path.startswith(("/careers/work-with-us/internships-programs/",
+                                         "/careers/recruiting/"))
         if (parts.scheme != "https" or parts.netloc != "www.bain.com" or
                 not (position or program) or
                 (position and parse_qs(parts.query).get("jobid") != [job_id])):

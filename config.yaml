@@ -994,7 +994,14 @@ companies:
     # backoff still takes precedence and peers retain every non-resume slot.
     max_pages_per_run: 20                # see the volume note under microsoft
     resume_priority: true
-    resume_interval: 900
+    # 2026-10-11: was 900. Eightfold allows ONE tenant per run (max_per_run),
+    # and resume_priority puts a cursor-holder first, so a 15-minute resume let
+    # this board preempt the single slot four times an hour for the whole sweep.
+    # Netflix, UKG, NetApp and HSBC went 7-8h unpolled against 1-3h intervals.
+    # Hourly resumes still finish the 581-row sweep inside its 12h full_sweep
+    # (3 runs at the 20-page cap) while leaving three slots in four for the
+    # other tenants, and cut this board's share of the daily 429s.
+    resume_interval: 3600
     # 2026-09-22: even 15-minute slices restarted (count 592 -> 615, then an
     # overlap at offset 10): Qualcomm posts faster than a quota-bounded ~60-page
     # offset sweep can finish. Anchored resume re-syncs on the newest-first
