@@ -1,6 +1,70 @@
 # Job-watch session handoff — 2026-09-20
 
-## START HERE — 22 September, 23:30 IST — Qualcomm anchored sweep works, then fails closed 13 short
+## START HERE — 11 October, 19:45 IST — three dead sources repaired
+
+Branch **`fix-broken-sources-oct-11`** off `main`, one commit `c0d3c58`.
+**NOT merged, NOT pushed.** To take it:
+
+```
+git checkout main && git merge --ff-only fix-broken-sources-oct-11
+```
+
+**428 Python + 11 site tests pass. 166 active companies; 163 were healthy, 3
+were not.** The scheduler has been running fine throughout — these were site
+changes, not watcher failures, and every one **failed closed** rather than
+reporting zero jobs.
+
+### What had broken, and why each is worth remembering
+
+**Bain — one row, not the API** (212h without a sweep). The API was fine at 298
+rows. A single new row, "Undergraduate exploratory programs" (id 2791789),
+arrived under `/careers/recruiting/` — a third kind of evergreen programme page
+— and one unknown path failed the entire sweep. Fixed by accepting that prefix
+alongside the internships one. Verified live: **298/298, 17 matching.**
+
+**IBM — India outgrew the service** (126h). The API truncates any response to
+1,000 rows (`nr=2000` still returns 1,000), so the old
+`numresults == totalresults` check became unsatisfiable once India reached
+**1,253**. `fr` is the row offset and `startindex` echoes it, so the sweep now
+pages — verified live as 1,000 + 253 with **no overlap** — validating each page
+against the declared total, the echoed offset and ids already seen. Note: only
+the first page may revalidate from cache, because a 304 on a later page would
+silently end a sweep short. Verified live: **1,253/1,253, 114 matching, 4s.**
+
+**Slice — the slug trap** (386h, 139 zero-row runs). Kula moved job URLs from
+`/slice/50594` to `/slice/50594-sde-2-backend`. The pattern wanted digits
+followed by `/ ? "`, so it matched nothing. **The slug is derived from the
+title, so it must never become the id** — keying on it would make a retitled
+job look new. The number stays the identity; the full segment only builds a
+working link. Verified live: **33/33, declared agrees, 6 matching.**
+
+**Eightfold slot starvation.** Netflix, UKG, NetApp and HSBC were 7-8h unpolled
+against 1-3h intervals. Cause: Eightfold allows ONE tenant per run and
+`resume_priority` puts a cursor-holder first, so Qualcomm's `resume_interval:
+900` let it preempt the slot four times an hour for a whole sweep — 7 of ~18
+Eightfold polls in 12h. Raised to 3600. Its 581-row sweep still finishes inside
+its 12h `full_sweep` (3 runs at the 20-page cap). **Microsoft is no longer in
+this group** — it has its own `ats: microsoft` adapter on a cheap 15-minute
+latest-roles path, so its 12 polls in 12h cost one request each and steal
+nothing.
+
+### Still open
+
+1. **429s continue: 3-6 a day, all Microsoft and Qualcomm** — the two largest
+   inventories (229 and 581). Cursors are kept so no work is lost, but this is
+   why throughput was NOT raised to fix the starvation above. Watch whether the
+   Qualcomm change reduces them.
+2. **Verify the three repairs through the scheduler.** All three were verified
+   live against the real sites, but not yet through a scheduled run. Success is
+   `watcher status` showing bain, ibm and slice with no `last_error` and a
+   recent `last_complete`.
+3. **Nykaa — 254 consecutive zero-row polls.** Still working as designed:
+   `careers.nykaa.com` genuinely states there are no postings, and the real
+   roles are in `nykaa-instahyre`. It will keep warning.
+4. Siemens, IDFC FIRST and Citadel — all **resolved** since the September
+   handoff; none of them is erroring now.
+
+## Earlier handoff — 22 September, 23:30 IST — Qualcomm anchored sweep works, then fails closed 13 short (superseded)
 
 **State: 414 Python + 11 site tests pass; `git diff --check` clean. Commit
 `994e648` is on `main`; the two changes below are uncommitted.**
@@ -45,7 +109,7 @@ Two changes, both conservative:
    slices). Its `cursor_max_age` stays 86400 on purpose: its sweep is designed
    to span many hours at ~2 requests each.
 
-## START HERE — 22 September, 14:30 IST — Microsoft moves to every India role
+## Earlier handoff — 22 September, 14:30 IST — Microsoft moves to every India role (superseded)
 
 **State: 414 Python + 11 site tests pass; `git diff --check` clean. All work
 through this section is committed and pushed to `main` (the commit after
@@ -110,7 +174,7 @@ only some profession values, and counting each costs as much as a full sweep.
    reason names the guard that fired; investigate before changing any guard.
 4. NTT DATA's Phenom restart path is still unexercised in production.
 
-## START HERE — 22 September, 14:15 IST — Anchored resume fixed for same-timestamp groups
+## Earlier handoff — 22 September, 14:15 IST — Anchored resume fixed for same-timestamp groups (superseded)
 
 **State: 411 Python + 11 site tests pass; `git diff --check` clean. Still
 uncommitted (see 13:10). `main` = `origin/main` = `b23c8cb`.**
@@ -146,7 +210,7 @@ Fixed and tested:
 `read a N-row same-timestamp group by count`, and eventually `qualcomm: N open`.
 Any `anchored sweep ... restarting` line names its reason.
 
-## START HERE — 22 September, 13:10 IST — Qualcomm switched to anchored resume
+## Earlier handoff — 22 September, 13:10 IST — Qualcomm switched to anchored resume (superseded)
 
 **State: 177 tracked / 166 active / 11 blocked; 408 Python + 11 site tests
 pass; `git diff --check` clean. `main` = `origin/main` = `b23c8cb`. The change
@@ -187,7 +251,7 @@ disabling the head check fails the re-post test.
 2. Commit and push once it is proven (or when the user asks).
 3. NTT DATA's new Phenom restart path is still unexercised in production.
 
-## START HERE — 22 September, 11:50 IST — Qualcomm moving; NTT DATA recovered
+## Earlier handoff — 22 September, 11:50 IST — Qualcomm moving; NTT DATA recovered (superseded)
 
 - **Qualcomm fix is working so far.** It got its Eightfold slot at 11:22
   (0 -> 200). The 15-minute priority resume ran at 11:39 (200 -> 350), then hit
@@ -204,7 +268,7 @@ disabling the head check fails the re-post test.
   zero-progress cursor retries on the 30-minute cadence.
 - Everything from 10:25 onward is still uncommitted.
 
-## START HERE — 22 September, 10:25 IST — Phenom stale-cursor loop fixed; Qualcomm proof pending
+## Earlier handoff — 22 September, 10:25 IST — Phenom stale-cursor loop fixed; Qualcomm proof pending (superseded)
 
 **State: 177 tracked / 166 active / 11 blocked; 398 Python + 11 site tests
 pass; `git diff --check` clean. HEAD is `ffbd213` on `job-sources-sep-2026`
@@ -252,7 +316,7 @@ and it should complete again within a few runs.
 4. **Git:** commit the Qualcomm and Phenom changes; merge into `main` and push
    only when the user asks.
 
-## START HERE — 22 September, 10:05 IST — Qualcomm fix reviewed; waiting on its first slice
+## Earlier handoff — 22 September, 10:05 IST — Qualcomm fix reviewed; waiting on its first slice (superseded)
 
 **State: 177 tracked / 166 active / 11 blocked; 397 Python + 11 site tests
 pass; `git diff --check` clean. HEAD is `ffbd213` on `job-sources-sep-2026`
@@ -296,7 +360,7 @@ pass; `git diff --check` clean. HEAD is `ffbd213` on `job-sources-sep-2026`
 5. **Git:** commit the Qualcomm change once it is proven (or when the user
    asks). Merge into `main` and push only when the user asks.
 
-## START HERE — 22 September, 08:56 IST — Qualcomm drift fix implemented; production proof pending
+## Earlier handoff — 22 September, 08:56 IST — Qualcomm drift fix implemented; production proof pending (superseded)
 
 **State: 177 tracked / 166 active / 11 blocked; 396 Python + 11 site tests
 pass; `git diff --check` clean. The five Qualcomm-related files below plus this
@@ -343,7 +407,7 @@ unless the user asks.**
   coverage rule. Recent 1,7xx-1,8xx runs were correctly rejected below 95%; do
   not weaken that threshold.
 
-## START HERE — 22 September, 08:45 IST — Microsoft proven; Qualcomm is the remaining drift problem
+## Earlier handoff — 22 September, 08:45 IST — Microsoft proven; Qualcomm is the remaining drift problem (superseded)
 
 **State: 177 tracked / 166 active / 11 blocked; 395 Python + 11 site tests
 pass; `git diff --check` clean. All Siemens, Honeywell and Microsoft work is now
@@ -387,7 +451,7 @@ instruction.**
 6. Re-run `make test` and `git diff --check` after any edit, and add a new
    START HERE section with production evidence.
 
-## START HERE — 22 September, 00:23 IST — Microsoft cadences separated; closure advanced
+## Earlier handoff — 22 September, 00:23 IST — Microsoft cadences separated; closure advanced (superseded)
 
 **State: 177 tracked / 166 active / 11 blocked. All work remains uncommitted on
 `job-sources-sep-2026`; preserve the 14 modified and two untracked files. Do not
@@ -444,7 +508,7 @@ Normal production proof is complete for the cadence split:
   it is fixed. Also retain the caveat that roles outside the Software
   Engineering profession are not closure-inventoried.
 
-## START HERE — 21 September, 23:50 IST — Siemens and Honeywell proven; Microsoft rescoped
+## Earlier handoff — 21 September, 23:50 IST — Siemens and Honeywell proven; Microsoft rescoped (superseded)
 
 **State: 177 tracked / 166 active / 11 blocked. 389 Python + 11 site tests
 pass; `git diff --check` is clean.** The four handoff commits remain on
@@ -509,7 +573,7 @@ fast path until the daily sweep sees them (only if they are in the facet).
    `main` — both only when the user asks.
 5. Re-run `make test` and `git diff --check` after any edit.
 
-## START HERE — 21 September, 21:47 IST — Siemens gets a targeted coherent-sweep budget
+## Earlier handoff — 21 September, 21:47 IST — Siemens gets a targeted coherent-sweep budget (superseded)
 
 **State: 177 tracked / 166 active / 11 blocked. 382 Python + 11 site tests
 pass; `git diff --check` is clean.** The four handoff commits remain on
@@ -580,7 +644,7 @@ state is cursor-null and next due around 22:34; do not rewrite the DB to hurry i
    Update this section with production evidence. Do not commit/merge unless the
    user asks.
 
-## START HERE — 21 September, 14:53 IST — Phenom fixes proven; Siemens restart narrowed
+## Earlier handoff — 21 September, 14:53 IST — Phenom fixes proven; Siemens restart narrowed (superseded)
 
 **State: 177 tracked / 166 active / 11 blocked. 376 Python + 11 site tests
 pass; `git diff --check` is clean. Nothing is committed** (HEAD remains
@@ -663,7 +727,7 @@ awake) and can still restart on a real closure or overlap.
 No install/restart is needed for these Python changes: each launchd invocation
 imports the working tree afresh. Do not commit without the user's instruction.
 
-## START HERE — 21 September, 16:55 IST — work committed; open items below
+## Earlier handoff — 21 September, 16:55 IST — work committed; open items below (superseded)
 
 **The work is now COMMITTED.** It previously existed only in the working tree.
 
