@@ -467,6 +467,17 @@ companies:
     # 19 declared rows, 19 cards and 19 unique ids on 2026-09-20. Search pages
     # and detail links are allowed by the host's robots policy.
   idfcfirst:
+    repeat_tolerance: 8
+    # 2026-10-14: this board repeats rows inside its own facets. The failing
+    # facet served all 235 slots it declared but held only 230 distinct ids,
+    # and two consecutive passes returned an IDENTICAL set, so the inventory is
+    # stable and the surplus is bookkeeping, not rows hidden from us. Replays
+    # cannot fix a stable repeat: it had failed closed since 20 Sep, so closed
+    # roles were never retired. Eight rows of slack covers the 5 observed with
+    # room for a second facet. Every slot must still be served, so a genuinely
+    # short facet still fails. If the stored count starts oscillating between
+    # sweeps, re-measure stability before raising this -- a VARYING missing set
+    # would retire real jobs on alternating sweeps.
     ats: phenom
     enabled: true                        # silent production baseline 2026-09-20, zero alerts
     host: careers.idfcfirst.bank.in
@@ -1250,6 +1261,11 @@ companies:
   questglobal:
     ats: phenom
     host: careers.quest-global.com
+    repeat_tolerance: 4
+    # 2026-10-14: same shape as idfcfirst, intermittently. A facet served every
+    # slot it declared but held one fewer distinct id. All slots must still be
+    # served, so a genuinely short facet still fails; this only forgives the
+    # board repeating one of its own rows.
     locations: [India]                   # 1,001 India jobs / 17 requests on 2026-09-19
     interval: 3600
     max_window: 900

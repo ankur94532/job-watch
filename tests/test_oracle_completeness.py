@@ -6,6 +6,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from tests.fakes import FakeHttp
 from watcher.adapters import AdapterError, FetchContext, build_adapter
+from watcher.adapters.phenom import PhenomAdapter
 from watcher.http import HttpStatusError
 
 
@@ -30,6 +31,18 @@ def adapter(pages, cfg=None):
         return response
     http = FakeHttp({lambda m, u, p: True: handle})
     return build_adapter("uber", cfg or CFG, http=http, page_delay=0), http
+
+
+class _FakePost:
+    """Serves one Phenom page per POST, in order."""
+
+    def __init__(self, pages):
+        self.pages, self.n = pages, 0
+
+    def post_json(self, url, payload):
+        rows, total = self.pages[min(self.n, len(self.pages) - 1)]
+        self.n += 1
+        return {"refineSearch": {"totalHits": total, "data": {"jobs": rows}}}
 
 
 class OracleCompleteness(unittest.TestCase):
@@ -228,3 +241,39 @@ class OracleCountTolerance(unittest.TestCase):
             with self.subTest(bad=bad):
                 a, _ = adapter({0: page(0)}, dict(CFG, count_tolerance=bad))
                 self.assertRaises(AdapterError, a.fetch)
+
+
+@patch.object(PhenomAdapter, "check_robots", create=True)
+class PhenomRepeatedRows(unittest.TestCase):
+    """A facet may serve every slot it declares while repeating one of its rows.
+
+    Measured on IDFC FIRST 2026-10-14: the failing facet served all 235 slots
+    and held 230 distinct ids, and two consecutive passes returned an IDENTICAL
+    set. Replays cannot fill a stable repeat, so the board had failed closed
+    since 20 September and never retired a closed role.
+    """
+
+    def jobs(self, ids):
+        return [{"jobId": str(i), "title": "Software Engineer", "cityState": "Bengaluru",
+                 "country": "India", "jobSeqNo": str(i), "applyUrl": f"https://x/{i}"}
+                for i in ids]
+
+    def adapter(self, pages, **cfg):
+        a = PhenomAdapter("q", dict({"host": "careers.example.com"}, **cfg), page_delay=0)
+        a.http = _FakePost(pages)
+        return a
+
+    def test_repeat_within_tolerance_completes(self, _):
+        a = self.adapter([(self.jobs([1, 2, 2]), 3)], repeat_tolerance=1)
+        r = a.fetch()
+        self.assertTrue(r.complete)
+        self.assertEqual(sorted(p.job_id for p in r.postings), ["1", "2"])
+
+    def test_without_tolerance_it_still_fails(self, _):
+        a = self.adapter([(self.jobs([1, 2, 2]), 3)])
+        self.assertRaises(AdapterError, a.fetch)
+
+    def test_a_short_board_still_fails_even_with_tolerance(self, _):
+        """Fewer SLOTS than declared is a different fault and is never forgiven."""
+        a = self.adapter([(self.jobs([1, 2]), 5)], repeat_tolerance=5)
+        self.assertRaises(AdapterError, a.fetch)

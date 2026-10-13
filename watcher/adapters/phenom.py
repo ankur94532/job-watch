@@ -154,7 +154,27 @@ class PhenomAdapter(Adapter):
                     offset = part_seen = 0
                     pass_ids = set()
                     continue
-                if partitions[partition] is not None and len(part_ids) != expected:
+                # Every slot the facet promised was served (checked above), so
+                # when fewer DISTINCT ids come back the board is repeating a
+                # row in its own bookkeeping rather than hiding one from us.
+                # Measured on IDFC FIRST 2026-10-14: the failing facet served
+                # 235 slots holding 230 distinct ids, and two consecutive
+                # passes returned an IDENTICAL set -- a stable inventory, the
+                # same shape as Arm. Replays cannot help a stable repeat, and
+                # failing closed meant the board never completed, so no closed
+                # role was ever retired. `repeat_tolerance` is opt-in per
+                # company and defaults to 0, so every other Phenom board stays
+                # strict. If the warning's number grows, or the stored count
+                # starts oscillating between sweeps, re-measure stability
+                # before raising it: a VARYING missing set would retire real
+                # jobs on alternating sweeps, which is the one outcome worse
+                # than stale data.
+                shortfall = expected - len(part_ids)
+                if (partitions[partition] is not None and shortfall
+                        and shortfall <= int(self.cfg.get("repeat_tolerance") or 0)):
+                    log.warning("%s: %s served %d slots holding %d distinct jobs",
+                                self.company, partitions[partition], expected, len(part_ids))
+                elif partitions[partition] is not None and len(part_ids) != expected:
                     raise AdapterError(
                         f"{self.company}: got {len(part_ids)} unique of {expected} Phenom jobs "
                         f"for {partitions[partition]} after {partition_replays + 1} pass(es)")
@@ -164,8 +184,15 @@ class PhenomAdapter(Adapter):
                 pass_ids = set()
                 partition_replays = 0
 
+        # Same reasoning as the per-partition check: repeated rows inside the
+        # facets leave the board total short by the same amount.
         if len(seen) != total:
-            raise AdapterError(f"{self.company}: got {len(seen)} unique Phenom jobs but expected {total}")
+            shortfall = total - len(seen)
+            if not (0 < shortfall <= int(self.cfg.get("repeat_tolerance") or 0)):
+                raise AdapterError(
+                    f"{self.company}: got {len(seen)} unique Phenom jobs but expected {total}")
+            log.warning("%s: board declared %d; stored %d distinct jobs",
+                        self.company, total, len(seen))
         return FetchResult(out)
 
     def page(self, data):
