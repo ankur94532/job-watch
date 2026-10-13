@@ -1,6 +1,159 @@
-# Job-watch session handoff — 2026-09-20
+# Job-watch session handoff
 
-## START HERE — 11 October, 19:45 IST — three dead sources repaired
+## START HERE — orientation for a new session, 14 October 2026, 00:55 IST
+
+Written for an agent picking this up cold. **Everything below this section is
+historical**, newest first; it is evidence, not instructions. Read this section,
+then only the parts of the archive a specific question sends you to.
+
+### What this is
+
+A personal job watcher. It polls ~166 company job boards hourly, stores what it
+sees, and publishes a filtered view to a phone. The author is job-hunting in
+India; the filters are India locations plus software-engineering titles.
+
+```
+config.yaml            the source of truth: one entry per company
+watcher/adapters/*.py  one adapter per board type (46 kinds in use)
+watcher/runner.py      scheduling, budgets, backoff, cursors
+watcher/store.py       SQLite at ~/.local/share/jobswatch/jobs.db
+watcher/export.py      writes docs/ and the Workers KV snapshot
+watcher/site/          the phone view: vanilla JS, no build step
+```
+
+Pure **stdlib** — no pip install, no node_modules. Cloudflare Pages serves the
+site behind Cloudflare Access; the job data lives in Workers KV under
+`site:snapshot` and is read by a Pages Function, so new job data needs **no
+deployment**. launchd runs a poll every 15 minutes.
+
+**It runs on `/opt/homebrew/bin/python3` (3.14, OpenSSL 3), not the system
+3.9.** macOS's LibreSSL 2.8.3 cannot negotiate TLS 1.3 — and it *reports*
+`ssl.TLSVersion.TLSv1_3` as present while being unable to use it, so that
+attribute is not a capability check. The Makefile and both launchd plists point
+at Homebrew's.
+
+### Commands
+
+```
+make test       438 Python tests + 11 site tests. Always run before finishing.
+make status     per-company due times, errors, starvation. The main diagnostic.
+make run        one poll now, in this terminal
+make site       export + publish (needs deploy/jobswatch.env loaded; see below)
+```
+
+`make site` alone fails with `CLOUDFLARE_API_TOKEN is not set`: the scheduler
+gets credentials from the rendered launchd plist, not your shell. Publish by
+loading `deploy/jobswatch.env` into a subprocess environment — never onto argv,
+where it would show in `ps`.
+
+### State at this moment
+
+**177 tracked / 166 active / 11 blocked. 438 + 11 tests pass. Working tree
+clean, `main` pushed to `origin` (`2a8b4a4`).** The live site shows 166
+companies and 2,883 matching jobs.
+
+The 11 blocked entries are deliberate: each records why that employer's **own**
+board is unreadable (robots `Disallow`, a WAF or CAPTCHA, a removed board, or
+LinkedIn-only, which the spec excludes). **Every one of them is still watched**
+through a `<employer>-instahyre` entry — Instahyre is a separate Indian job
+site where those companies' recruiters post. That coverage is COMPLETE with
+respect to Instahyre and PARTIAL with respect to the employer, which is why the
+names carry the suffix. **A falling count there means they pulled listings from
+Instahyre, not that they stopped hiring.**
+
+### How to add a source — the method that worked 20+ times
+
+1. Start from the **official** careers page and read its frontend bundle for the
+   exact request it issues. **Never guess an ATS tenant token** — see the `navi`
+   warning in config.yaml for what that costs.
+2. Prefer a **country-level facet or filter** over hard-coded location IDs.
+   Maersk's hundreds of office IDs were rejected for this; Cisco derives its
+   India facets live each sweep so a new office is picked up automatically.
+3. **Prove completeness**: declared == returned == unique, or an independent
+   cross-check. Arm's sitemap was rejected because it omitted a real
+   multi-location role the country search returns.
+4. **Verify employer identity from the response itself**, not from the query.
+5. Stage the entry **disabled**, run a lock-protected silent baseline
+   (`seed=True`, `sink=None`, export disabled), assert zero unsuppressed rows
+   and no notifications, and only then enable.
+
+### Rules that are not negotiable
+
+- **robots.txt is obeyed.** A served `Disallow` is final. A 4xx robots file
+  means no rules (RFC 9309), which is how `watcher.robots` already behaves.
+- **No challenge solving, no browser impersonation, no proxies, no alternate
+  host to dodge a rule.** Several boards are blocked for exactly this reason and
+  stay blocked.
+- **Fail closed.** An adapter that cannot prove completeness raises. Zero rows
+  from an HTML board is a warning state, never a quiet "no jobs" — the page must
+  say so in its own words.
+- Search results are for **discovery only**, never as a job inventory.
+
+### Failure patterns you will meet, and the one that matters most
+
+Sites change; guards then fail closed and a board silently stops completing, so
+closed roles stop being retired. `make status` is how you notice.
+
+**When a board declares more rows than it serves distinct ids, measure
+STABILITY before tolerating anything.** Run two full passes and compare the id
+sets:
+
+- **Identical sets** → the surplus is the board's own bookkeeping (it repeats a
+  row). Tolerating it is safe. This was Oracle (47 declared, same 46 every
+  time), Arm (104 slots, 102 distinct) and IDFC FIRST (235 slots, 230 distinct).
+- **Varying sets** → do NOT tolerate it. A job absent from one sweep gets
+  retired and re-added on the next, so it flaps. Stale data is better.
+
+That distinction is the single most useful thing in this file. A September note
+argued IDFC could never be tolerated; re-measuring in October showed its set had
+become stable, and the fix was then correct. **Re-measure rather than trusting
+an old verdict — including this one.**
+
+Related shapes already handled, for pattern-matching:
+
+- **1,000-row API ceilings.** IBM truncates any response to 1,000 rows (`nr`
+  larger is ignored) and India outgrew it; Phenom has the same Elasticsearch
+  window and partitions on published facets. Both now page.
+- **Slots vs distinct ids.** `CountedHTML` and Phenom count rows *served* for
+  positional checks and distinct ids for storage. A skipped slot still fails.
+- **Pinned Pages URLs.** Every deploy gets a permanent address; a bookmark on
+  one serves that frozen build forever. Always use bare
+  `job-watch-live.pages.dev`.
+
+### Open right now
+
+1. **Arm and IDFC FIRST were fixed minutes ago and verified live, but no
+   scheduled run has exercised them yet.** Both still show their old error in
+   `make status`; next due 00:54. Success is no STARVING, no `last_error`, and a
+   fresh `last_complete`. If they clear, nothing is outstanding.
+2. **Nykaa shows 272 consecutive zero-row polls.** This is correct, not a bug:
+   `careers.nykaa.com` genuinely states it has no postings, and the real roles
+   are in `nykaa-instahyre` (24, 6 matching). It will warn forever.
+3. **429s continue at 3-6 a day, all Microsoft and Qualcomm** — the two largest
+   inventories. Cursors are kept so no work is lost. This is why Eightfold
+   throughput was not raised to cure a slot-starvation problem in October; the
+   fix was to stop Qualcomm preempting the single per-run slot instead.
+
+### Where the detail lives
+
+- `watcher/adapters/README.md` — per-adapter endpoint notes and quirks
+- `AUTOMATION_AUDIT.md` — per-company evidence for what was added
+- `BLOCKED_SOURCE_REVIEW.md` — why each blocked source is blocked, with dates
+- `DEPLOY.md` — Cloudflare Pages, KV and Access setup
+- `config.yaml` — the comments there are the real documentation; they record
+  what was measured, when, and why a setting is the value it is
+
+Two conventions worth knowing: a company can appear twice (`levelai` /
+`levelai-lever`, `nykaa` / `nykaa-instahyre`) when two boards cover it, and
+tuning knobs like `count_tolerance`, `repeat_tolerance`, `count_drift` and
+`max_window` **default to 0/strict and are opt-in per company**, so one board's
+quirk never loosens another's guarantees.
+
+---
+
+# Archive — everything below is historical, newest first
+
+## Earlier handoff — 11 October, 19:45 IST — three dead sources repaired (superseded)
 
 Branch **`fix-broken-sources-oct-11`** off `main`, one commit `c0d3c58`.
 **NOT merged, NOT pushed.** To take it:
