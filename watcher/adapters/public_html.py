@@ -6,6 +6,7 @@ throttling. Remote text never substitutes for a named eligible location.
 
 import html
 import re
+import logging
 import time
 from urllib.parse import urljoin, urlsplit
 
@@ -13,6 +14,9 @@ from ..http import HttpStatusError
 from .base import AdapterError, FetchContext, FetchResult, Posting
 from .embedded import RobotsAware
 from .html import text
+
+
+log = logging.getLogger(__name__)
 
 
 class CountedHTML(RobotsAware):
@@ -23,17 +27,21 @@ class CountedHTML(RobotsAware):
 
     def fetch(self, ctx=None):
         ctx = ctx or FetchContext()
-        base = "https://" + self.cfg["host"]
         cur = ctx.cursor or {}
+        base = "https://" + self.cfg["host"]
         start_path = self.cfg.get("path") or self.path
         if not start_path.startswith("/"):
             raise AdapterError(f"{self.company}: HTML search path must be absolute")
         url, total = cur.get("url", base + start_path), cur.get("total")
         ids, visited = set(cur.get("ids", [])), set(cur.get("visited", []))
+        # Rows SERVED, which is what the board's own first/last range counts.
+        # It is not len(ids): a board may serve the same job in two slots.
+        slots = int(cur.get("slots", len(ids)))
         out, pages = [], 0
 
         def cursor():
-            return {"url": url, "total": total, "ids": sorted(ids), "visited": sorted(visited)}
+            return {"url": url, "total": total, "ids": sorted(ids),
+                    "visited": sorted(visited), "slots": slots}
 
         while url:
             if pages and ((ctx.deadline is not None and time.monotonic() >= ctx.deadline) or pages >= 10):
@@ -50,25 +58,54 @@ class CountedHTML(RobotsAware):
                     return self.partial_on_throttle(e, out, cursor())
                 raise
             rows, count, first, last, next_url = self.parse(page)
+            # Some boards re-count between requests while serving a perfectly
+            # coherent sequence. Arm flickered 104, 104, 102 across three pages
+            # on 2026-10-13 with contiguous, non-overlapping ranges, and any
+            # change restarted the sweep, so it never completed for 13h.
+            # `count_drift` opts a company into adopting the newer total; it
+            # defaults to 0, so every other board still restarts on any change.
+            # Nothing else is relaxed: the first/last range, the overlap check
+            # and the final len(ids) == total all still have to hold, so a page
+            # that actually skips or repeats rows still fails.
             if total is not None and total != count:
-                return FetchResult([], complete=False, restart=True, declared=0)
+                drift = int(self.cfg.get("count_drift") or 0)
+                if abs(count - total) > drift:
+                    return FetchResult([], complete=False, restart=True, declared=0)
+                log.warning("%s: declared count moved %d -> %d mid-sweep; within the "
+                            "configured drift of %d", self.company, total, count, drift)
             total = count
             keys = [p.job_id for p in rows]
             if len(keys) != len(set(keys)):
                 raise AdapterError(f"{self.company}: duplicate page IDs")
-            if ids.intersection(keys):
+            repeats = ids.intersection(keys)
+            if repeats and len(repeats) > int(self.cfg.get("repeat_tolerance") or 0):
+                # Too many repeats to be the board merely re-sorting: the
+                # pagination is no longer trustworthy, so start over.
                 return FetchResult([], complete=False, restart=True, declared=0)
-            if count < 1 or first != len(ids) + 1 or last != len(ids) + len(rows) or last > count:
+            if repeats:
+                # Within tolerance: the board re-sorted and spent a slot on a
+                # row we already hold. Keep paging on the SLOT counter so the
+                # range stays checkable, and simply do not store it twice.
+                log.warning("%s: %d repeated row(s) at slot %d of %d; keeping the "
+                            "first copy", self.company, len(repeats), first, count)
+            if count < 1 or first != slots + 1 or last != slots + len(rows) or last > count:
                 raise AdapterError(f"{self.company}: incomplete HTML result range")
             if bool(next_url) != (last < count):
                 raise AdapterError(f"{self.company}: missing/inconsistent next page")
             ids.update(keys)
-            out.extend(rows)
+            out.extend(r for r in rows if r.job_id not in repeats)
+            slots += len(rows)
             visited.add(url)
             url = urljoin(url, html.unescape(next_url)) if next_url else None
             pages += 1
-        if len(ids) != total:
+        if slots != total:
             raise AdapterError(f"{self.company}: incomplete HTML inventory")
+        # Every slot the board promised was served and the range never broke,
+        # so the sweep IS complete -- there are simply fewer distinct jobs than
+        # slots when the board repeats one. `declared` reports what was stored,
+        # which is what the runner compares against.
+        if len(ids) != total:
+            log.warning("%s: %d slots held %d distinct jobs", self.company, total, len(ids))
         return FetchResult(out, declared=len(out))
 
 

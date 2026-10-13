@@ -356,6 +356,16 @@ companies:
     host: careers.arm.com
     organization: Arm
     interval: 3600
+    count_drift: 4
+    repeat_tolerance: 4
+    # 2026-10-13: this board re-counts between requests. Three consecutive
+    # pages declared 104, 104, 102 while serving contiguous, non-overlapping
+    # ranges (1-15, 16-30, 31-45), so the inventory was coherent and only the
+    # headline number moved -- but any change restarted the sweep, and it went
+    # 13h without completing. Four rows of slack covers the observed flicker.
+    # Every positional guard still applies: a page that truly skips or repeats
+    # rows still fails. If the warning ever reports a larger move, re-measure
+    # rather than raising this.
     # The official TalentBrew country page declared/returned 105 unique India
     # jobs over seven 15-row pages on 2026-09-20 (98 Bengaluru, 7 Noida by
     # facet). Its sitemap had only 104 India-city URLs: the missing row was a

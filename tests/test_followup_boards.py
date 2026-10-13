@@ -332,3 +332,99 @@ class CountedHTMLSafety(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def slot_page(i, total, job, nxt=None):
+    """One row at slot `i` of `total`, naming job id `job`."""
+    return (f'<h1 class="company-header-title">Jobs at BookMyShow</h1>'
+            f"<script>paginator: {{ start_index: '{i}', end_index: '{i}', total_results: '{total}', "
+            f"next_page_url: {repr(nxt) if nxt else 'null'} }}</script>"
+            f'<div class="js-careers-page-job-list-item"><a href="/jobs/{job}/">'
+            '<h3>Software Engineer</h3><div class="js-job-list-opening-loc" title="Mumbai, India">'
+            'Mumbai, India</div></a></div>')
+
+
+@patch.object(CountedHTML, 'check_robots')
+class CountedHTMLRepeatedRows(unittest.TestCase):
+    """A board may serve the same job in two of its own slots.
+
+    Arm did exactly this from 2026-10-13: 104 slots carrying 102 distinct jobs,
+    repeating two at a page boundary. Two full passes returned an IDENTICAL set
+    of 102, so the inventory is stable and the extra slots are the board's
+    bookkeeping, not rows we failed to read. Paging therefore counts SLOTS,
+    which is what the board's own first/last range describes, while the store
+    keeps distinct jobs.
+    """
+
+    BASE = 'https://bookmyshow.hire.trakstar.com/'
+
+    def adapter(self, **cfg):
+        return TrakstarAdapter('bookmyshow', dict(
+            {'host': 'bookmyshow.hire.trakstar.com', 'organization': 'BookMyShow'}, **cfg),
+            page_delay=0)
+
+    def pages(self, a, *bodies):
+        urls = [self.BASE] + [f'{self.BASE}?page={n}' for n in range(2, len(bodies) + 1)]
+        a.http = FakeHttp(dict(zip(urls, bodies)))
+        return a
+
+    def test_a_repeat_within_tolerance_completes_with_distinct_jobs(self, _):
+        a = self.pages(self.adapter(repeat_tolerance=1),
+                       slot_page(1, 3, 'fk1', '?page=2'),
+                       slot_page(2, 3, 'fk2', '?page=3'),
+                       slot_page(3, 3, 'fk1'))          # slot 3 repeats fk1
+        r = a.fetch()
+        self.assertTrue(r.complete)
+        self.assertEqual([p.job_id for p in r.postings], ['fk1', 'fk2'])
+        self.assertEqual(r.declared, 2)                 # stored, not the 3 slots
+
+    def test_the_repeat_is_not_stored_twice(self, _):
+        a = self.pages(self.adapter(repeat_tolerance=1),
+                       slot_page(1, 2, 'fk1', '?page=2'), slot_page(2, 2, 'fk1'))
+        self.assertEqual(len(a.fetch().postings), 1)
+
+    def test_without_tolerance_a_repeat_still_restarts(self, _):
+        a = self.pages(self.adapter(),
+                       slot_page(1, 2, 'fk1', '?page=2'), slot_page(2, 2, 'fk1'))
+        r = a.fetch()
+        self.assertTrue(r.restart)
+        self.assertEqual(r.postings, [])
+
+    def test_more_repeats_than_allowed_restarts(self, _):
+        """Two repeats against a tolerance of one: pagination is untrustworthy."""
+        def two(first, last, total, a_id, b_id, nxt=None):
+            rows = "".join(
+                f'<div class="js-careers-page-job-list-item"><a href="/jobs/{j}/">'
+                '<h3>Software Engineer</h3><div class="js-job-list-opening-loc" '
+                'title="Mumbai, India">Mumbai, India</div></a></div>'
+                for j in (a_id, b_id))
+            return ('<h1 class="company-header-title">Jobs at BookMyShow</h1>'
+                    f"<script>paginator: {{ start_index: '{first}', end_index: '{last}', "
+                    f"total_results: '{total}', "
+                    f"next_page_url: {repr(nxt) if nxt else 'null'} }}</script>" + rows)
+
+        a = self.pages(self.adapter(repeat_tolerance=1),
+                       two(1, 2, 4, 'fk1', 'fk2', '?page=2'),
+                       two(3, 4, 4, 'fk1', 'fk2'))
+        r = a.fetch()
+        self.assertTrue(r.restart)
+        self.assertEqual(r.postings, [])
+
+    def test_a_slot_gap_still_fails_even_with_tolerance(self, _):
+        """Tolerating repeats must not tolerate a SKIPPED row."""
+        a = self.pages(self.adapter(repeat_tolerance=2),
+                       slot_page(1, 3, 'fk1', '?page=2'), slot_page(3, 3, 'fk2'))
+        self.assertRaises(AdapterError, a.fetch)
+
+    def test_a_short_board_still_fails(self, _):
+        """Fewer slots served than declared is still incomplete."""
+        a = self.pages(self.adapter(repeat_tolerance=2), slot_page(1, 5, 'fk1'))
+        self.assertRaises(AdapterError, a.fetch)
+
+    def test_resume_carries_the_slot_counter(self, _):
+        a = self.pages(self.adapter(repeat_tolerance=1),
+                       slot_page(1, 2, 'fk1', '?page=2'), slot_page(2, 2, 'fk2'))
+        first = a.fetch(FetchContext(deadline=0))
+        self.assertEqual(first.cursor['slots'], 1)
+        final = a.fetch(FetchContext(cursor=first.cursor))
+        self.assertTrue(final.complete)
