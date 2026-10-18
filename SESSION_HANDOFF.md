@@ -1,6 +1,6 @@
 # Job-watch session handoff
 
-## START HERE — orientation for a new session, 14 October 2026, 00:55 IST
+## START HERE — orientation for a new session, 18 October 2026, 16:20 IST
 
 Written for an agent picking this up cold. **Everything below this section is
 historical**, newest first; it is evidence, not instructions. Read this section,
@@ -122,17 +122,34 @@ Related shapes already handled, for pattern-matching:
 
 ### Open right now
 
-1. **Arm and IDFC FIRST were fixed minutes ago and verified live, but no
-   scheduled run has exercised them yet.** Both still show their old error in
-   `make status`; next due 00:54. Success is no STARVING, no `last_error`, and a
-   fresh `last_complete`. If they clear, nothing is outstanding.
-2. **Nykaa shows 272 consecutive zero-row polls.** This is correct, not a bug:
-   `careers.nykaa.com` genuinely states it has no postings, and the real roles
-   are in `nykaa-instahyre` (24, 6 matching). It will warn forever.
-3. **429s continue at 3-6 a day, all Microsoft and Qualcomm** — the two largest
-   inventories. Cursors are kept so no work is lost. This is why Eightfold
-   throughput was not raised to cure a slot-starvation problem in October; the
-   fix was to stop Qualcomm preempting the single per-run slot instead.
+**Checked 18 October 16:20. Arm and IDFC FIRST, open in the previous revision
+of this section, both completed and are healthy** (`arm ok, 106`;
+`idfcfirst ok, 1353`), so the October adapter repairs all held.
+
+1. **Walmart — diagnosed and fixed minutes ago, not yet proven.** It went 17h
+   without a complete sweep. Cause: ~1,948 rows at ~100 requests against the
+   shared 120s run budget cannot finish inside the **three-hour default cursor
+   lifetime**, so it paused at 920, then 1040, then logged *"unfinished sweep
+   is stale, restarting it"* and threw the lot away — meaning no closed req was
+   ever retired. `cursor_max_age: 86400` now matches what microsoft, qualcomm,
+   siemens, linkedin and hsbc already carry. **Verify**: `make status` should
+   show walmart completing rather than restarting, within a day.
+2. **lamresearch and ukg are mildly starved** — ~4.5h against a 1h interval.
+   Eightfold allows one tenant per run and the group got only ~18 polls in 12h
+   across 8 tenants. Qualcomm leads at 4, so it is no longer monopolising the
+   way it did before the October `resume_interval` change; this is now just
+   thin supply rather than one board hogging. Lengthening the intervals of the
+   small tenants would make the warnings honest; raising throughput would
+   worsen the 429s below.
+3. **Qualcomm still throws 429s** and backs off (seen again today at 15:52,
+   `start=190`). Cursors are kept, so no work is lost. This is the reason not
+   to cure item 2 by polling Eightfold harder.
+4. **Nykaa shows 308 consecutive zero-row polls.** Still correct, still not a
+   bug: `careers.nykaa.com` genuinely states it has no postings, and the real
+   roles are in `nykaa-instahyre`. It will warn forever.
+
+Everything else was `ok` at that check: **177 tracked / 166 active / 11
+blocked, 438 + 11 tests passing**, working tree clean, `main` pushed.
 
 ### Where the detail lives
 

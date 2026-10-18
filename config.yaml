@@ -220,6 +220,14 @@ companies:
     shard: wd504                         # yes, three digits — wd5 answers 422
     sites: [WalmartExternal]             # 2000 reqs ≈ 100 requests per sweep
     interval: 7200                       # the biggest board here; poll it half as often
+    cursor_max_age: 86400
+    # 2026-10-18: the biggest board cannot finish inside the three-hour default.
+    # It paused at 920, then 1040, then "unfinished sweep is stale, restarting
+    # it" threw the lot away, so it went 17h without completing and never
+    # retired a closed req. ~100 requests against a shared 120s run budget on a
+    # 2h interval simply needs longer than 3h of wall clock. Same fix already
+    # carried by microsoft, qualcomm, siemens, linkedin and hsbc; the count and
+    # overlap guards still reject a sweep whose pages stop agreeing.
   sprinklr:
     ats: workday
     tenant: sprinklr
