@@ -27,8 +27,8 @@ defaults:
   # 120s, not 50: at 50 the ~2,000-row Workday boards (walmart, nvidia,
   # wellsfargo) got 60-300 rows a run and could not finish a sweep inside
   # CURSOR_MAX_AGE (3h), so each restarted from zero and closed reqs were never
-  # retired. A run is typically ~2 min and never more than budget + overrun
-  # (~4 min), well inside the 15-minute interval. `parallel: 1` = serial.
+  # retired. A normal run is ~2-4 min; opted-in per-company poll budgets can
+  # extend it. RunLock prevents overlapping polls. `parallel: 1` = serial.
   company_delay: 1.2
   page_delay: 0.5
   run_budget: 120
@@ -198,6 +198,10 @@ companies:
     tenant: salesforce
     shard: wd12
     sites: [External_Career_Site]        # 1493 reqs on 2026-09-18 ≈ 75 requests per full sweep
+    applied_facets:
+      CF_-_REC_-_LRV_-_Job_Posting_Anchor_-_Country_from_Job_Posting_Location_Extended: [c4f78be1a8f14da0ab49ce1162348a5e]
+    location_hint: India
+    require_exact_count: true           # Oct 27: 113 declared/unique; silent production baseline
     # NOT incremental. It passed a sampled order check (3 rows at 10 offsets),
     # then failed the live one on its first poll: "Posted Today" right after
     # "Posted Yesterday" at offset 20 (17:32, 2026-09-18). Probably per-location
@@ -219,7 +223,11 @@ companies:
     tenant: walmart
     shard: wd504                         # yes, three digits — wd5 answers 422
     sites: [WalmartExternal]             # 2000 reqs ≈ 100 requests per sweep
-    interval: 7200                       # the biggest board here; poll it half as often
+    interval: 3600                       # India facet: 206 rows, not the capped global 2,000
+    applied_facets:
+      locationCountry: [c4f78be1a8f14da0ab49ce1162348a5e]
+    location_hint: India
+    require_exact_count: true
     cursor_max_age: 86400
     # 2026-10-18: the biggest board cannot finish inside the three-hour default.
     # It paused at 920, then 1040, then "unfinished sweep is stale, restarting
@@ -243,11 +251,13 @@ companies:
     tenant: wf                           # not "wellsfargo"; found via a live posting URL
     shard: wd1
     sites: [WellsFargoJobs]              # 1818 reqs on 2026-09-18 ≈ 91 requests per full sweep
-    # Newest-first by default (no sort parameter exists; sampled at offsets
-    # 0/500/1000/1500 and stable between requests), so a normal poll reads only
-    # until two pages of known postings -- 3 requests, not 91 -- and a complete
-    # sweep, the only thing that can retire closed reqs, runs every 12h.
-    incremental: true
+    applied_facets:
+      locationCountry: [c4f78be1a8f14da0ab49ce1162348a5e]
+    location_hint: India
+    require_exact_count: true
+    # Oct 27: the 123-row country inventory fits seven requests, so each poll
+    # can prove closures instead of carrying a 1,500-row global sweep for days.
+    incremental: false
     interval: 900
     full_sweep: 43200
   warnerbros:
@@ -267,13 +277,16 @@ companies:
     tenant: paloaltonetworks
     shard: wd5
     sites: [panwexternalcareers]         # 1521 reqs on 2026-09-18 ≈ 76 requests per full sweep
-    # Newest-first and stable (2026-09-18: first 40 identical across two reads,
-    # posted age never decreasing over 10 samples through the board), so a
-    # normal poll reads only the newest pages; a full sweep every 12h retires
-    # closed reqs. See adapters/README.md, Workday.
-    incremental: true
+    # Oct 27: derive every published India office (including remote regions)
+    # from live location facets. 155 declared/unique; silently baselined.
+    country_locations: India
+    location_hint: India
+    incremental: false
     interval: 900
     full_sweep: 43200
+    poll_budget: 180
+    cursor_max_age: 86400
+    require_exact_count: true
   nvidia:
     ats: workday
     tenant: nvidia
@@ -281,7 +294,11 @@ companies:
     sites: [NVIDIAExternalCareerSite]    # 2000 reqs — the cap; ~100 requests per sweep.
                                          # Tenant was in Workday maintenance when added; the
                                          # runner retries and seeds it silently when it returns.
-    interval: 7200
+    interval: 3600
+    applied_facets:
+      locationHierarchy1: [2fcb99c455831013ea52b82135ba3266]
+    location_hint: India
+    require_exact_count: true           # Oct 27: 241/241; full country, below global cap
   ebay:
     ats: workday
     tenant: ebay
@@ -523,7 +540,7 @@ companies:
     locations: [India]
     url_prefix: global/en
     partition_fields: [category, department]
-    max_window: 900
+    partition_threshold: 900
     interval: 3600
     page_delay: 1.2
     # NTT DATA's official global Phenom site declared 1,027 India jobs on
@@ -532,7 +549,8 @@ companies:
     # raw pages returned only 922 unique IDs. The two configured, published
     # facets form an exact disjoint partition: 1,000 categorized plus 27 with
     # department=Unspecified at baseline; current 961 + 27 = 988. Their sum must
-    # equal the declared total and every current bucket is below 900.
+    # equal the declared total. Partition above 900 even below the service's
+    # 1,000-row window; individual facet buckets may use that full window.
   five9:
     ats: greenhouse
     enabled: true                        # silent production baseline 2026-09-20, zero alerts
@@ -589,10 +607,18 @@ companies:
     full_sweep: 86400                    # daily full sweep retires closed requisitions
   mastercard:
     ats: workday
+    country_locations: India
+    location_hint: India
+    require_exact_count: true
+    incremental: false
+    poll_budget: 180
+    cursor_max_age: 86400
+    # Oct 27: all live India office facets, not a pinned city/ID list.
+    # Global search returned 819/1103; country union completed 281/281 twice,
+    # including a silent production baseline with no notifications or export.
     tenant: mastercard
     shard: wd1
     sites: [CorporateCareers]            # 1070 reqs; linked from careers.mastercard.com
-    incremental: true                    # sampled newest-first through offset 1000 on 2026-09-19
     interval: 3600
     full_sweep: 86400
   barclays:
@@ -611,6 +637,7 @@ companies:
 
   netflix:
     ats: eightfold
+    poll_budget: 120                    # finish an earned slice; aggregate group cap remains 20 pages
     api: apply                           # explore.jobs.netflix.net speaks the older flavour;
     host: explore.jobs.netflix.net       # pcsx answers "not enabled for this user"
     domain: netflix.com
@@ -622,6 +649,8 @@ companies:
     locations: [India]
   eightfoldai:
     ats: eightfold
+    poll_budget: 120
+    resume_interval: 3600               # shared capacity must not turn partials into rapid retries
     host: app.eightfold.ai
     domain: volkscience.com              # their own tenant is the pre-rebrand name,
     locations: [India]                   # not eightfold.ai — found with `watcher trace`
@@ -632,6 +661,7 @@ companies:
     full_sweep: 43200                    # a complete sweep every 12h to retire closed reqs
   microsoft:
     ats: microsoft
+    frontend_session: true             # verified public anonymous PCSX GET contract
     host: apply.careers.microsoft.com
     domain: microsoft.com
     locations: [India]                   # 229 India roles on 2026-09-22, 10 rows/page
@@ -646,31 +676,20 @@ companies:
     # Consulting": "Consultant - .Net Full Stack & AI"), and when its sweep
     # completed it retired every stored role outside it. postedTs is the latest
     # re-post time (a June role showed today's), so re-posts jump to the front;
-    # a check the same day found strict postedTs order. Anchored resume re-syncs
-    # on that order instead of restarting, at the API's ~2 requests per hour.
-    anchor_resume: true
-    resync_budget: 2                     # never exceed the two-page slice, even to re-sync...
-    resync_slices: 12                    # ...so allow a re-sync more hourly slices instead
-    # ---- Microsoft quota note (2026-09-21) ----
-    # The full 235-role India query needs about 24 requests, but this host has
-    # recently allowed only roughly one or two before 429. Six-second spacing
-    # did not fix it. The official profession facet cuts the closure inventory
-    # to about nine pages, while the separate careers.microsoft.com page exposes
-    # the three newest India roles in one request. The adapter gives those paths
-    # separate cadences: latest roles stay frequent even while the closure API
-    # waits or exponentially delays after a no-progress throttle.
+    # 2026-10-28: corrected public session context completed all 232 India jobs
+    # in 24 pages at six-second spacing. A bounded same-process full scan uses
+    # exact counts, unique IDs and nonoverlapping pages without relying on
+    # timestamp order. Latest-role polling keeps its separate cheap cadence.
+    anchor_resume: false
     interval: 900                        # official India page supplies the three newest roles cheaply
-    full_sweep: 86400                    # a closure sweep takes ~13-15 hourly slices; start one daily
+    full_sweep: 86400                    # full all-India closure scan once daily
     resume_interval: 900                 # keep the official latest page on its 15-minute cadence even
                                          # while a closure cursor is in progress
-    closure_resume_interval: 3600        # the API currently permits about two pages per hour; this
-                                         # cadence lives in the cursor and does not suppress latest roles
-    max_pages_per_run: 2                 # ~23 pages of all India roles -> ~13-15 hourly slices
+    closure_resume_interval: 3600        # preserve a conservative wait after any partial scan
+    max_pages_per_run: 30                # proven 24-page scan, bounded headroom
+    poll_budget: 360
     cursor_max_age: 86400
     backoff_min: 3600                    # generic fallback; Microsoft API pacing is cursor-local
-    # VERIFY: does a sweep now COMPLETE? `watcher status` should show microsoft
-    # with no cursor and a last_complete inside the last ~6h. If it still starves,
-    # the next lever is fewer rows to page (an Eightfold `query`), not more pages.
   amazon:
     ats: amazon
     countries: [IND]                     # 2325 open India reqs, 100 rows/page
@@ -969,6 +988,8 @@ companies:
     # there, since the page answers 200 for any id.
   morganstanley:
     ats: eightfold                       # api: pcsx (default); the apply/v2 flavour answers 403
+    poll_budget: 120
+    resume_interval: 3600
     host: morganstanley.eightfold.ai
     domain: morganstanley.com
     locations: [India]                   # 102 India positions on 2026-09-18 ≈ 11 requests/sweep
@@ -996,31 +1017,33 @@ companies:
     tenant: statestreet
     shard: wd1
     sites: [Global]                      # 1326 postings, 226 in India, on 2026-09-18 ≈ 67 requests/sweep
+    applied_facets:
+      Location_Country: [c4f78be1a8f14da0ab49ce1162348a5e]
+    location_hint: India
+    require_exact_count: true           # Oct 27: 296/296; silently baselined
     # Linked from careers.statestreet.com. Job link verified (200, title shown).
   qualcomm:
     ats: eightfold                       # api: pcsx (default)
+    poll_budget: 120
+    frontend_session: true             # Oct 28: current public CSRF/session flow returned valid 541-row scope
     host: careers.qualcomm.com
     domain: qualcomm.com
     locations: [India]                   # 580 India positions on 2026-09-18 ≈ 58 requests/sweep
     page_delay: 2.0                      # conservative pacing; see Eightfold adapter notes
     interval: 3600
-    # Shared Eightfold rotation exceeded the default three-hour cursor lifetime
-    # on 2026-09-20, discarding a validated 440-row partial sweep before resume.
-    # Keep resumable work; count/overlap validation still rejects changed pages.
-    # 2026-09-22: a sweep split by an 8-hour laptop sleep resumed coherently but
-    # ended 13 rows short of the declared count and failed closed, discarding
-    # 613 rows of work. A normal sweep is 3-4 fifteen-minute slices, so a cursor
-    # older than two hours is one that slept through a lot of drift: start over
-    # while it is cheap instead of paying for the long re-sync first.
-    cursor_max_age: 7200
+    # 2026-10-27: six hours still discarded all progress across laptop sleeps:
+    # seven expiry restarts since Oct 18, with no completed sweep or intervening
+    # coherence failure. Preserve work for one day, like the other long boards.
+    # This is a liveness allowance, not permission to accept stale membership:
+    # the timestamp boundary, second pass and exact-count checks remain strict.
+    # The historical eight-hour/13-row shortfall would still fail closed.
+    cursor_max_age: 86400
     # Was uncapped, so the 120s run_budget was the only bound: it fetched 440 rows
     # (44 requests) in ONE run, twice on 2026-09-20 — about 15x Microsoft's whole
     # hourly budget on shared Eightfold infrastructure. 58 pages now take three
-    # runs instead of two. While that cursor exists, resume it every 15 minutes
-    # and put it first within the single shared Eightfold slot. This bounds a
-    # normal three-slice sweep to about 30 minutes instead of 2-3 hours, reducing
-    # front-insertion drift without weakening the count/overlap guards. HTTP
-    # backoff still takes precedence and peers retain every non-resume slot.
+    # runs instead of two. While that cursor exists, put a due resume first
+    # within the single shared Eightfold slot. Resumes are hourly (see below),
+    # so peers retain the intervening slots; HTTP backoff takes precedence.
     max_pages_per_run: 20                # see the volume note under microsoft
     resume_priority: true
     # 2026-10-11: was 900. Eightfold allows ONE tenant per run (max_per_run),
@@ -1042,6 +1065,8 @@ companies:
     full_sweep: 43200                    # a complete sweep every 12h to retire closed reqs
   netapp:
     ats: eightfold
+    poll_budget: 120
+    resume_interval: 7200
     api: apply                           # pcsx answers 403 on this host
     host: netapp.eightfold.ai
     domain: netapp.com
@@ -1154,6 +1179,9 @@ companies:
     incremental: true                    # sampled newest-first through offset 1600 on 2026-09-19
     interval: 3600
     full_sweep: 86400
+    poll_budget: 360
+    cursor_max_age: 86400
+    require_exact_count: true           # Oct 27: complete global 2,006-row silent baseline
   bankofamerica:
     ats: workday
     tenant: ghr
@@ -1166,10 +1194,17 @@ companies:
     ats: workday
     tenant: gevernova
     shard: wd5
+    poll_budget: 360
+    cursor_max_age: 86400
+    require_exact_count: true           # Oct 27: complete global 2,274-row silent baseline
     sites: [Vernova_ExternalSite]        # 2169 postings; official GE Vernova board
     interval: 7200                       # board is not reliably newest-first; full sweep every 2h
   target:
     ats: workday
+    applied_facets:
+      Location_Country: [c4f78be1a8f14da0ab49ce1162348a5e]
+    location_hint: India
+    require_exact_count: true           # Oct 27: 69/69; silently baselined
     tenant: target
     shard: wd5
     sites: [targetcareers]               # 2000 postings (Workday reporting cap)
@@ -1207,6 +1242,9 @@ companies:
     resume_interval: 1800
   lamresearch:
     ats: eightfold
+    poll_budget: 120
+    resume_interval: 3600               # Oct 28: a 34-minute partial resume hit 429; keep hourly pacing
+    frontend_session: true             # same verified public PCSX bundle/CSRF contract as Qualcomm
     host: lamresearch.eightfold.ai       # linked from opportunities.lamresearch.com
     domain: lamresearch.com
     locations: [India]                   # 113 India postings on 2026-09-19
@@ -1217,12 +1255,14 @@ companies:
     full_sweep: 86400
   ukg:
     ats: eightfold
+    poll_budget: 120
+    resume_interval: 3600
     host: apply.ukg.com                  # official UKG Eightfold board; pcsx flavour
     domain: ukg.com
     locations: [India]                   # 71 India postings on 2026-09-19
     page_delay: 6.0
     interval: 3600
-    max_pages_per_run: 10                # 8 pages fits one run; see note under microsoft
+    max_pages_per_run: 14                # Oct 28: 105 India rows now need 11 pages; shared ATS ceiling still 20
     incremental: true
     full_sweep: 86400
 
@@ -1349,6 +1389,7 @@ companies:
       - https://www.citadelsecurities.com/career-sitemap.xml
   hsbc:
     ats: eightfold
+    poll_budget: 120
     host: portal.careers.hsbc.com
     domain: hsbc.com
     api: apply

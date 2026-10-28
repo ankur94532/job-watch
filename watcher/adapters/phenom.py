@@ -64,7 +64,10 @@ class PhenomAdapter(Adapter):
             requests = 1
             result, _, total = self.page(pending)
             max_window = int(self.cfg.get("max_window") or MAX_WINDOW)
-            if total > max_window:
+            partition_threshold = int(self.cfg.get("partition_threshold") or max_window)
+            if not 0 < partition_threshold <= max_window:
+                raise AdapterError(f"{self.company}: partition_threshold must be within max_window")
+            if total > partition_threshold:
                 # Phenom/Elasticsearch caps one result window at 1,000. Split
                 # only across configured single-valued facets whose published
                 # bucket counts add back to the total. Never use city:
@@ -85,7 +88,7 @@ class PhenomAdapter(Adapter):
                 # closes that one-row gap while still avoiding the deep window.
                 partitions = [None, *({"field": field, "value": value}
                                       for field, value, _ in buckets)]
-                counts = [max_window, *(count for _, _, count in buckets)]
+                counts = [min(total, max_window), *(count for _, _, count in buckets)]
             else:
                 partitions, counts = [None], [total]
             partition, offset, part_seen, part_ids = 0, 0, 0, set()

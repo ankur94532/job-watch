@@ -29,6 +29,7 @@ class MicrosoftAdapter(RobotsAware, EightfoldAdapter):
     # The cheap latest-jobs page must not consume the one Eightfold tenant slot.
     # Closure API requests remain bounded and internally paced below.
     ats = "microsoft"
+    max_requests_per_run = None
     window_limited = True
     LATEST = "https://careers.microsoft.com/professionals/us/en/l-india"
 
@@ -55,6 +56,16 @@ class MicrosoftAdapter(RobotsAware, EightfoldAdapter):
 
     def _fresh_cursor(self):
         return self.fresh_cursor()      # anchored or offset, always carrying the scope
+
+    def expired_cursor(self, cursor):
+        # The sweep epoch may expire during sleep or a long API cooldown. That
+        # invalidates paging work, not the server's wait or throttle escalation.
+        # Dropping both made every day start at the one-hour backoff again.
+        fresh = self._fresh_cursor()
+        for key in ("api_after", "api_backoff_level"):
+            if key in cursor:
+                fresh[key] = cursor[key]
+        return fresh
 
     def _defer_closure(self, cursor, now, throttled=False, progressed=False,
                        retry_after=None):

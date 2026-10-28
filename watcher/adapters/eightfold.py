@@ -59,9 +59,12 @@ class EightfoldAdapter(Adapter):
     # 2026-09-18 Microsoft and Qualcomm were throttled (429) within a minute of
     # each other. Shared quota is a hypothesis, not confirmed by response headers.
     max_parallel = 1
-    # Keep traffic conservative across tenants. launchd runs every 15 minutes,
-    # so start one tenant per process and let oldest-first scheduling rotate them.
-    max_per_run = 1
+    # Let other tenants use the allowance a tiny board did not spend. The
+    # aggregate search-page ceiling stays at the existing largest slice (20),
+    # and max_parallel=1 still serializes tenants. A large slice leaves no room
+    # for a second one; a one-page board no longer wastes an entire run's slot.
+    max_per_run = None
+    max_requests_per_run = 20
 
     def locations(self):
         locs = self.cfg.get("locations") or [""]
@@ -85,14 +88,31 @@ class EightfoldAdapter(Adapter):
     def max_pages_per_run(self):
         value = self.cfg.get("max_pages_per_run")
         if value in (None, ""):
-            return None
+            return self.run_request_limit
         try:
             value = int(value)
         except (TypeError, ValueError):
             raise AdapterError(f"{self.company}: max_pages_per_run must be a positive integer")
         if value <= 0:
             raise AdapterError(f"{self.company}: max_pages_per_run must be a positive integer")
-        return value
+        return min(value, self.run_request_limit) if self.run_request_limit is not None else value
+
+    def _search_json(self, url):
+        self.run_requests += 1
+        try:
+            if self.cfg.get("frontend_session"):
+                if self.flavor() != "pcsx":
+                    raise AdapterError(f"{self.company}: frontend_session requires PCSX")
+                if not hasattr(self, "_frontend"):
+                    from .pcsx_session import PCSXSession
+                    self._frontend = PCSXSession(self.cfg["host"], self.http)
+                    self.http = self._frontend.http
+                return self._frontend.get_json(url)
+            return self.http.get_json(url)
+        except HttpStatusError as error:
+            if error.code in (403, 429):
+                self.run_blocked = True
+            raise
 
     def cursor_scope(self):
         """Extra query identity that must remain fixed across a resumed sweep."""
@@ -124,9 +144,10 @@ class EightfoldAdapter(Adapter):
         # Incremental boards are swept in timestamp order too: the same order
         # every time is kinder to a paused-and-resumed sweep than relevance.
         order = "&sort_by=timestamp" if self.incremental or self.cfg.get("sort_by") == "timestamp" else ""
+        size = "&hl=en" if self.cfg.get("frontend_session") else f"&num={PAGE}"
         return (f"https://{host}/api/pcsx/search?domain={domain}"
                 f"&query={quote(self.cfg.get('query') or '')}&location={quote(location)}"
-                f"&start={start}&num={PAGE}{order}")
+                f"&start={start}{size}{order}")
 
     def fetch_incremental(self, ctx, requests=0):
         """The newest pages only; `(None, requests)` means "sweep instead".
@@ -151,7 +172,7 @@ class EightfoldAdapter(Adapter):
                     self.pause()
                 try:
                     requests += 1
-                    body = self.http.get_json(self.url(location, n * PAGE)) or {}
+                    body = self._search_json(self.url(location, n * PAGE)) or {}
                 except HttpStatusError as e:
                     if e.code in (403, 429) and out:
                         return self.partial_on_throttle(e, out, None), requests
@@ -188,6 +209,8 @@ class EightfoldAdapter(Adapter):
 
     def fetch(self, ctx=None):
         ctx = ctx or FetchContext()
+        self.run_requests = 0
+        self.run_blocked = False
         requests = 0
         if (self.incremental and not ctx.cursor and ctx.known and ctx.last_complete
                 and ctx.now is not None and ctx.now - ctx.last_complete < self.full_sweep()):
@@ -235,7 +258,7 @@ class EightfoldAdapter(Adapter):
                     self.pause()
                 try:
                     requests += 1
-                    body = self.http.get_json(self.url(location, start)) or {}
+                    body = self._search_json(self.url(location, start)) or {}
                 except HttpStatusError as e:
                     # Keep rows already paid for and resume after the persisted backoff.
                     if e.code in (403, 429):
@@ -333,18 +356,21 @@ class EightfoldAdapter(Adapter):
         A paused re-sync starts over, so too small a budget could stall it.
         Microsoft's API allows about two requests an hour, so it sets this to
         its page cap and allows more slices per re-sync instead."""
-        return int(self.cfg.get("resync_budget") or RESYNC_BUDGET)
+        value = int(self.cfg.get("resync_budget") or RESYNC_BUDGET)
+        return min(value, self.run_request_limit) if self.run_request_limit is not None else value
 
     def resync_slices(self):
         return int(self.cfg.get("resync_slices") or RESYNC_SLICES)
 
     def _anchored_page(self, location, offset):
         """One validated page: (postings, stamps, count). Raises HttpStatusError."""
-        body = self.http.get_json(self.url(location, offset)) or {}
+        body = self._search_json(self.url(location, offset)) or {}
         data = body.get("data") or {}
         rows, count = data.get("positions"), data.get("count")
         if not isinstance(rows, list) or type(count) is not int or count < 0:
             raise AdapterError(f"{self.company}: missing Eightfold positions/count")
+        if (not rows and offset < count) or (rows and offset + len(rows) > count):
+            raise AdapterError(f"{self.company}: incomplete Eightfold page at {offset}/{count}")
         if data.get("sortBy") not in (None, "timestamp"):
             raise AdapterError(f"{self.company}: anchored sweep needs timestamp order, got {data.get('sortBy')!r}")
         postings = [self._posting(raw) for raw in rows]
@@ -368,6 +394,12 @@ class EightfoldAdapter(Adapter):
         total, anchor_ts, head_ts = cur.get("total"), cur.get("anchor_ts"), cur.get("head_ts")
         resyncs, phase = int(cur.get("resyncs") or 0), cur.get("phase") or "sweep"
         resync_slices = int(cur.get("resync_slices") or 0)
+        boundary_offset = cur.get("boundary_offset")
+        pending_group = cur.get("group")
+        if boundary_offset is not None and (type(boundary_offset) is not int or boundary_offset < 0):
+            raise AdapterError(f"{self.company}: invalid anchored boundary cursor")
+        if pending_group is not None and (not isinstance(pending_group, dict) or phase != "resync"):
+            raise AdapterError(f"{self.company}: invalid anchored group cursor")
         # Pass 2 re-reads the newest rows down to pass 1's first row (stop_ts),
         # so a job re-posted ahead of the pass-1 cursor is still seen.
         sweep_pass, stop_ts = int(cur.get("pass") or 1), cur.get("stop_ts")
@@ -386,6 +418,10 @@ class EightfoldAdapter(Adapter):
             value.update({"pass": sweep_pass, "stop_ts": stop_ts})
             if sweep_pass == 2:
                 value["pass_ids"] = sorted(pass_ids)
+            if boundary_offset is not None:
+                value["boundary_offset"] = boundary_offset
+            if pending_group is not None:
+                value["group"] = pending_group
             return value
 
         def restart(why):
@@ -412,7 +448,7 @@ class EightfoldAdapter(Adapter):
             return ((limit is not None and requests >= limit)
                     or (requests and ctx.deadline is not None and time.monotonic() >= ctx.deadline))
 
-        def read_group(first, pos, ts_group, count0, members):
+        def read_group(first=None, pos=None, ts_group=None, count0=None, members=None):
             """Read a same-timestamp group that spans pages, by count.
 
             `first` is the group's first position, witnessed by a strictly
@@ -424,13 +460,40 @@ class EightfoldAdapter(Adapter):
             whether the list ended), or a FetchResult to return (pause or
             restart).
             """
-            end, below = None, []   # older rows count as read only once the group is proven
-            while end is None:
+            nonlocal pending_group
+            if pending_group is None:
+                pending_group = {
+                    "first": first, "pos": pos, "ts": ts_group, "count": count0,
+                    "members": sorted(members), "below": [], "end": None,
+                    "stage": "scan", "replay": 0, "offset": max(0, first - 1),
+                    "witnessed": True,
+                }
+            g = pending_group
+            if (g.get("stage") not in ("scan", "start", "replay")
+                    or any(type(g.get(k)) is not int for k in
+                           ("first", "pos", "ts", "count", "replay", "offset"))
+                    or not 0 <= g["first"] < g["pos"] <= g["count"] + PAGE
+                    or not isinstance(g.get("members"), list)
+                    or len(g["members"]) != len(set(g["members"]))
+                    or not set(g["members"]).issubset(pass_ids)
+                    or not isinstance(g.get("below"), list)):
+                raise AdapterError(f"{self.company}: invalid anchored group cursor")
+            first, ts_group, count0 = g["first"], g["ts"], g["count"]
+            members = set(g["members"])
+
+            def pause_group():
+                g["members"] = sorted(members)
+                return FetchResult(out, complete=False, cursor=cursor())
+
+            while g["stage"] == "scan":
+                pos = g["pos"]
                 if pos - first > GROUP_ROWS:
                     return restart(f"found a same-timestamp group over {GROUP_ROWS} rows")
                 if out_of_budget():
-                    return FetchResult(out, complete=False, cursor=cursor())
+                    return pause_group()
                 postings, stamps, count = get(pos)
+                if any(a < b for a, b in zip(stamps, stamps[1:])):
+                    return restart("found rows out of timestamp order")
                 if count != count0:
                     return restart("saw the count change while reading a same-timestamp group")
                 for p, ts in zip(postings, stamps):
@@ -442,62 +505,82 @@ class EightfoldAdapter(Adapter):
                     elif p.job_id in pass_ids:
                         return restart("found a seen job below the boundary")
                     else:
-                        below.append(p)
+                        g["below"].append(p.raw)
+                g["members"] = sorted(members)
                 older = [i for i, ts in enumerate(stamps) if ts < ts_group]
                 if older:
-                    end = (pos + older[0], pos, stamps[-1], len(postings))
+                    g["end"] = [pos + older[0], pos, stamps[-1], len(postings)]
                 elif len(postings) < PAGE:
-                    end = (pos + len(postings), pos, stamps[-1] if stamps else ts_group, len(postings))
+                    g["end"] = [pos + len(postings), pos, stamps[-1] if stamps else ts_group, len(postings)]
                 else:
-                    pos += len(postings)
+                    g["pos"] += len(postings)
+                if g["end"] is not None:
+                    g["stage"] = "start"
+            end = g.get("end")
+            if (not isinstance(end, (list, tuple)) or len(end) != 4
+                    or any(type(v) is not int for v in end)):
+                raise AdapterError(f"{self.company}: invalid anchored group boundary")
             last, last_offset, last_ts, last_len = end
             size = last - first
+            if not 0 < size <= GROUP_ROWS:
+                return restart(f"found an invalid {size}-row same-timestamp group")
 
             def proven():
+                nonlocal pending_group
                 log.info("%s: read a %d-row same-timestamp group by count", self.company, size)
-                for p in below:
-                    take(p)
+                for raw in g["below"]:
+                    take(self._posting(raw))
+                pending_group = None
                 return last_ts, last_offset + last_len, last_len < PAGE
 
-            if len(members) == size:
+            if g["stage"] == "start" and len(members) == size:
                 # Already complete: re-witness only the start edge, so the
                 # size cannot come from edges read at shifted positions.
                 if out_of_budget():
-                    return FetchResult(out, complete=False, cursor=cursor())
+                    return pause_group()
                 offset = max(0, first - 1)
                 postings, stamps, count = get(offset)
-                if count == count0 and all(
+                if any(a < b for a, b in zip(stamps, stamps[1:])):
+                    return restart("found rows out of timestamp order")
+                if count != count0:
+                    return restart("saw the count change while reading a same-timestamp group")
+                if all(
                         (first <= offset + i < last) == (ts == ts_group)
                         for i, ts in enumerate(stamps)):
                     return proven()
-            for _ in range(GROUP_REPLAYS):
-                witnessed = True
-                offset = max(0, first - 1)
-                while offset < last:
+            g["stage"] = "replay"
+            while g["replay"] < GROUP_REPLAYS:
+                while g["offset"] < last:
                     if out_of_budget():
-                        return FetchResult(out, complete=False, cursor=cursor())
+                        return pause_group()
+                    offset = g["offset"]
                     postings, stamps, count = get(offset)
+                    if any(a < b for a, b in zip(stamps, stamps[1:])):
+                        return restart("found rows out of timestamp order")
                     if count != count0:
                         return restart("saw the count change while reading a same-timestamp group")
                     for i, (p, ts) in enumerate(zip(postings, stamps)):
                         inside = first <= offset + i < last
                         if inside != (ts == ts_group):
-                            witnessed = False            # an edge moved; this pass proves nothing
+                            g["witnessed"] = False       # an edge moved; this pass proves nothing
                         if ts == ts_group:
                             members.add(p.job_id)
                             take(p)
+                    g["members"] = sorted(members)
                     if not postings:
                         break
-                    offset += len(postings)
+                    g["offset"] += len(postings)
                 if len(members) > size:
                     return restart(f"read {len(members)} rows for a {size}-row same-timestamp group")
-                if witnessed and len(members) == size:
+                if g["witnessed"] and len(members) == size:
                     return proven()
+                g["replay"] += 1
+                g["offset"], g["witnessed"] = max(0, first - 1), True
             return restart(f"could not read a {size}-row same-timestamp group consistently")
 
         def pass_done(ended, last_ts):
             """Did the pass just reach its end? Then start pass 2 or finish."""
-            nonlocal sweep_pass, stop_ts, start, total, anchor_ts, head_ts, phase, pass_ids
+            nonlocal sweep_pass, stop_ts, start, total, anchor_ts, head_ts, phase, pass_ids, boundary_offset
             if not (ended or start >= total or (sweep_pass == 2 and last_ts is not None
                                                   and last_ts <= stop_ts)):
                 return False
@@ -505,6 +588,7 @@ class EightfoldAdapter(Adapter):
                 return True
             sweep_pass, stop_ts = 2, head_ts
             start, total, anchor_ts, head_ts, phase, pass_ids = 0, None, None, None, "sweep", set()
+            boundary_offset = None
             return False
 
         if phase == "sweep" and start:
@@ -518,6 +602,19 @@ class EightfoldAdapter(Adapter):
         try:
             while True:
                 count = total
+                if pending_group is not None:
+                    resync_slices += 1
+                    if resync_slices > self.resync_slices():
+                        return restart(f"could not finish a re-sync in {self.resync_slices()} slices")
+                    count = pending_group.get("count")
+                    group = read_group()
+                    if isinstance(group, FetchResult):
+                        return group
+                    anchor_ts, start, ended = group
+                    total, phase, resync_slices, boundary_offset = count, "sweep", 0, None
+                    if pass_done(ended, anchor_ts):
+                        break
+                    continue
                 if phase == "sweep":
                     if out_of_budget():
                         return FetchResult(out, complete=False, cursor=cursor())
@@ -554,8 +651,10 @@ class EightfoldAdapter(Adapter):
                 resync_slices += 1              # every slice that works on this re-sync
                 if resync_slices > self.resync_slices():
                     return restart(f"could not finish a re-sync in {self.resync_slices()} slices")
-                offset = max(0, start - 2 + max(0, (count or 0) - (total or count or 0)))
+                offset = (boundary_offset if boundary_offset is not None else
+                          max(0, start - 2 + max(0, (count or 0) - (total or count or 0))))
                 for _ in range(RESYNC_REQUESTS):
+                    boundary_offset = offset
                     if out_of_budget():
                         return FetchResult(out, complete=False, cursor=cursor())
                     postings, stamps, count = get(offset)
@@ -563,6 +662,7 @@ class EightfoldAdapter(Adapter):
                         return restart("found rows out of timestamp order")
                     if offset and (not postings or stamps[0] <= anchor_ts):
                         offset = max(0, offset - (PAGE - 1))   # boundary is earlier
+                        boundary_offset = offset
                         continue
                     for p, ts in zip(postings, stamps):
                         if ts > anchor_ts:
@@ -578,6 +678,7 @@ class EightfoldAdapter(Adapter):
                             anchor_ts, start, ended = (stamps[-1] if stamps else anchor_ts), count, True
                             break
                         offset += len(postings) - 1     # boundary is later; keep a row of overlap
+                        boundary_offset = offset
                         continue
                     if len(postings) == PAGE and stamps[-1] == anchor_ts:
                         # The anchor's same-timestamp group runs past this
@@ -598,7 +699,7 @@ class EightfoldAdapter(Adapter):
                     break
                 else:
                     return restart("could not find its boundary")
-                total, phase, resync_slices = count, "sweep", 0
+                total, phase, resync_slices, boundary_offset = count, "sweep", 0, None
                 if pass_done(ended, anchor_ts):
                     break
         except HttpStatusError as e:

@@ -1,6 +1,190 @@
 # Job-watch session handoff
 
-## START HERE — orientation for a new session, 18 October 2026, 16:20 IST
+## Current state — 28 October 2026, ~09:53 IST
+
+The user asked to **make everything working**, then **continue**, and then to
+**commit and push all changes to main**. This recovery includes the earlier
+continuation changes on top of `559d1f2`; see `git log` for the resulting commit.
+**177 tracked / 166 active / 11 deliberately blocked** with separately labelled
+Instahyre coverage. The checkpoints below this section are historical.
+
+All ten Workday recoveries below completed and were subsequently polled by
+launchd. The four outstanding overnight inventories also completed:
+
+- Microsoft: 232 all-profession India jobs, 24 pages at six-second pacing.
+  The silent baseline succeeded at ~01:59 (sweep epoch 01:56:56). Its proven
+  config is now registered: public anonymous frontend session, no timestamp
+  anchor, 30-page maximum / 360-second deadline, daily full sweep. Latest-page
+  polling and cooldown escalation remain independent. There were no manually
+  sent notifications. The old staged script finished; no waiting probe remains.
+- Qualcomm: 541; the resumed sweep's epoch is October 27 21:56:52, completion
+  occurred overnight. Morning incremental polling has also succeeded.
+- Lam Research: 113; fresh full completion at 04:35:55.
+- UKG: 105; full sweep epoch 03:08:43, subsequent polling succeeded.
+- HSBC and Morgan Stanley previously completed 187 and 94 respectively.
+
+NTT DATA briefly failed when its Other category exceeded the configured 900-row
+limit, then recovered overnight. The adapter now distinguishes early
+`partition_threshold: 900` from the API's safe 1,000-row window so a 901-row
+category need not fail. Exact sums, counts and distinct IDs remain mandatory.
+Tests cover both sub-window and larger boards. Full suite: **472 Python + 11
+site tests**, `git diff --check` clean.
+
+Morning sleeps delayed polls; the run that began at 07:06 only finished around
+09:39. Two final lock-protected, normal-budget refresh passes completed with
+**zero failures, zero recorded source errors and no starvation warnings**.
+GE Vernova's retry completed at 2,254 unique jobs; Siemens completed 916 and
+Lam Research reconfirmed 113. The first pass deferred 31 sources; the follow-up
+checked those plus NTT DATA and left only HSBC deferred by the shared page cap.
+Routine cursors remain for Nvidia, Maersk, Visa, Morgan Stanley, UKG and HSBC;
+these are progressing within their ordinary cadences, not overdue closures.
+NTT DATA and IBM detected changing counts and safely restarted their next
+sweeps. Existing complete inventories are retained. Nykaa remains confirmed
+empty. launchd is registered and its last completed run exited 0.
+
+At **09:52**, `make site` published **3,103 matching jobs / 166 companies**;
+code unchanged, no website deployment needed. Authenticated Cloudflare KV
+read-back verified every shard's count and IDs against the index. Evidence:
+`final-health*.json`, `final-health*.log`, `final-publish.json` and the earlier
+Microsoft/Workday baseline reports under `/private/tmp/jobswatch-repair/`.
+These manual refreshes had no notification sink and sent zero alerts; normal
+scheduler notifications remain enabled. Credentials were loaded only into the
+publishing subprocess environment and were never printed or placed on argv.
+
+No verification scripts remain running. The earlier sleep guard PID 20232
+expired; the owned final guard PID 25583 was stopped after verification.
+Another existing `caffeinate -dimsu -t 36000` process is not ours: leave it alone.
+No scheduler was stopped/reinstalled and no permanent power settings changed.
+Cookie jars under the data directory's `frontend-sessions/` are private, may
+contain server CSRF state, and must not be printed or rotated to evade quotas.
+All required repairs and verification are complete.
+
+## Historical checkpoint — 28 October 2026, ~01:05 IST
+
+The user asked to **make everything working** after a health check found many
+overdue sources. These notes supersede the October 18 status below. Work is
+ongoing; Microsoft and the Eightfold catch-up are NOT declared resolved.
+
+**177 tracked / 166 active / 11 deliberately blocked.** The working tree still
+contains the October 18 changes plus this continuation; nothing has been
+committed or pushed. Do not discard any of it. HEAD started at `559d1f2`.
+
+### Completed and live
+
+Ten overdue Workday sources have completed new silent production sweeps,
+under RunLock, `seed=True`, `sink=None`, export disabled, zero new unsuppressed
+rows and zero notifications. Six use their published country facets; two use
+all current office facets whose descriptors contain the whole word India
+(excludes Indiana/Indianapolis), discovered each sweep rather than pinned IDs.
+
+| Source | Scope | Completed count |
+| --- | --- | ---: |
+| salesforce | Published country facet | 113 |
+| walmart | Published country facet; global search capped at 2,000 | 206 |
+| wellsfargo | Published country facet | 123 |
+| nvidia | Published country hierarchy facet | 241 |
+| statestreet | Published country facet | 296 |
+| target | Published country facet; global search capped at 2,000 | 69 |
+| mastercard | Dynamic India offices | 281 |
+| paloaltonetworks | Dynamic India offices, including remote regions | 155 |
+| capitalone | Full global board, 360s poll budget / one-day cursor | 2,006 |
+| gevernova | Full global board, 360s poll budget / one-day cursor | 2,274 |
+
+All ten now require exact distinct counts. Mastercard's global scan failed at
+819/1,103 before the country scan completed; no tolerance was introduced.
+Workday cursors now carry applied facets and restart without HTTP if their
+scope changes. Dynamic office searches reject a response larger than the sum
+of the selected offices' published counts, catching ignored filters.
+
+`Store.record` now updates known jobs' locations, preserving richer enriched
+offices when a compact Workday row only says “N Locations.” Explicit country
+scope is retained. Existing current rows in the eight proven India inventories
+received their verified India scope (357 repairs, no alert-state changes).
+Previously old vague location labels silently excluded matching jobs on export.
+
+Published at **23:47 IST: 3,219 matches / 166 sources**, Cloudflare KV updated,
+site code unchanged. Read-back of the authenticated KV value succeeded. No
+site deployment was needed. Credentials were loaded only into a subprocess
+environment; never printed or placed on argv.
+
+### In progress / next
+
+- **Eightfold fairness:** replace one-tenant-per-run with a shared **20 search
+  pages per run** allowance, still one tenant at a time. Small boards leave
+  capacity for peers; large slices cannot exceed the aggregate allowance, even
+  while re-syncing. Per-company caps, cooldowns and priority resume cadence
+  remain. Tests cover a 1-page board plus a 19-page slice, a full 20-page slice,
+  eight tiny tenants, and capped anchored re-sync. A bounded silent normal-budget
+  catch-up advanced HSBC 180 rows in 18 requests before the 120s deadline;
+  its scheduled sweep later completed at 187. Other peer catch-up remains under
+  observation.
+- **Qualcomm:** six-hour cursors still expired over laptop sleeps (seven
+  restarts since October 18, no intervening coherence failure or completion).
+  Lifetime is now one day; all count/boundary/second-pass checks remain strict.
+  Its last completed epoch is still October 10. Do not claim the lifetime fix
+  is production-proven until that advances.
+- **Microsoft:** last completed epoch still September 21. Fix implemented:
+  paging expiry preserves `api_after` and throttle escalation instead of
+  resetting them to a one-hour wait. Normal latest-page polls remain separate.
+  Its sitemap is NOT an acceptable replacement inventory: 2,455 global URLs,
+  230 with India slugs, but it omitted one of the three current official latest
+  jobs. Do not use it to retire roles or claim exhaustive India coverage.
+- **Further repairs since 23:49:** small two-page re-sync slices used to lose
+  their boundary-search offset and timestamp-group scan/replay state. A shuffled
+  25-row group provably failed after 12 slices. These checkpoints now persist,
+  including across JSON round-trips and throttles. Count/order/empty-page guards
+  remain strict, including every page inside a timestamp group.
+- **Current frontend protocol verified:** the exact shipped PCSX JS adds a
+  fresh public CSRF token and request timestamp to GETs and carries an anonymous
+  session cookie. The old client omitted this context. A Qualcomm test after
+  its 00:43 cooldown returned ten valid ordered rows at the formerly failing
+  boundary, total 541. New opt-in `frontend_session: true` is active for Qualcomm
+  Microsoft and Lam Research (same verified frontend bundle/token contract). CSRF header
+  context is not written to paging cursors; server-issued anonymous cookies persist in
+  mode-600 files under the data directory's `frontend-sessions/`. No login,
+  browser impersonation, cookie import, proxy or challenge solving is used.
+  Never delete/rotate this identity to evade a quota or print its cookie files.
+- A denial now stops the entire Eightfold group for the run. The faster
+  rotation exposed a too-early 34-minute Lam partial resume (429); explicit
+  hourly partial minimums now apply to PCSX peers (NetApp keeps its two-hour
+  interval). UKG grew to 105 jobs / 11 pages, so its cap is 14, still within the
+  aggregate 20-page ceiling. All ten Workday repairs also passed scheduled
+  polling; Morgan Stanley 94 and HSBC 187 completed scheduled sweeps. Remaining
+  warnings at ~01:03: Microsoft, Qualcomm, Lam Research and UKG, plus expected
+  Nykaa. Do not claim those four recovered yet.
+- **Pending Microsoft attempt:** the old one-page waiting probes were stopped
+  (only our diagnostic processes; never the scheduler). Replacement script
+  `/private/tmp/jobswatch-repair/microsoft_baseline.py`, tool session **19882**,
+  is waiting for **October 28 ~01:57 IST** and rechecks RunLock/current cooldown.
+  It will make **one** bounded silent full-scope attempt using the public session
+  protocol, six-second pacing, max 30 search pages / six-minute deadline, stop
+  on first throttle. A same-process full count/unique-ID/overlap-checked scan
+  needs no timestamp anchor, so trial config has `anchor_resume: false` and
+  preserves all India professions. This trial is IN MEMORY ONLY until complete.
+  Paging is reset but the existing API throttle escalation is preserved.
+  Failure restores the old cursor mode while retaining the updated cooldown;
+  it does not keep retrying. On success it holds RunLock for up to 120 seconds
+  awaiting `/private/tmp/jobswatch-repair/microsoft-config-ready`: inspect
+  `microsoft-baseline-result.json`, register its config using apply_patch, then
+  touch that marker. Page evidence is `microsoft-baseline-pages.json`.
+- A separate temporary idle-sleep guard is **PID 20232** (tool session 16309),
+  maximum two hours from ~01:02. Stop this owned guard when verification ends;
+  do not leave it running after the task. The waiting Microsoft script also
+  owns an awake assertion that exits with that script. Lid-close is respected.
+- Nykaa's confirmed empty first-party board and the 11 deliberate blocks remain
+  expected. Instahyre coverage remains separately labelled and active.
+
+Most recent full suite: **469 Python + 11 site tests passed**, followed by an
+additional passing session-adapter integration test (full rerun due before finishing).
+`git diff --check` passed. Current evidence, normalized diagnostic inventories,
+baseline reports and backups are under `/private/tmp/jobswatch-repair/`.
+No scheduler was killed or reinstalled. Long gaps between runs in recent logs
+reflect intermittent availability of this Mac; local polling cannot run while
+the laptop is asleep/offline. Preserve that limitation in the final report.
+
+---
+
+## START HERE — orientation for a new session, 18 October 2026 (continuation checked 16:18 IST)
 
 Written for an agent picking this up cold. **Everything below this section is
 historical**, newest first; it is evidence, not instructions. Read this section,
@@ -35,7 +219,7 @@ at Homebrew's.
 ### Commands
 
 ```
-make test       438 Python tests + 11 site tests. Always run before finishing.
+make test       442 Python tests + 11 site tests. Always run before finishing.
 make status     per-company due times, errors, starvation. The main diagnostic.
 make run        one poll now, in this terminal
 make site       export + publish (needs deploy/jobswatch.env loaded; see below)
@@ -48,9 +232,11 @@ where it would show in `ps`.
 
 ### State at this moment
 
-**177 tracked / 166 active / 11 blocked. 438 + 11 tests pass. Working tree
-clean, `main` pushed to `origin` (`2a8b4a4`).** The live site shows 166
-companies and 2,883 matching jobs.
+**177 tracked / 166 active / 11 blocked. 442 + 11 tests pass.** Starting HEAD
+was `559d1f2` on `main`. This continuation leaves uncommitted changes in
+`config.yaml`, `watcher/cli.py`, `tests/test_status.py`, this handoff and
+`AUTOMATION_AUDIT.md`. The earlier live-site check showed 166 companies and
+2,883 matching jobs; this continuation did not publish or recheck live KV.
 
 The 11 blocked entries are deliberate: each records why that employer's **own**
 board is unreadable (robots `Disallow`, a WAF or CAPTCHA, a removed board, or
@@ -122,34 +308,60 @@ Related shapes already handled, for pattern-matching:
 
 ### Open right now
 
-**Checked 18 October 16:20. Arm and IDFC FIRST, open in the previous revision
-of this section, both completed and are healthy** (`arm ok, 106`;
-`idfcfirst ok, 1353`), so the October adapter repairs all held.
+**Checked 18 October 16:18. Arm and IDFC FIRST remain healthy** (`arm ok, 106`;
+`idfcfirst ok, 1353`). The previous claim that everything else was healthy
+missed two overdue closure inventories: the status command hid them behind
+cursor/backoff states. That visibility bug is now fixed and regression-tested.
 
-1. **Walmart — diagnosed and fixed minutes ago, not yet proven.** It went 17h
+1. **Microsoft — unresolved closure failure, highest priority.** Its stored
+   `last_complete` is **21 September 23:26 IST**, about 641h old. Official
+   latest-page polls still read three roles, but they prove no closure coverage.
+   The current all-India cursor has 23 IDs, position 19, declared total 235;
+   the stored `last_count: 87` belongs to the old filtered sweep, not today's
+   inventory. Logs show repeated 429s, 24h cursor expiry, and timestamp-order
+   restarts (latest: 17 October 19:26 at offset 43). Extending the lifetime
+   alone cannot fix an order violation. No quota, scope or completeness guard
+   was changed here. Next: find a permitted complete/stably ordered inventory
+   or reproduce the ordering violation using a bounded diagnostic that respects
+   the cursor's cooldown; do not force a full production sweep.
+2. **Qualcomm — cadence/lifetime mismatch repaired, not yet proven.** Its
+   stored `last_complete` is **10 October 14:22 IST**, about 194h old. The
+   October 11 change made resumes hourly but left `cursor_max_age: 7200`:
+   three slices already need two hours plus scheduler delay, before throttles
+   or re-sync. October logs contain 23 expired-cursor messages and the last
+   completion predates the hourly cadence. Lifetime is now **21600 (6h)**,
+   allowing hourly progress/cooldowns while still expiring after a long sleep.
+   Exact-count and timestamp/order checks remain unchanged. Latest 429 was
+   18 October 15:52 at `start=190`; the cursor retains 200 IDs. Observe normal
+   scheduled resumes and require `last_complete` to advance before calling this
+   resolved. Do not increase Eightfold throughput.
+3. **Walmart — diagnosed and fixed earlier, not yet proven.** It went 17h
    without a complete sweep. Cause: ~1,948 rows at ~100 requests against the
    shared 120s run budget cannot finish inside the **three-hour default cursor
    lifetime**, so it paused at 920, then 1040, then logged *"unfinished sweep
    is stale, restarting it"* and threw the lot away — meaning no closed req was
    ever retired. `cursor_max_age: 86400` now matches what microsoft, qualcomm,
    siemens, linkedin and hsbc already carry. **Verify**: `make status` should
-   show walmart completing rather than restarting, within a day.
-2. **lamresearch and ukg are mildly starved** — ~4.5h against a 1h interval.
+   show walmart completing rather than restarting, within a day. At this check
+   its last poll was 14:13 and cursor was null: no poll had exercised the new
+   setting yet. Last complete epoch was 17 October 23:15.
+4. **lamresearch and ukg are mildly starved** — ~4.5h against a 1h interval.
    Eightfold allows one tenant per run and the group got only ~18 polls in 12h
    across 8 tenants. Qualcomm leads at 4, so it is no longer monopolising the
    way it did before the October `resume_interval` change; this is now just
    thin supply rather than one board hogging. Lengthening the intervals of the
    small tenants would make the warnings honest; raising throughput would
    worsen the 429s below.
-3. **Qualcomm still throws 429s** and backs off (seen again today at 15:52,
-   `start=190`). Cursors are kept, so no work is lost. This is the reason not
-   to cure item 2 by polling Eightfold harder.
-4. **Nykaa shows 308 consecutive zero-row polls.** Still correct, still not a
+5. **Nykaa shows 308 consecutive zero-row polls.** Still correct, still not a
    bug: `careers.nykaa.com` genuinely states it has no postings, and the real
    roles are in `nykaa-instahyre`. It will warn forever.
 
-Everything else was `ok` at that check: **177 tracked / 166 active / 11
-blocked, 438 + 11 tests passing**, working tree clean, `main` pushed.
+`make status` now reports overdue closure age alongside cursor position and
+active backoff, instead of hiding it behind either state. Four new CLI tests
+cover cursor, backoff, missed polls and the normal daily full-sweep allowance.
+**442 Python + 11 site tests pass; `git diff --check` is clean.** All production
+inspection in this continuation used read-only SQL/logs/status; no forced poll,
+baseline, notification, database mutation or deployment was performed.
 
 ### Where the detail lives
 

@@ -97,6 +97,14 @@ class WorkdayAdapter(Adapter):
         shifted across a page boundary in the meantime are not skipped.
         """
         ctx = ctx or FetchContext()
+        if self.cfg.get("country_locations"):
+            # Some tenants expose countries only in the office labels. Discover
+            # every current matching office; never pin a hand-picked ID list.
+            scope = self.country_location_facets()
+            cfg = dict(self.cfg, applied_facets=scope, _country_max_count=self._country_max_count)
+            cfg.pop("country_locations")
+            return WorkdayAdapter(self.company, cfg, http=self.http,
+                                  page_delay=self.page_delay).fetch(ctx)
         if (self.incremental and not ctx.cursor and ctx.known and ctx.last_complete
                 and ctx.now is not None and ctx.now - ctx.last_complete < self.full_sweep()):
             quick = self.fetch_incremental(ctx)
@@ -104,6 +112,11 @@ class WorkdayAdapter(Adapter):
                 return quick
             # Order broken or too much new: fall through to a full sweep, same run.
         cur = ctx.cursor or {}
+        scope = self.cfg.get("applied_facets") or {}
+        if cur and cur.get("scope", {}) != scope:
+            # A cursor from the global board cannot be resumed against a
+            # country-filtered board: its IDs/count belong to another query.
+            return FetchResult([], complete=False, restart=True)
         sites = self.sites()
         first_site = min(cur.get("site", 0), len(sites) - 1)
         ids = set(cur.get("ids", []))          # across sites: one posting can be on several
@@ -127,7 +140,7 @@ class WorkdayAdapter(Adapter):
             while True:
                 if requests and ctx.deadline is not None and time.monotonic() >= ctx.deadline:
                     cursor = {"site": i, "offset": offset, "total": total,
-                              "site_ids": sorted(site_ids), "ids": sorted(ids)}
+                              "site_ids": sorted(site_ids), "ids": sorted(ids), "scope": scope}
                     return FetchResult(out, complete=False, cursor=cursor)
                 if requests:
                     self.pause()
@@ -137,12 +150,15 @@ class WorkdayAdapter(Adapter):
                     if e.code in (403, 429) and out:
                         return self.partial_on_throttle(e, out, {
                             "site": i, "offset": offset, "total": total,
-                            "site_ids": sorted(site_ids), "ids": sorted(ids)})
+                            "site_ids": sorted(site_ids), "ids": sorted(ids), "scope": scope})
                     raise
                 requests += 1
                 pages += 1
                 if offset == 0:
                     total = page.get("total") or None
+                    bound = self.cfg.get("_country_max_count")
+                    if bound is not None and (total is None or total > bound):
+                        raise AdapterError(f"{self.company}: country location filter was not honored")
                 rows = page.get("jobPostings") or []
                 added = 0
                 for raw in rows:
@@ -178,6 +194,36 @@ class WorkdayAdapter(Adapter):
                     raise AdapterError(msg + " — incomplete sweep, not trusting it")
                 log.warning(msg)
         return FetchResult(out)
+
+    def country_location_facets(self):
+        if len(self.sites()) != 1:
+            raise AdapterError(f"{self.company}: country_locations requires one Workday site")
+        country = str(self.cfg["country_locations"]).strip()
+        pattern = re.compile(r"(?<!\w)" + re.escape(country) + r"(?!\w)", re.I)
+        page = self.fetch_page(self.sites()[0], 0)
+        matches = []
+
+        def walk(facets):
+            for facet in facets:
+                values = facet.get("values") or []
+                if facet.get("facetParameter") == "locations":
+                    matches.extend(v for v in values
+                                   if pattern.search(v.get("descriptor") or ""))
+                walk([v for v in values if "facetParameter" in v])
+
+        walk(page.get("facets") or [])
+        if not matches or any(not isinstance(v.get("id"), str) or not v["id"]
+                              or type(v.get("count")) is not int or v["count"] <= 0
+                              for v in matches):
+            raise AdapterError(f"{self.company}: no valid {country} office facets; refusing closures")
+        ids = [v["id"] for v in matches]
+        if len(ids) != len(set(ids)):
+            raise AdapterError(f"{self.company}: duplicate {country} office facet IDs")
+        self._country_max_count = sum(v["count"] for v in matches)
+        facets = dict(self.cfg.get("applied_facets") or {})
+        facets["locations"] = sorted(ids)
+        self.pause()
+        return facets
 
     def fetch_incremental(self, ctx):
         """Read only the newest pages; None means "do a full sweep instead".
@@ -262,7 +308,7 @@ class WorkdayAdapter(Adapter):
             or any("remote" in (b or "").lower() for b in raw.get("bulletFields") or []),
             posted_at=(raw.get("postedOn") or "").strip(),
             url=f"{self.host()}/en-US/{site}{path}",
-            raw=dict(raw, _site=site),
+            raw=dict(raw, _site=site, _location_hint=self.cfg.get("location_hint") or ""),
             req_id=req_id,
         )
 

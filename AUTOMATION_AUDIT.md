@@ -1,5 +1,140 @@
 # Company-source recovery and Microsoft throttling audit — 2026-09-19
 
+## Verified recovery — 28 October 2026
+
+All four previously outstanding inventories completed overnight: Microsoft
+232 all-profession India roles (24 pages, 01:57 sweep epoch), Qualcomm 541
+(October 27 21:57 sweep epoch; completion recorded overnight), Lam Research 113
+and UKG 105. Microsoft's corrected anonymous public-session protocol completed
+without a throttle. Its proven 30-page / 360-second full-scan configuration is
+now active, with six-second pacing, exact counts and nonoverlapping IDs.
+The separate latest-role path and cooldown escalation remain intact.
+
+NTT DATA briefly outgrew the configured 900-row facet limit as its Other
+category grew. `partition_threshold: 900` now triggers early partitioning
+independently of the service's 1,000-row safe window. Exact facet sums and
+distinct-ID checks remain in force; no tolerance was added. Regression cases
+cover inventories both below and above the safe window.
+
+**472 Python + 11 site tests pass; `git diff --check` passes.** Public-session
+cookies (which may themselves carry server CSRF state) stay private and retain
+the same client identity across restarts. No account/browser cookies were
+imported. The temporary two-hour sleep guard expired; a new bounded guard is
+used only while final live checks finish. Laptop sleep/offline periods delayed
+morning polls; local automation cannot poll during those periods. Final refresh
+and publication results are recorded in the current session handoff.
+
+Final morning refreshes completed with zero failures and zero recorded source
+errors; status has no starvation warnings. GE Vernova retried successfully at
+2,254 jobs, Siemens completed 916 and Lam reconfirmed 113. Routine cursors remain
+within normal pacing. The 09:52 publication contains **3,103 matching jobs /
+166 sources**; authenticated KV read-back verified all shard counts and IDs.
+The site code was unchanged, so no deployment was required. Both manual
+refresh passes had no notification sink and sent zero alerts.
+
+The continuation entries below are historical checkpoints.
+
+## Recovery continuation — 27 October, 23:49 IST (historical)
+
+**Update 28 October ~01:05:** scheduled polling reconfirmed the Workday country
+inventories; Morgan Stanley completed 94 and HSBC completed 187. Microsoft's
+two-page re-sync lost both boundary-search offset and same-timestamp scan/replay
+state across pauses. A failing 25-row-group regression now completes, including
+after JSON save/reload and throttling; all count and timestamp guards remain.
+The shipped frontend's actual CSRF/session/request-time contract was recovered.
+A cooldown-respecting Qualcomm request using it returned ten ordered rows /
+declared 541. Production opt-in is active for Qualcomm and Lam Research; only
+server-issued anonymous cookies persist privately, not CSRF tokens or imported
+browser/account cookies. Identity is retained across failures, never rotated to
+evade a quota. A 403/429 stops the shared group for the run. Explicit partial
+resume minimums correct an observed too-early 34-minute Lam retry; UKG's 105
+roles now fit its raised 14-page per-company cap, aggregate still 20.
+Microsoft has one bounded silent full-scope session-protocol attempt queued
+after its ~01:57 cooldown (30 pages / six minutes / six-second pacing, stop on
+first denial). Trial full-count paging does not depend on broken timestamp
+order and is not activated until completion. Its prior throttle escalation is
+preserved. See active handoff for live process/session IDs and evidence paths.
+Latest full suite **469 + 11**, with one more passing integration regression
+added afterward. These results do not yet prove the four remaining inventories
+(Microsoft, Qualcomm, Lam Research, UKG) have completed.
+
+User requested repair of all degraded active sources. Ten Workday inventories
+have completed lock-protected silent production baselines, export and sink
+disabled, with zero unsuppressed new rows: Salesforce 113, Walmart 206, Wells
+Fargo 123, Nvidia 241, State Street 296, Target 69, Mastercard 281, Palo Alto
+Networks 155 (all India), Capital One 2,006 and GE Vernova 2,274 (full global).
+All ten require exact counts. Mastercard's global attempt failed at 819/1,103;
+the India office union completed 281/281 in both diagnostic and production.
+
+The six country facets came from live unfiltered Workday responses. Mastercard
+and Palo Alto expose office facets instead: new `country_locations: India`
+discovers all current descriptors containing the whole word India and sends
+their IDs as an OR filter on every page. Indiana/Indianapolis are excluded;
+new offices are picked up without config edits. Missing/invalid office facets,
+an ignored filter and distinct-count shortfalls fail closed. Cursors carry the
+exact query facets so a global cursor cannot contaminate a country sweep.
+
+Known-job location updates were missing from `Store.record`: new scoped rows
+could be correct while SQLite retained old “N Locations” strings, silently
+excluding them during export. Location metadata now refreshes, richer detail
+locations survive compact rows, and current country guarantees are preserved.
+357 current rows in the eight validated India inventories received their India
+scope, without changing alert states. At 23:47 the updated KV snapshot was
+published: **3,219 matches / 166 sources**, code unchanged. Authenticated KV
+read-back succeeded. No deployment, secret output or secret argv was used.
+
+Eightfold scheduling now shares a 20-search-page allowance across sequential
+tenants rather than wasting a run on one tiny board. Full slices and re-syncs
+remain inside that aggregate ceiling; per-company caps/cooldowns stay in force.
+A normal-budget silent catch-up advanced HSBC 180 rows in 18 requests before
+the run deadline. This is progress, not a completed HSBC baseline.
+
+Qualcomm's six-hour lifetime still expired over overnight sleeps: seven such
+restarts since October 18, no completed sweep or coherence failure in that
+period. It now keeps cursors for one day, retaining all strict guards.
+Microsoft paging expiry now preserves independent API cooldown/escalation.
+Neither source is yet proven recovered. Microsoft sitemap discovery was
+rejected as a closure source because it omitted a current official latest job.
+A bounded frontend-request diagnostic is waiting for the October 28 ~01:57 IST
+API cooldown; inspect its evidence before calling Microsoft healthy.
+
+**454 Python + 11 site tests passed**, plus an additional passing runner expiry
+regression added afterward. Full rerun still required. Changes are uncommitted;
+the continuation preserves the earlier October 18 work. Current handoff and
+temporary evidence directory record the outstanding verification.
+
+## Current verification — 18 October, 16:18 IST
+
+Read-only production state inspection found two closure failures omitted from
+the current handoff. Microsoft's `last_complete` remains 21 September 23:26 IST
+(about 641h); Qualcomm's remains 10 October 14:22 IST (about 194h). Microsoft
+still polls the three official latest-role cards, but logs show closure API
+429s, expired cursors and timestamp-order failures, most recently 17 October
+19:26 at offset 43. Its 87-row stored count is from the old filtered sweep;
+the current all-India cursor declares 235 and holds 23 IDs. No full inventory
+or closure recovery is claimed.
+
+The status CLI previously selected cursor/backoff state before checking closure
+age, concealing these overdue inventories. It now displays closure starvation
+alongside cursor position and active cooldown. Four regression tests cover
+those states, missed polls and a healthy daily sweep allowance.
+
+Qualcomm's October 11 hourly resumes retained the old two-hour cursor lifetime.
+Three slices take at least two hours plus scheduling delay, and October logs
+contain 23 cursor-expiry messages. Its last completion predates the cadence
+change. `cursor_max_age` is now six hours, allowing progress/cooldowns while
+retaining a bound below the historical eight-hour sleep failure. Page caps,
+resume cadence, backoff and all completeness checks are unchanged. This config
+repair awaits a normal scheduled completion; it does not resolve Microsoft's
+ordering failures or establish that Qualcomm's other coherence failures ended.
+
+Walmart's earlier one-day cursor lifetime also remains unproven: at inspection
+its last poll was 14:13, cursor null and last complete epoch 17 October 23:15.
+Arm (106) and IDFC FIRST (1353) remain healthy. **442 Python + 11 site tests
+pass; `git diff --check` is clean.** This continuation performed no forced
+network poll, baseline, notification, production DB mutation or deployment.
+Changes are uncommitted on top of `559d1f2`.
+
 ## Current verification — 22 September, 00:02 IST
 
 The first continuation check found that Microsoft's new latest-role path did

@@ -169,7 +169,15 @@ def run(cfg, store, sink=None, seed=False, only=None, http=None, budget=RUN_BUDG
         cursor_max_age = int(ccfg.get("cursor_max_age") or CURSOR_MAX_AGE)
         if st["cursor"] and st["sweep_started"] and now - st["sweep_started"] > cursor_max_age:
             log.info("%s: unfinished sweep is stale, restarting it", name)
-            store.drop_cursor(name)
+            try:
+                replacement = build_adapter(name, ccfg, http=http).expired_cursor(st["cursor"])
+            except AdapterError as e:
+                res.failed.append((name, str(e)))
+                continue
+            if replacement:
+                store.sweep_progress(name, st["last_polled"], now, replacement, clear_backoff=False)
+            else:
+                store.drop_cursor(name)
             st = store.state(name)
         due, due_at = _due(st, config_mod.interval_for(ccfg, defaults), now,
                           resume_interval=int(ccfg.get("resume_interval") or 0))
@@ -264,7 +272,8 @@ def _prioritize_resumes(plan):
     ATS slot. Microsoft uses this to avoid an entire nine-tenant rotation
     between each three-page chunk of a changing inventory.
     """
-    for ats in {a.ats for _, _, _, a in plan if a.max_per_run}:
+    for ats in {a.ats for _, _, _, a in plan
+                if a.max_per_run or getattr(a, "max_requests_per_run", None)}:
         indices = [i for i, entry in enumerate(plan) if entry[3].ats == ats]
         group = [plan[i] for i in indices]
         group.sort(key=lambda entry: not (
@@ -296,7 +305,12 @@ class _Dispatcher:
         self.used = set()                 # lanes polled already this run
         self.in_flight = Counter()        # ats -> polls in flight, for max_parallel
         self.started = Counter()          # ats -> polls started, for max_per_run
+        self.requests = Counter()         # ats -> search requests consumed by completed polls
         self.enforce_run_caps = enforce_run_caps
+        if enforce_run_caps and any(
+                getattr(a, "max_requests_per_run", None) is not None and a.max_parallel != 1
+                for _, _, _, a in plan):
+            raise ValueError("shared ATS request budget requires max_parallel=1")
         self.stopped = False
         self.cond = threading.Condition()
 
@@ -326,8 +340,11 @@ class _Dispatcher:
         return dl is not None and dl - self.monotonic() < MIN_COMPANY_BUDGET
 
     def _run_cap_reached(self, adapter):
-        return (self.enforce_run_caps and adapter.max_per_run
-                and self.started[adapter.ats] >= adapter.max_per_run)
+        if not self.enforce_run_caps:
+            return False
+        limit = getattr(adapter, "max_requests_per_run", None)
+        return ((adapter.max_per_run and self.started[adapter.ats] >= adapter.max_per_run)
+                or (limit is not None and self.requests[adapter.ats] >= limit))
 
     def take(self):
         """The next company to poll, or None when the run is over for this worker."""
@@ -350,7 +367,13 @@ class _Dispatcher:
                     self.busy.add(lane)
                     self.in_flight[adapter.ats] += 1
                     self.started[adapter.ats] += 1
-                    used = lane in self.used
+                    limit = getattr(adapter, "max_requests_per_run", None)
+                    if self.enforce_run_caps and limit is not None:
+                        # Shared request allowances require serial ATS polling;
+                        # otherwise an in-flight poll could spend these too.
+                        adapter.run_request_limit = limit - self.requests[adapter.ats]
+                    used = (lane in self.used
+                            or (limit is not None and self.started[adapter.ats] > 1))
                     self.used.add(lane)
                     return item, lane, used
                 # If every runnable item has reached its per-run ATS cap, leave
@@ -368,6 +391,12 @@ class _Dispatcher:
         with self.cond:
             self.busy.discard(lane)
             self.in_flight[adapter.ats] -= 1
+            self.requests[adapter.ats] += adapter.run_requests
+            limit = getattr(adapter, "max_requests_per_run", None)
+            if limit is not None and adapter.run_blocked:
+                # A shared quota is unproven, so preserve the old conservative
+                # behavior: after a denial, try no other tenant in this run.
+                self.requests[adapter.ats] = max(self.requests[adapter.ats], limit)
             self.cond.notify_all()
 
     def halt(self):

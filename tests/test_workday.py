@@ -39,6 +39,53 @@ def offsets(http):
 
 
 class RecordedBoard(unittest.TestCase):
+    def test_discovers_all_current_india_offices_without_indiana(self):
+        facets = [{"facetParameter": "locationMainGroup", "values": [{
+            "facetParameter": "locations", "values": [
+                {"descriptor": "Office - India - Bangalore", "id": "blr", "count": 1},
+                {"descriptor": "Navi Mumbai, India (Finicity)", "id": "navi", "count": 1},
+                {"descriptor": "Remote - Indiana", "id": "indiana"},
+                {"descriptor": "Indianapolis, United States", "id": "indy"},
+            ],
+        }]}]
+
+        def handler(method, url, payload, cache):
+            if not payload["appliedFacets"]:
+                return {"total": 999, "facets": facets, "jobPostings": []}
+            self.assertEqual(payload["appliedFacets"], {"locations": ["blr", "navi"]})
+            return {"total": 1, "jobPostings": page(80)["jobPostings"][:1]}
+
+        http = FakeHttp({JOBS: handler})
+        cfg = dict(CFG, country_locations="India", location_hint="India", require_exact_count=True)
+        result = WorkdayAdapter("natwest", cfg, http=http, page_delay=0).fetch()
+        self.assertTrue(result.complete)
+        self.assertEqual(len(result.postings), 1)
+        self.assertEqual(http.requests, 2)
+        # A newly published office joins the next sweep without a config edit.
+        facets[0]["values"][0]["values"].append({"descriptor": "Pune, India", "id": "pune", "count": 1})
+        a = WorkdayAdapter("natwest", cfg, http=http, page_delay=0)
+        self.assertEqual(a.country_location_facets(), {"locations": ["blr", "navi", "pune"]})
+
+    def test_ignored_country_location_filter_fails_closed(self):
+        def handler(method, url, payload, cache):
+            return {"total": 99, "jobPostings": page(80)["jobPostings"][:1], "facets": [{
+                "facetParameter": "locations", "values": [
+                    {"descriptor": "Pune, India", "id": "pune", "count": 1},
+                ],
+            }]}
+
+        adapter = WorkdayAdapter("natwest", dict(CFG, country_locations="India"),
+                                 http=FakeHttp({JOBS: handler}), page_delay=0)
+        with self.assertRaisesRegex(AdapterError, "filter was not honored"):
+            adapter.fetch()
+
+    def test_missing_india_offices_fail_closed(self):
+        http = FakeHttp({JOBS: {"total": 99, "facets": [], "jobPostings": []}})
+        adapter = WorkdayAdapter("natwest", dict(CFG, country_locations="India"),
+                                 http=http, page_delay=0)
+        with self.assertRaisesRegex(AdapterError, "refusing closures"):
+            adapter.fetch()
+
     def test_configured_country_facet_is_sent_on_every_page(self):
         http = board({o: page(o) for o in (0, 20, 40, 60, 80)})
         facets = {"locationCountry": ["india-id"]}
@@ -129,6 +176,30 @@ class WrapAround(unittest.TestCase):
 
 
 class Resumable(unittest.TestCase):
+    def test_changing_country_facet_restarts_global_cursor_without_fetching(self):
+        http = board({})
+        adapter = WorkdayAdapter("natwest", dict(CFG, applied_facets={"country": ["india"]}),
+                                 http=http, page_delay=0)
+        result = adapter.fetch(FetchContext(cursor={
+            "site": 0, "offset": 20, "total": 89, "ids": ["old"], "site_ids": ["old"],
+        }))
+        self.assertTrue(result.restart)
+        self.assertFalse(result.complete)
+        self.assertEqual(result.postings, [])
+        self.assertEqual(http.requests, 0)
+
+    def test_country_scope_survives_pause_and_resume(self):
+        http = board({o: page(o) for o in (0, 20, 40, 60, 80)})
+        facets = {"country": ["india"]}
+        adapter = WorkdayAdapter("natwest", dict(CFG, applied_facets=facets),
+                                 http=http, page_delay=0)
+        with mock.patch.object(wd.time, "monotonic", return_value=999):
+            first = adapter.fetch(FetchContext(deadline=10))
+        self.assertEqual(first.cursor["scope"], facets)
+        second = adapter.fetch(FetchContext(cursor=first.cursor))
+        self.assertTrue(second.complete)
+        self.assertEqual(len(first.postings) + len(second.postings), 89)
+
     def test_pauses_at_deadline_and_resumes_with_overlap(self):
         http = board({o: page(o) for o in (0, 20, 40, 60, 80)})
         adapter = WorkdayAdapter("natwest", CFG, http=http, page_delay=0)

@@ -88,6 +88,11 @@ class Adapter(ABC):
         self.cfg = cfg
         self.http = http or HttpClient()
         self.page_delay = page_delay
+        # Optional shared ATS allowance assigned by the dispatcher. Adapters
+        # that opt in account for each search request, including failed ones.
+        self.run_request_limit = None
+        self.run_requests = 0
+        self.run_blocked = False
 
     @abstractmethod
     def fetch(self, ctx=None):
@@ -109,6 +114,10 @@ class Adapter(ABC):
         """
         host = self.cfg.get("host")
         return f"{self.ats}:{host}" if host else self.ats
+
+    def expired_cursor(self, cursor):
+        """Optional zero-progress replacement retaining independent pacing."""
+        return None
 
     def needs_enrich(self, posting):
         """True if the listing is too thin to filter on and a detail fetch would help."""

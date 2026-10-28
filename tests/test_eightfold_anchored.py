@@ -1,6 +1,7 @@
 """Anchored Eightfold sweeps: a newest-first board that moves between slices."""
 
 import random
+import json
 import unittest
 from urllib.parse import parse_qs, urlparse
 
@@ -81,6 +82,97 @@ def sweep(board, between=None, pages=3, limit=40, **cfg):
 
 
 class AnchoredSweep(unittest.TestCase):
+    def test_empty_boundary_page_inside_declared_inventory_fails_closed(self):
+        board = Board(45)
+        board.http = FakeHttp({lambda m, u, p: "/api/" in u:
+                               {"data": {"count": 45, "positions": [], "sortBy": "timestamp"}}})
+        with self.assertRaisesRegex(AdapterError, "incomplete Eightfold page"):
+            adapter(board)._anchored_page("India", 10)
+
+    def test_two_page_slices_finish_boundary_search_and_large_timestamp_group(self):
+        board = Board(45)
+        board.jobs = [(1000, NOW)] + [(1000 + i, NOW - 1) for i in range(1, 26)] + board.jobs[26:]
+        board.shuffle = random.Random(11)
+        result, seen = sweep(board, pages=2, resync_budget=2, resync_slices=12, limit=80)
+        self.assertTrue(result.complete, result)
+        self.assertFalse(result.restart)
+        self.assertEqual(seen, board.ids())
+
+    def test_group_checkpoint_survives_json_and_throttling_without_exceeding_two_requests(self):
+        board = Board(45)
+        board.jobs = [(1000, NOW)] + [(1000 + i, NOW - 1) for i in range(1, 26)] + board.jobs[26:]
+        board.shuffle = random.Random(11)
+        a = adapter(board, max_pages_per_run=2, resync_budget=2, resync_slices=12)
+        cur, seen, throttled = None, set(), False
+        for _ in range(80):
+            if cur and cur.get("group") and not throttled:
+                board.throttle_at = {board.http.requests + 1}
+                throttled = True
+            else:
+                board.throttle_at = set()
+            before = board.http.requests
+            result = a.fetch(FetchContext(cursor=cur, now=NOW))
+            self.assertLessEqual(board.http.requests - before, 2)
+            self.assertFalse(result.restart)
+            seen.update(p.job_id for p in result.postings)
+            if result.complete:
+                break
+            cur = json.loads(json.dumps(result.cursor))
+        else:
+            self.fail("resumed group never completed")
+        self.assertTrue(throttled)
+        self.assertEqual(seen, board.ids())
+
+    def test_group_checkpoint_rejects_count_changes(self):
+        board = Board(45)
+        board.jobs = [(1000, NOW)] + [(1000 + i, NOW - 1) for i in range(1, 26)] + board.jobs[26:]
+        a = adapter(board, max_pages_per_run=2, resync_budget=2, resync_slices=12)
+        cur = None
+        for _ in range(40):
+            result = a.fetch(FetchContext(cursor=cur, now=NOW))
+            cur = result.cursor
+            if cur and cur.get("group"):
+                break
+        else:
+            self.fail("test did not reach a pending timestamp group")
+        board.add(5000, NOW + 10)
+        result = a.fetch(FetchContext(cursor=cur, now=NOW + 3600))
+        self.assertTrue(result.restart)
+        self.assertFalse(result.complete)
+        self.assertEqual(result.postings, [])
+
+    def test_group_scan_rejects_timestamp_inversion_below_group(self):
+        board = Board(45)
+        board.jobs = [(1000, NOW)] + [(1000 + i, NOW - 1) for i in range(1, 26)] + board.jobs[26:]
+        a = adapter(board, max_pages_per_run=2, resync_budget=2, resync_slices=12)
+        cur = None
+        for _ in range(40):
+            result = a.fetch(FetchContext(cursor=cur, now=NOW))
+            cur = result.cursor
+            if cur and cur.get("group"):
+                break
+        else:
+            self.fail("test did not reach group scan")
+        board.jobs[26], board.jobs[27] = board.jobs[27], board.jobs[26]
+        result = a.fetch(FetchContext(cursor=cur, now=NOW + 3600))
+        self.assertTrue(result.restart)
+        self.assertFalse(result.complete)
+
+    def test_shared_allowance_bounds_initial_slice_and_resync(self):
+        board = Board(100)
+        a = adapter(board, max_pages_per_run=20, resync_budget=12)
+        a.run_request_limit = 3
+        first = a.fetch(FetchContext(now=NOW))
+        self.assertFalse(first.complete)
+        self.assertEqual(a.run_requests, 3)
+        board.add(5000, NOW + 10)
+        before = board.http.requests
+        second = a.fetch(FetchContext(cursor=first.cursor, now=NOW + 3600))
+        self.assertFalse(second.complete)
+        self.assertLessEqual(board.http.requests - before, 3)
+        self.assertEqual(a.run_requests, board.http.requests - before)
+        self.assertEqual(a.resync_budget(), 3)
+
     def test_static_board_completes_with_one_head_check(self):
         board = Board(45)
         result, seen = sweep(board, pages=100)

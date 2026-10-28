@@ -3,8 +3,9 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import patch
 
-from tests.fakes import Clock, RecordingSink
+from tests.fakes import Clock, FakeHttp, RecordingSink
 from watcher import runner
 from watcher.adapters import ADAPTERS, Adapter, FetchResult, Posting
 from watcher.http import HttpStatusError, NetworkError, NotModified
@@ -78,6 +79,32 @@ class Base(unittest.TestCase):
 
 
 class SeedAndDiff(Base):
+    def test_known_job_location_changes_are_recorded(self):
+        self.company("acme", [job("1", loc="London")])
+        self.run_once(seed=True)
+        FakeBoard.BOARDS["acme"] = [job("1", loc="Bengaluru, India")]
+        self.run_once()
+        self.assertEqual(self.store.rows(company="acme")[0]["location"], "Bengaluru, India")
+
+    def test_compact_location_keeps_enriched_offices_and_current_country_scope(self):
+        self.company("acme", [job("1", loc="London | Paris")])
+        self.run_once(seed=True)
+        posting = Posting("acme", "workday", "1", "Software Engineer", "3 Locations | India",
+                          False, "", "https://x/1", raw={"_location_hint": "India"})
+        self.store.record("acme", [posting], int(self.clock()), lambda p: True)
+        self.assertEqual(self.store.rows(company="acme")[0]["location"], "London | Paris | India")
+
+    def test_siemens_known_multiple_locations_keep_resolved_cities(self):
+        self.company("acme", [job("1", loc="Bengaluru, India | Munich, Germany")])
+        self.run_once(seed=True)
+        for compact in ("Multiple Locations", "Multiple", "2 Locations"):
+            with self.subTest(compact=compact):
+                posting = Posting("acme", "siemens", "1", "Software Engineer", compact,
+                                  False, "", "https://x/1")
+                self.store.record("acme", [posting], int(self.clock()), lambda p: True)
+                self.assertEqual(self.store.rows(company="acme")[0]["location"],
+                                 "Bengaluru, India | Munich, Germany")
+
     def test_seed_is_silent_then_only_new_ids_alert(self):
         self.company("acme", [job("1"), job("2")])
         res = self.run_once(seed=True)
@@ -904,6 +931,60 @@ class ThrottledMidSweep(Base):
         self.assertEqual(self.store.rows(company="big"), [])
 
 
+class SharedEightfoldBudget(Base):
+    def poll_boards(self, counts):
+        from urllib.parse import parse_qs, urlsplit
+
+        def page(method, url, payload, cache):
+            parsed = urlsplit(url)
+            name = parsed.hostname.split(".")[0]
+            if isinstance(counts[name], Exception):
+                raise counts[name]
+            start = int(parse_qs(parsed.query)["start"][0])
+            rows = [{"id": 1000 + i, "name": "Software Engineer", "locations": ["Bengaluru, India"]}
+                    for i in range(start, min(start + 10, counts[name]))]
+            return {"data": {"count": counts[name], "positions": rows}}
+
+        for name in counts:
+            self.cfg["companies"][name] = {
+                "ats": "eightfold", "host": name + ".example", "domain": name + ".com",
+                "locations": ["India"], "max_pages_per_run": 20,
+            }
+        http = FakeHttp({lambda m, u, p: "/api/" in u: page})
+        with patch("watcher.adapters.eightfold.time.monotonic", self.clock.monotonic):
+            result = runner.run(self.cfg, self.store, http=http, clock=self.clock,
+                                monotonic=self.clock.monotonic, sleep=self.clock.sleep,
+                                online=lambda: True, page_delay=0, company_delay=0)
+        return result, http
+
+    def test_small_board_leaves_requests_for_a_peer_without_raising_total(self):
+        result, http = self.poll_boards({"small": 10, "large": 500, "third": 10})
+        self.assertEqual(http.requests, 20)
+        self.assertEqual([n for n, *_ in result.ok], ["small"])
+        self.assertEqual([n for n, *_ in result.partial], ["large"])
+        self.assertEqual(self.store.state("large")["cursor"]["start"], 190)
+        self.assertEqual(result.deferred, ["third"])
+
+    def test_full_slice_leaves_no_allowance_for_a_second_tenant(self):
+        result, http = self.poll_boards({"large": 500, "peer": 10})
+        self.assertEqual(http.requests, 20)
+        self.assertEqual([n for n, *_ in result.partial], ["large"])
+        self.assertEqual(result.deferred, ["peer"])
+
+    def test_many_tiny_boards_share_the_same_allowance(self):
+        result, http = self.poll_boards({f"tenant{i}": 10 for i in range(8)})
+        self.assertEqual(http.requests, 8)
+        self.assertEqual(len(result.ok), 8)
+        self.assertEqual(result.deferred, [])
+
+    def test_throttle_stops_the_shared_group_without_trying_other_hosts(self):
+        result, http = self.poll_boards({"blocked": HttpStatusError("https://blocked.example", 429),
+                                        "peer": 10})
+        self.assertEqual(http.requests, 1)
+        self.assertEqual(result.deferred, ["peer"])
+        self.assertEqual(result.backed_off[0][0], "blocked")
+
+
 class Laptop(Base):
     def test_offline_is_quiet_and_touches_nothing(self):
         self.company("acme", [job("1")])
@@ -955,6 +1036,24 @@ class Laptop(Base):
 
 
 class PartialSweeps(Base):
+    def test_expiry_resets_membership_without_discarding_independent_cooldown(self):
+        class Paced(FakePaged):
+            def expired_cursor(self_, cursor):
+                return {"offset": 0, "ids": [], "api_after": cursor["api_after"]}
+
+            def fetch(self_, ctx=None):
+                self.assertEqual(ctx.cursor, {"offset": 0, "ids": [], "api_after": after})
+                return FetchResult([], complete=False, cursor=ctx.cursor)
+
+        ADAPTERS["fakeworkday"] = Paced
+        self.company("paced", [], ats="fakeworkday", cursor_max_age=3600)
+        now = int(self.clock())
+        after = now + 4 * 3600
+        self.store.sweep_progress("paced", now - 900, now - 7200,
+                                  {"offset": 20, "ids": ["old"], "api_after": after})
+        self.run_once(advance=0)
+        self.assertEqual(self.store.state("paced")["sweep_started"], now)
+
     def test_partial_sweep_alerts_early_and_closes_only_after_completion(self):
         pages = {"n": 0}
         boards = [

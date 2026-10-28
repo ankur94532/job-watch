@@ -17,6 +17,7 @@ import functools
 import json
 import logging
 import os
+import re
 import sqlite3
 import threading
 import time
@@ -34,6 +35,7 @@ BACKOFF = {
     "server": (30 * 60, 3600),         # 5xx that survived in-run retries
 }
 MAX_RETRY_AFTER = 7 * 24 * 3600
+COMPACT_LOCATION = re.compile(r"^(?:\d+\s+Locations?|Multiple(?:\s+Locations?)?)(?:\s*\||$)", re.I)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS seen (
@@ -145,9 +147,21 @@ class Store:
         fresh = []
         for p in postings:
             if p.job_id in known:
+                location = p.location
+                # Compact Workday rows omit the offices resolved by a previous
+                # detail read. Preserve those offices, but retain an explicit
+                # country guarantee from the current query (e.g. India facet).
+                if COMPACT_LOCATION.match(location or ""):
+                    previous = self._exec("SELECT location FROM seen WHERE company = ? AND job_id = ?",
+                                          (company, p.job_id)).fetchone()[0]
+                    if previous and not COMPACT_LOCATION.match(previous):
+                        location = previous
+                        hint = p.raw.get("_location_hint")
+                        if hint and not re.search(r"(?<!\w)" + re.escape(hint) + r"(?!\w)", location, re.I):
+                            location += " | " + hint
                 self._exec(
-                    "UPDATE seen SET last_seen = ?, title = ?, url = ? WHERE company = ? AND job_id = ?",
-                    (now, p.title, p.url, company, p.job_id),
+                    "UPDATE seen SET last_seen = ?, title = ?, url = ?, location = ? WHERE company = ? AND job_id = ?",
+                    (now, p.title, p.url, location, company, p.job_id),
                 )
                 continue
             state = PENDING if (not suppress and is_match(p)) else SUPPRESSED

@@ -143,20 +143,25 @@ def cmd_status(args):
         interval = config_mod.interval_for(c, defaults)
         due, due_at = runner._due(
             st, interval, now, resume_interval=int(c.get("resume_interval") or 0))
+        issues = []
         if st["blocked_until"] and st["blocked_until"] > now:
-            state = f"BACKED OFF until {fmt_ts(st['blocked_until'])}: {st['last_error']}"
+            issues.append(f"BACKED OFF until {fmt_ts(st['blocked_until'])}: {st['last_error']}")
         elif st["last_polled"] and now - st["last_polled"] > interval * runner.STARVING_POLLS:
-            state = (f"STARVING: not polled in {(now - st['last_polled']) / 3600:.1f}h "
-                     f"({(now - st['last_polled']) / interval:.0f}x interval)")
-        elif st["cursor"]:
+            issues.append(f"STARVING: not polled in {(now - st['last_polled']) / 3600:.1f}h "
+                          f"({(now - st['last_polled']) / interval:.0f}x interval)")
+        # A cursor or a deliberate cooldown does not make the last completed
+        # inventory current. Keep its age visible alongside those states.
+        if (st["last_complete"] is not None
+                and now - st["last_complete"] > runner.sweep_threshold(c, defaults)):
+            issues.append(f"STARVING: no complete sweep in "
+                          f"{(now - st['last_complete']) / 3600:.1f}h, {st['last_count']} open")
+        if st["cursor"]:
             pos = next((st["cursor"][k] for k in ("offset", "start") if st["cursor"].get(k) is not None), "?")
-            state = f"sweep in progress (at {pos})"
+            issues.append(f"sweep in progress (at {pos})")
+        if issues:
+            state = "; ".join(issues)
         elif st["last_complete"] is None:
             state = "never seeded"
-        elif now - st["last_complete"] > runner.sweep_threshold(c, defaults):
-            # Polled fine, but the sweep never finishes, so closed reqs pile up.
-            state = (f"STARVING: no complete sweep in "
-                     f"{(now - st['last_complete']) / 3600:.1f}h, {st['last_count']} open")
         elif st["zero_runs"]:
             # HTML adapters: zero rows is never "fine". The run log says whether
             # the page confirmed it was empty or the selector matched nothing.

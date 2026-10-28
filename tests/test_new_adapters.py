@@ -431,6 +431,43 @@ class Phenom(unittest.TestCase):
         self.assertEqual(len(res.postings), 1001)
         self.assertEqual([call[2]["from"] for call in http.calls][-2:], [900, 1000])
 
+    def test_partition_trigger_is_independent_of_safe_facet_window(self):
+        # NTT DATA partitions early because relevance paging repeats IDs, but
+        # its largest category can still use the service's full safe window.
+        for total in (190, 201):
+            with self.subTest(total=total):
+                cfg = dict(self.CFG, partition_threshold=150, max_window=200,
+                           partition_fields=["category", "department"])
+
+                def response(method, url, payload, cache):
+                    selected, start = payload["selected_fields"], payload["from"]
+                    if selected.get("category"):
+                        count = total - 16
+                        ids = range(start, min(start + 100, count))
+                    elif selected.get("department"):
+                        count, ids = 16, range(total - 16, total)
+                    else:
+                        count = total
+                        # A full number of slots but unstable relevance order.
+                        ids = range(min(100, total - start))
+                    return {"refineSearch": {"totalHits": count, "data": {
+                        "jobs": [self.job(i) for i in ids], "aggregations": [
+                            {"field": "category", "value": {"Other": total - 16}},
+                            {"field": "department", "value": {"Unspecified": 16}},
+                        ]}}}
+
+                http = FakeHttp({self.API: response})
+                res = build_adapter("nttdata", cfg, http=http, page_delay=0).fetch()
+                self.assertTrue(res.complete)
+                self.assertEqual(len(res.postings), total)
+                self.assertTrue(any(c[2]["selected_fields"].get("category") for c in http.calls))
+
+    def test_partition_trigger_cannot_exceed_safe_window(self):
+        http = FakeHttp({self.API: {"refineSearch": {"totalHits": 0, "data": {"jobs": []}}}})
+        with self.assertRaisesRegex(AdapterError, "partition_threshold"):
+            build_adapter("nttdata", dict(self.CFG, partition_threshold=1001),
+                          http=http, page_delay=0).fetch()
+
     def test_multiple_disjoint_facets_can_cover_uncategorized_jobs(self):
         cfg = dict(self.CFG, partition_fields=["category", "department"])
 

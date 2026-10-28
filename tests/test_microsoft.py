@@ -49,6 +49,18 @@ def api(n):
 
 
 class MicrosoftSafety(unittest.TestCase):
+    def test_expiring_paging_work_preserves_api_cooldown_and_escalation(self):
+        adapter = build_adapter("microsoft", dict(CFG, anchor_resume=True),
+                                http=FakeHttp(), page_delay=0)
+        old = adapter._fresh_cursor()
+        old.update(start=20, ids=["1000"], api_after=NOW + 4 * 3600, api_backoff_level=3)
+        fresh = adapter.expired_cursor(old)
+        self.assertEqual(fresh["start"], 0)
+        self.assertEqual(fresh["ids"], [])
+        self.assertEqual(fresh["api_after"], NOW + 4 * 3600)
+        self.assertEqual(fresh["api_backoff_level"], 3)
+        self.assertEqual(fresh["scope"], adapter.cursor_scope())
+
     @patch.object(MicrosoftAdapter, "check_robots")
     def test_recent_poll_reads_the_three_official_latest_cards(self, robots):
         http = FakeHttp({MicrosoftAdapter.LATEST: latest()})

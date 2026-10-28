@@ -69,6 +69,18 @@ board as a miss.
 
 ## Workday
 
+October 27 recovery: Salesforce, Walmart, Wells Fargo, Nvidia, State Street and
+Target now use their published country facets. Mastercard and Palo Alto use
+`country_locations: India`: discover every live office facet with the whole
+country name in its descriptor, OR those IDs, and require exact distinct counts.
+The location-count sum bounds the filtered result so an ignored filter fails.
+Applied facets are stored in cursors; changing scope restarts without fetching.
+Country `location_hint` is retained even for compact multi-office rows and
+known postings' stored locations are refreshed. Mastercard's global 819/1,103
+failure was repaired by a proven 281/281 India union; Palo Alto completed 155.
+Capital One and GE Vernova retain full global coverage with a bounded 360s
+poll allowance and one-day cursors. No count tolerance was loosened.
+
 Nasdaq was added on 2026-09-20 from the Workday tenant linked by its official
 careers page (`nasdaq.wd1`, `Global_External_Site`). The board's published
 `Location_Country` facet returned exactly 30 declared/returned/unique India
@@ -135,6 +147,17 @@ ending `, India` plus the legacy `IND-*` location, persists that exact ID set in
 the resume cursor, then runs an exact-count Workday sweep. This returned 302 of
 302 unique postings across ten current India location IDs on 2026-09-20 and
 will automatically include a newly published India office on the next sweep.
+
+## Phenom partition limits
+
+The public `/widgets` search is partitioned only when published facet counts
+sum exactly to the inventory and every bucket fits within `max_window`
+(normally 1,000). NTT DATA sets `partition_threshold: 900` to trigger this
+earlier because unpartitioned relevance pages repeat IDs. The early trigger
+does not lower the API's safe window for individual categories: a 901-row
+category still fits. The unpartitioned sample is capped at the smaller of
+the board total and the safe window. Count drift restarts the sweep; distinct
+IDs must still satisfy the full count before closures are trusted.
 
 ## Maersk official careers API
 
@@ -212,13 +235,34 @@ every 15 minutes. It still requests timestamp order for closure sweeps to keep
 resumed pages as stable as the service permits. The apply/v2 flavour
 (Netflix, NetApp) has also returned unordered rows and is never incremental.
 
-Ordinary Eightfold adapters use `max_parallel = 1` and `max_per_run = 1`. Microsoft and
-Qualcomm were both observed returning 429s close together, so the conservative
-scheduler rotates one Eightfold tenant per 15-minute process. That timing does
-not establish a shared quota, a per-IP quota, or the service's quota window;
+Ordinary Eightfold adapters use `max_parallel = 1` and a shared 20-search-page
+allowance per run. Small tenants leave capacity for peers; full slices and
+re-syncs cannot exceed the aggregate ceiling. Once a tenant earns a slot, its
+120s poll allowance lets it finish a small slice that starts late, while the
+shared dispatch deadline still limits new starts. Microsoft and Qualcomm were
+observed returning 429s close together. That timing does not establish a
+shared quota, a per-IP quota, or the service's quota window;
 the inspected responses disclosed none of those details. Microsoft's latest
-page does not consume that slot. Its closure API is independently limited to
-two pages and an hourly cursor-local resume cadence.
+page does not consume that slot. Its closure API has an independent bounded
+allowance and cursor-local cooldown.
+
+October 28: anchored boundary search and timestamp-group scan/replay checkpoints
+now survive small-budget pauses and JSON reloads. A throttle stops the shared
+group for that run, and per-company partial minimums remain explicit. Opt-in
+`frontend_session: true` follows the current PCSX frontend's anonymous cookie,
+fresh public CSRF token and request-time protocol using the honest watcher UA.
+Only this client's cookies persist (private files under `frontend-sessions/`);
+CSRF header context is refreshed from server responses and stays out of cursors. No browser
+cookies, login, challenge solving or identity rotation is used. Missing context,
+robots denial, redirects outside the host and throttles fail closed.
+
+The corrected public session protocol completed Microsoft's all-profession
+India inventory on October 28: 232 unique jobs in 24 pages, six seconds apart.
+Its production config now permits 30 pages / 360 seconds for the daily full
+scan (`anchor_resume: false`). Counts and page overlap remain strict; this
+bounded scan does not rely on timestamp order. Qualcomm also completed its
+541-job anchored sweep; Lam Research and UKG completed 113 and 105 respectively.
+The earlier two-page Microsoft pacing described below is historical.
 
 
 `GET https://{host}/api/pcsx/search?domain={domain}&query=&location={location}&start=N&num=10`
@@ -245,7 +289,7 @@ with `id`, `displayJobId` (the requisition number a referral needs), `name`,
   spacing remains polite and may affect burst behavior; it does not by itself
   prevent the observed 429s. The exact limit and whether tenants share it are
   unknown.
-* **Microsoft full sweeps span many hourly slices.** From 21 to 22 September
+* **Historical Microsoft recovery (September).** From 21 to 22 September
   the closure sweep used the official `filter_profession=software engineering`
   facet (235 -> ~89 roles). That hid title-matching roles in other professions
   (for example "Technology Consulting") and retired every stored role outside
@@ -263,7 +307,7 @@ with `id`, `displayJobId` (the requisition number a referral needs), `name`,
   scheduler group, remains due every 15 minutes, and stores `api_after` plus an
   API-only backoff level inside its closure cursor. Latest-role reads therefore
   continue during each hourly wait without increasing API traffic.
-* **Anchored resume (`anchor_resume: true`: Qualcomm and Microsoft).** Qualcomm's
+* **Anchored resume (`anchor_resume: true`: Qualcomm; optional for Microsoft).** Qualcomm's
   ~600-row India inventory needs ~60 pages at a quota of roughly 15 requests
   per window, and it gained 23 postings in ~45 minutes on 2026-09-22, so the
   offset guards restarted every sweep. An anchored sweep still accepts a page
